@@ -78,7 +78,10 @@ struct NoSideMediaCLI {
     }
     static func credential(_ name: String) throws -> String {
         if let value = ProcessInfo.processInfo.environment[name], !value.isEmpty { return value }
-        if let value = TVDBCredentialStore.value(named: name) { return value }
+        // Keychain access from debug/rebuilt command-line executables can cause
+        // repeated macOS consent prompts. It is deliberately opt-in.
+        if ProcessInfo.processInfo.environment["TVDB_USE_KEYCHAIN"] == "1",
+           let value = TVDBCredentialStore.value(named: name) { return value }
         throw CLIError.missingCredentials
     }
     static func source() throws -> TVDBClient { TVDBClient(credentials: .init(apiKey: try credential("TVDB_API_KEY"), subscriberPIN: ProcessInfo.processInfo.environment["TVDB_PIN"])) }

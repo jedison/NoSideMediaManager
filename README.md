@@ -27,17 +27,15 @@ export TVDB_API_KEY='…'
 export TVDB_PIN='…' # omit when your key does not require it
 ```
 
-Alternatively, store a credential in the current Mac user's Keychain (outside
-the repository and job bundles). This avoids placing it in shell history:
+MMM uses the current shell's environment by default and does not access
+Keychain. That avoids repeated macOS consent prompts when the CLI is rebuilt
+or run from Xcode. Keep the export in the Terminal session that runs MMM, or
+place it in a private shell-startup file if that is appropriate for your Mac.
 
-```sh
-read -s 'TVDB API key: ' key; echo
-security add-generic-password -U -a "$USER" -s 'NoSideMediaManager.TVDB_API_KEY' -w "$key"
-unset key
-```
-
-Use the same command with `TVDB_PIN` only when your API key requires a PIN.
-Environment variables take precedence over Keychain values.
+Keychain lookup remains a deliberate opt-in for advanced users only: set
+`TVDB_USE_KEYCHAIN=1` in addition to creating the Keychain entry. Environment
+variables always take precedence. Use `TVDB_PIN` only when your API key
+requires a PIN.
 
 ## Usage
 
