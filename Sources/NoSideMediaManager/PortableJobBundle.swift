@@ -15,8 +15,9 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
     public let moves: [Move]
     public let generatedFiles: [String]
     public let unavailableArtwork: [String]
+    public let notes: [String]
 
-    public init(jobID: String, series: TVSeries, moves: [Move], generatedFiles: [String], unavailableArtwork: [String] = []) {
+    public init(jobID: String, series: TVSeries, moves: [Move], generatedFiles: [String], unavailableArtwork: [String] = [], notes: [String] = []) {
         self.formatVersion = 1
         self.jobID = jobID
         self.seriesTVDBID = series.tvdbID
@@ -24,6 +25,7 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
         self.moves = moves
         self.generatedFiles = generatedFiles
         self.unavailableArtwork = unavailableArtwork
+        self.notes = notes
     }
 }
 
@@ -53,6 +55,7 @@ public enum PortableJobBundle {
         mappings: [ApprovedEpisodeMapping],
         destinations: [URL: URL] = [:],
         downloadArtwork: Bool = true,
+        notes: [String] = [],
         fileManager: FileManager = .default
     ) async throws -> PortableJobManifest {
         guard !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
@@ -123,7 +126,7 @@ public enum PortableJobBundle {
         }
 
         generated.sort()
-        let manifest = PortableJobManifest(jobID: jobID, series: series, moves: moves, generatedFiles: generated, unavailableArtwork: unavailableArtwork.sorted())
+        let manifest = PortableJobManifest(jobID: jobID, series: series, moves: moves, generatedFiles: generated, unavailableArtwork: unavailableArtwork.sorted(), notes: notes)
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
         try script(applyScript(manifest), named: "apply.sh", in: bundle)
@@ -261,6 +264,7 @@ public enum PortableJobBundle {
         Keep it until Emby and the files have been verified. `manifest.json` is the
         frozen review record; `generated/` holds the exact sidecars to be installed.
         \(manifest.unavailableArtwork.isEmpty ? "All requested TVDB episode artwork was bundled." : "TVDB artwork unavailable for \(manifest.unavailableArtwork.count) item(s); see manifest.json. NFOs and all available artwork are included.")
+        \(manifest.notes.isEmpty ? "" : "Notes:\n" + manifest.notes.map { "- \($0)" }.joined(separator: "\n"))
         """
     }
 

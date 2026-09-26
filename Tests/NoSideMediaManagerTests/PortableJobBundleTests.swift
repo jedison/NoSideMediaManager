@@ -25,6 +25,7 @@ import Testing
     #expect(!apply.contains(root.path))
     #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("rollback.sh").path))
     #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("manifest.json").path))
+    #expect(manifest.notes.isEmpty)
     for script in ["apply.sh", "rollback.sh"] {
         let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = ["-n", bundle.appendingPathComponent(script).path]
