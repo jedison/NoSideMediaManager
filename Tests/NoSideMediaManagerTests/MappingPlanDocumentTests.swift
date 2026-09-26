@@ -35,3 +35,12 @@ import Testing
         folder.appendingPathComponent("The Great British Bake Off - S01E01 - Cakes [Edition 2].mkv").path
     ])
 }
+
+@Test func offlineMetadataReconstructsCanonicalNFOBasics() throws {
+    let plan = MappingPlanDocument(seriesTVDBID: 184871, libraryPath: "/Library/GBBO", entries: [
+        .init(sourcePath: "/Library/GBBO/Season 01/old.m4v", canonicalEpisodeID: 10, destinationPath: "/Library/GBBO/Season 01/The Great British Bake Off - S01E01 - Cakes.m4v")
+    ])
+    let metadata = try plan.offlineMetadata()
+    #expect(metadata.series.title == "The Great British Bake Off")
+    #expect(metadata.episodes[10] == TVEpisode(tvdbID: 10, seriesTVDBID: 184871, season: 1, number: 1, title: "Cakes"))
+}

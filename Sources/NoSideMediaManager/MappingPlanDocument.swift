@@ -52,12 +52,43 @@ public struct MappingPlanDocument: Codable, Sendable, Equatable {
         }
         return MappingPlanDocument(seriesTVDBID: seriesTVDBID, libraryPath: libraryPath, entries: proposed)
     }
+
+    /// Reconstructs the essential metadata from an already normalized plan.
+    /// This permits a reviewed job to be frozen while TVDB is unavailable; it
+    /// intentionally has no fresh overview, air-date, rating, or artwork URL.
+    public func offlineMetadata() throws -> (series: TVSeries, episodes: [Int: TVEpisode]) {
+        guard entries.allSatisfy({ $0.canonicalEpisodeID != nil && $0.destinationPath != nil }) else { throw MappingPlanError.unresolvedEntries }
+        var title: String?
+        var episodes = [Int: TVEpisode]()
+        for entry in entries {
+            guard let id = entry.canonicalEpisodeID, let destination = entry.destinationPath,
+                  let parsed = Self.normalizedName(URL(fileURLWithPath: destination).deletingPathExtension().lastPathComponent) else {
+                throw MappingPlanError.invalidNormalizedDestination
+            }
+            if let title, title != parsed.seriesTitle { throw MappingPlanError.mixedSeries }
+            title = parsed.seriesTitle
+            episodes[id] = TVEpisode(tvdbID: id, seriesTVDBID: seriesTVDBID, season: parsed.season, number: parsed.number, title: parsed.episodeTitle)
+        }
+        guard let title else { throw MappingPlanError.emptyDocuments }
+        return (TVSeries(tvdbID: seriesTVDBID, title: title), episodes)
+    }
+
+    private static func normalizedName(_ value: String) -> (seriesTitle: String, season: Int, number: Int, episodeTitle: String)? {
+        let pattern = #"^(.+) - S([0-9]+)E([0-9]+) - (.+)$"#
+        guard let match = try? NSRegularExpression(pattern: pattern).firstMatch(in: value, range: NSRange(value.startIndex..., in: value)), match.numberOfRanges == 5 else { return nil }
+        func capture(_ index: Int) -> String? {
+            guard let range = Range(match.range(at: index), in: value) else { return nil }
+            return String(value[range])
+        }
+        guard let seriesTitle = capture(1), let seasonText = capture(2), let episodeText = capture(3), let episodeTitle = capture(4), let season = Int(seasonText), let number = Int(episodeText) else { return nil }
+        return (seriesTitle, season, number, episodeTitle)
+    }
     public func write(to url: URL) throws { let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(self).write(to: url, options: .atomic) }
     public static func read(from url: URL) throws -> MappingPlanDocument { try JSONDecoder().decode(MappingPlanDocument.self, from: Data(contentsOf: url)) }
 }
 
 public enum MappingPlanError: LocalizedError, Equatable {
-    case emptyDocuments, mixedSeries, pathOutsideRoot, duplicateSource, unresolvedEntries
+    case emptyDocuments, mixedSeries, pathOutsideRoot, duplicateSource, unresolvedEntries, invalidNormalizedDestination
     public var errorDescription: String? {
         switch self {
         case .emptyDocuments: "No plans were supplied."
@@ -65,6 +96,7 @@ public enum MappingPlanError: LocalizedError, Equatable {
         case .pathOutsideRoot: "A plan source path is outside the requested show root."
         case .duplicateSource: "More than one plan contains the same source file."
         case .unresolvedEntries: "Every entry must have a valid TVDB episode before normalization."
+        case .invalidNormalizedDestination: "An offline package requires canonical SxxEyy destination filenames."
         }
     }
 }

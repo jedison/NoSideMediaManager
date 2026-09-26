@@ -113,8 +113,10 @@ public enum PortableJobBundle {
         }
         let byFolder = Dictionary(grouping: outputLocations, by: { ($0.1 as NSString).deletingLastPathComponent })
         for (folder, items) in byFolder {
-            let seasons = Set(items.map { $0.0.canonical.season })
-            guard seasons.count == 1, let season = seasons.first else { continue }
+            // A regular season folder can include an aired special (season 0).
+            // Its season.nfo should still describe the dominant regular season.
+            let counts = Dictionary(grouping: items, by: { $0.0.canonical.season }).mapValues(\.count)
+            guard let season = counts.filter({ $0.key > 0 }).max(by: { lhs, rhs in lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value })?.key else { continue }
             let path = folder.isEmpty || folder == "." ? "season.nfo" : folder + "/season.nfo"
             try write(NFOWriter.seasonData(number: season), relativePath: path, in: bundle)
             generated.append(path)

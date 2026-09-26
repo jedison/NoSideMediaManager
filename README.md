@@ -75,6 +75,17 @@ an `Edition` suffix.
 ./noside-media bundle ~/Desktop/gbbo-normalized.json ~/Desktop/GBBO-mmm-job
 ```
 
+If TVDB is temporarily unavailable after a normalized plan has already been
+reviewed, use `bundle --offline`. It reconstructs the essential NFO fields
+(title, season, episode, and TVDB IDs) from canonical filenames and creates
+the same portable rename/NFO package without contacting TVDB. It deliberately
+does not add fresh TVDB artwork, descriptions, air dates, or ratings; existing
+image sidecars still follow their video files during the rename.
+
+```sh
+./noside-media bundle ~/Desktop/gbbo-normalized.json ~/Desktop/GBBO-mmm-job --offline
+```
+
 `bundle` only writes the new job folder on the analysis Mac. It never writes to
 the reviewed library. Copy or ZIP that folder to the Mac connected to the
 media, then run:

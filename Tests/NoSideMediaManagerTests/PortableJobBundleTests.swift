@@ -111,6 +111,28 @@ import Testing
     }
 }
 
+@Test func portableBundleWritesDominantSeasonNFOWhenFolderIncludesASpecial() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let regular = root.appendingPathComponent("Season 07/regular.mkv")
+    let special = root.appendingPathComponent("Season 07/special.mkv")
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: regular.deletingLastPathComponent(), withIntermediateDirectories: true)
+    FileManager.default.createFile(atPath: regular.path, contents: Data())
+    FileManager.default.createFile(atPath: special.path, contents: Data())
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+
+    let series = TVSeries(tvdbID: 184871, title: "The Great British Bake Off")
+    let regularEpisode = TVEpisode(tvdbID: 101, seriesTVDBID: 184871, season: 7, number: 1, title: "Cake")
+    let specialEpisode = TVEpisode(tvdbID: 102, seriesTVDBID: 184871, season: 0, number: 55, title: "Class of 2015")
+    let manifest = try await PortableJobBundle.create(at: bundle, showRoot: root, series: series, mappings: [
+        ApprovedEpisodeMapping(local: LocalEpisodeFile(url: regular, season: 7, episode: 1), canonical: regularEpisode),
+        ApprovedEpisodeMapping(local: LocalEpisodeFile(url: special, season: 7, episode: 2), canonical: specialEpisode)
+    ], downloadArtwork: false)
+
+    #expect(manifest.generatedFiles.contains("Season 07/season.nfo"))
+    #expect(try String(contentsOf: bundle.appendingPathComponent("generated/Season 07/season.nfo")).contains("<seasonnumber>7</seasonnumber>"))
+}
+
 private func runScript(_ script: URL, _ arguments: [String]) throws {
     let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/bash")
     process.arguments = [script.path] + arguments
