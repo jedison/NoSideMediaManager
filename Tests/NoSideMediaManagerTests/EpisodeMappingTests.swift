@@ -32,3 +32,10 @@ import Testing
     #expect(mappings[0].canonical == episode)
     #expect(mappings[1].canonical == nil)
 }
+
+@Test func explicitFolderSeasonAdoptionMapsRegionalFilenameOrder() {
+    let episode = TVEpisode(tvdbID: 88, seriesTVDBID: 1, season: 8, number: 1, title: "Cake Week")
+    let local = LocalEpisodeFile(url: URL(fileURLWithPath: "/tmp/s05e01 - Cake Week.mp4"), season: 5, episode: 1, folderSeason: 8)
+    let mapping = EpisodeMappingPlanner.propose(localFiles: [local], canonicalEpisodes: [episode], adoptFolderSeason: true)
+    #expect(mapping.first?.canonical == episode)
+}

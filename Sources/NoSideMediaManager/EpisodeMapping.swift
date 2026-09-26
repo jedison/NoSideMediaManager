@@ -13,6 +13,7 @@ public struct LocalEpisodeFile: Sendable, Equatable, Identifiable {
 
 public enum EpisodeFolderScanner {
     private static let expression = try! NSRegularExpression(pattern: #"(?i)(?:S)(\d{1,3})(?:E)(\d{1,3})"#)
+    private static let seriesExpression = try! NSRegularExpression(pattern: #"(?i)series\s*(\d{1,3})\s*-\s*(\d{1,3})\."#)
     private static let folderExpression = try! NSRegularExpression(pattern: #"(?i)season\s*(\d{1,3})"#)
     private static let extensions: Set<String> = ["m4v", "mkv", "mp4", "avi", "mov"]
 
@@ -20,7 +21,7 @@ public enum EpisodeFolderScanner {
         guard let enumerator = fileManager.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return [] }
         return enumerator.compactMap { item in
             guard let url = item as? URL, extensions.contains(url.pathExtension.lowercased()),
-                  let match = expression.firstMatch(in: url.lastPathComponent, range: NSRange(url.lastPathComponent.startIndex..., in: url.lastPathComponent)),
+                  let match = expression.firstMatch(in: url.lastPathComponent, range: NSRange(url.lastPathComponent.startIndex..., in: url.lastPathComponent)) ?? seriesExpression.firstMatch(in: url.lastPathComponent, range: NSRange(url.lastPathComponent.startIndex..., in: url.lastPathComponent)),
                   let seasonRange = Range(match.range(at: 1), in: url.lastPathComponent), let episodeRange = Range(match.range(at: 2), in: url.lastPathComponent),
                   let season = Int(url.lastPathComponent[seasonRange]), let episode = Int(url.lastPathComponent[episodeRange]) else { return nil }
             let folderName = url.deletingLastPathComponent().lastPathComponent
@@ -74,16 +75,17 @@ public struct EpisodeMapping: Sendable, Equatable, Identifiable {
 public enum EpisodeMappingPlanner {
     /// Number-for-number proposal only. Divergent releases (including GBBO)
     /// remain unmatched until the user explicitly chooses a canonical episode.
-    public static func propose(localFiles: [LocalEpisodeFile], canonicalEpisodes: [TVEpisode]) -> [EpisodeMapping] {
+    public static func propose(localFiles: [LocalEpisodeFile], canonicalEpisodes: [TVEpisode], adoptFolderSeason: Bool = false) -> [EpisodeMapping] {
         let index = Dictionary(uniqueKeysWithValues: canonicalEpisodes.map { (key(season: $0.season, episode: $0.number), $0) })
         return localFiles.map { local in
             // Folder and filename disagreement is a release-order signal, not
             // something safe to auto-resolve (GBBO is the reference case).
             let conflict = local.folderSeason.map { $0 != local.season } ?? false
-            guard !conflict else { return EpisodeMapping(local: local, canonical: nil) }
-            let numbered = local.episode > 0 ? index[key(season: local.season, episode: local.episode)] : nil
+            guard !conflict || (adoptFolderSeason && local.folderSeason != nil) else { return EpisodeMapping(local: local, canonical: nil) }
+            let targetSeason = conflict ? local.folderSeason! : local.season
+            let numbered = local.episode > 0 ? index[key(season: targetSeason, episode: local.episode)] : nil
             let titleMatched = local.metadataTitle.flatMap { title in
-                let matches = canonicalEpisodes.filter { $0.season == local.season && titlesMatch(title, $0.title) }
+                let matches = canonicalEpisodes.filter { $0.season == targetSeason && titlesMatch(title, $0.title) }
                 return matches.count == 1 ? matches[0] : nil
             }
             return EpisodeMapping(local: local, canonical: numbered ?? titleMatched)
