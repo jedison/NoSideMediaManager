@@ -67,3 +67,14 @@ private func runScript(_ script: URL, _ arguments: [String]) throws {
     try process.run(); process.waitUntilExit()
     #expect(process.terminationStatus == 0)
 }
+
+@Test func mediaInspectorFindsVideoWithoutSxxEyyFilename() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let m4v = root.appendingPathComponent("17 Series 3, Episode 1.m4v")
+    FileManager.default.createFile(atPath: m4v.path, contents: Data())
+    FileManager.default.createFile(atPath: root.appendingPathComponent("ignored.nfo").path, contents: Data())
+    let files = MediaFileInspector.videoFiles(in: root)
+    #expect(files.map(\.lastPathComponent) == [m4v.lastPathComponent])
+}

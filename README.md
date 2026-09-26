@@ -32,6 +32,7 @@ export TVDB_PIN='…' # omit when your key does not require it
 ```sh
 swift run noside-media search "The Bear"
 swift run noside-media inspect "/Volumes/Movies/TV/Example/Example S01E01.m4v"
+swift run noside-media inspect "/Volumes/Movies/TV/Example/Season 01"
 swift run noside-media review 184871 "/Volumes/Media/TV/The Great British Bake Off"
 ```
 

@@ -9,9 +9,15 @@ struct NoSideMediaCLI {
             guard let command = arguments.first else { throw CLIError.usage }
             switch command {
             case "inspect" where arguments.count == 2:
-                let info = try await MediaFileInspector.inspect(URL(fileURLWithPath: arguments[1]))
+                let url = URL(fileURLWithPath: arguments[1]); var isDirectory: ObjCBool = false
                 let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                print(String(decoding: try encoder.encode(info), as: UTF8.self))
+                if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                    var infos = [EmbeddedMediaInfo]()
+                    for file in MediaFileInspector.videoFiles(in: url) { infos.append(try await MediaFileInspector.inspect(file)) }
+                    print(String(decoding: try encoder.encode(infos), as: UTF8.self))
+                } else {
+                    print(String(decoding: try encoder.encode(try await MediaFileInspector.inspect(url)), as: UTF8.self))
+                }
             case "search" where arguments.count == 2:
                 let source = try source()
                 for result in try await source.searchSeries(named: arguments[1]) { print("\(result.tvdbID)\t\(result.title)\(result.year.map { " (\($0))" } ?? "")") }

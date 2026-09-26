@@ -18,6 +18,15 @@ public struct EmbeddedMediaInfo: Codable, Sendable, Equatable {
 }
 
 public enum MediaFileInspector {
+    private static let videoExtensions: Set<String> = ["m4v", "mkv", "mp4", "avi", "mov"]
+
+    /// Enumerates supported video containers without relying on their filename
+    /// pattern, so older M4V libraries can be inspected before they are mapped.
+    public static func videoFiles(in directory: URL, fileManager: FileManager = .default) -> [URL] {
+        guard let enumerator = fileManager.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return [] }
+        return enumerator.compactMap { $0 as? URL }.filter { videoExtensions.contains($0.pathExtension.lowercased()) }.sorted { $0.path < $1.path }
+    }
+
     /// Reads QuickTime/M4V/MP4/MOV container metadata without modifying media.
     @MainActor
     public static func inspect(_ url: URL) async throws -> EmbeddedMediaInfo {
