@@ -27,6 +27,18 @@ export TVDB_API_KEY='…'
 export TVDB_PIN='…' # omit when your key does not require it
 ```
 
+Alternatively, store a credential in the current Mac user's Keychain (outside
+the repository and job bundles). This avoids placing it in shell history:
+
+```sh
+read -s 'TVDB API key: ' key; echo
+security add-generic-password -U -a "$USER" -s 'NoSideMediaManager.TVDB_API_KEY' -w "$key"
+unset key
+```
+
+Use the same command with `TVDB_PIN` only when your API key requires a PIN.
+Environment variables take precedence over Keychain values.
+
 ## Usage
 
 ```sh

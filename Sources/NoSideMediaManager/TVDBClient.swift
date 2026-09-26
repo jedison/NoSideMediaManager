@@ -113,6 +113,15 @@ private struct SearchRecord: Decodable {
     let overview: String?
     let year: String?
     enum CodingKeys: String, CodingKey { case tvdbID = "tvdb_id", name, overview, year }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        if let integer = try? values.decode(Int.self, forKey: .tvdbID) { tvdbID = integer }
+        else { tvdbID = Int(try values.decode(String.self, forKey: .tvdbID)) ?? 0 }
+        name = try values.decode(String.self, forKey: .name)
+        overview = try values.decodeIfPresent(String.self, forKey: .overview)
+        year = try values.decodeIfPresent(String.self, forKey: .year)
+    }
 }
 private struct SeriesRecord: Decodable {
     let id: Int
