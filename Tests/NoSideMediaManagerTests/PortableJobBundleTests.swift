@@ -61,6 +61,56 @@ import Testing
     #expect(!FileManager.default.fileExists(atPath: destination.path))
 }
 
+@Test func portableBundleSharesSidecarsForSameEpisodeDifferentExtensions() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let first = root.appendingPathComponent("Season 01/first.m4v")
+    let second = root.appendingPathComponent("Season 01/second.mp4")
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: first.deletingLastPathComponent(), withIntermediateDirectories: true)
+    FileManager.default.createFile(atPath: first.path, contents: Data())
+    FileManager.default.createFile(atPath: second.path, contents: Data())
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+
+    let series = TVSeries(tvdbID: 184871, title: "The Great British Bake Off")
+    let episode = TVEpisode(tvdbID: 101, seriesTVDBID: 184871, season: 1, number: 1, title: "Cakes")
+    let destinationStem = root.appendingPathComponent("Season 01/The Great British Bake Off - S01E01 - Cakes")
+    let manifest = try await PortableJobBundle.create(
+        at: bundle,
+        showRoot: root,
+        series: series,
+        mappings: [
+            ApprovedEpisodeMapping(local: LocalEpisodeFile(url: first, season: 1, episode: 1), canonical: episode),
+            ApprovedEpisodeMapping(local: LocalEpisodeFile(url: second, season: 1, episode: 1), canonical: episode)
+        ],
+        destinations: [first: destinationStem.appendingPathExtension("m4v"), second: destinationStem.appendingPathExtension("mp4")],
+        downloadArtwork: false
+    )
+
+    #expect(manifest.generatedFiles.filter { $0.hasSuffix("S01E01 - Cakes.nfo") }.count == 1)
+    #expect(manifest.unavailableArtwork.isEmpty)
+}
+
+@Test func portableBundleQuotesApostrophesForShellScripts() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let source = root.appendingPathComponent("Season 01/Baker's Choice.mkv")
+    let destination = root.appendingPathComponent("Season 01/Baker's Choice S01E01.mkv")
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: source.deletingLastPathComponent(), withIntermediateDirectories: true)
+    FileManager.default.createFile(atPath: source.path, contents: Data())
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+
+    let series = TVSeries(tvdbID: 184871, title: "The Great British Bake Off")
+    let episode = TVEpisode(tvdbID: 101, seriesTVDBID: 184871, season: 1, number: 1, title: "Baker's Choice")
+    _ = try await PortableJobBundle.create(at: bundle, showRoot: root, series: series, mappings: [ApprovedEpisodeMapping(local: LocalEpisodeFile(url: source, season: 1, episode: 1), canonical: episode)], destinations: [source: destination], downloadArtwork: false)
+
+    for script in ["apply.sh", "rollback.sh"] {
+        let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-n", bundle.appendingPathComponent(script).path]
+        try process.run(); process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+    }
+}
+
 private func runScript(_ script: URL, _ arguments: [String]) throws {
     let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/bash")
     process.arguments = [script.path] + arguments

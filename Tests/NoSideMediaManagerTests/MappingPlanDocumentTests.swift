@@ -1,0 +1,37 @@
+import Foundation
+import Testing
+@testable import NoSideMediaManager
+
+@Test func normalizationKeepsExtensionsAsEditionDistinction() throws {
+    let root = URL(fileURLWithPath: "/Library/GBBO", isDirectory: true)
+    let folder = root.appendingPathComponent("Season 01", isDirectory: true)
+    let episode = TVEpisode(tvdbID: 10, seriesTVDBID: 184871, season: 1, number: 1, title: "Cakes")
+    let plan = MappingPlanDocument(seriesTVDBID: 184871, libraryPath: root.path, entries: [
+        .init(sourcePath: folder.appendingPathComponent("edition-a.m4v").path, canonicalEpisodeID: 10),
+        .init(sourcePath: folder.appendingPathComponent("edition-b.mp4").path, canonicalEpisodeID: 10)
+    ])
+
+    let normalized = try plan.normalized(series: TVSeries(tvdbID: 184871, title: "The Great British Bake Off"), episodesByID: [10: episode])
+
+    #expect(normalized.entries.compactMap(\.destinationPath).sorted() == [
+        folder.appendingPathComponent("The Great British Bake Off - S01E01 - Cakes.m4v").path,
+        folder.appendingPathComponent("The Great British Bake Off - S01E01 - Cakes.mp4").path
+    ])
+}
+
+@Test func normalizationDisambiguatesOnlyExactDestinationCollisions() throws {
+    let root = URL(fileURLWithPath: "/Library/GBBO", isDirectory: true)
+    let folder = root.appendingPathComponent("Season 01", isDirectory: true)
+    let episode = TVEpisode(tvdbID: 10, seriesTVDBID: 184871, season: 1, number: 1, title: "Cakes")
+    let plan = MappingPlanDocument(seriesTVDBID: 184871, libraryPath: root.path, entries: [
+        .init(sourcePath: folder.appendingPathComponent("a.mkv").path, canonicalEpisodeID: 10),
+        .init(sourcePath: folder.appendingPathComponent("b.mkv").path, canonicalEpisodeID: 10)
+    ])
+
+    let normalized = try plan.normalized(series: TVSeries(tvdbID: 184871, title: "The Great British Bake Off"), episodesByID: [10: episode])
+
+    #expect(normalized.entries.compactMap(\.destinationPath).sorted() == [
+        folder.appendingPathComponent("The Great British Bake Off - S01E01 - Cakes [Edition 1].mkv").path,
+        folder.appendingPathComponent("The Great British Bake Off - S01E01 - Cakes [Edition 2].mkv").path
+    ])
+}

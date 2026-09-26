@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import NoSideMediaManager
 
 @main
@@ -44,6 +45,20 @@ struct NoSideMediaCLI {
                 let mappings = EpisodeMappingPlanner.propose(localFiles: localFiles, canonicalEpisodes: try await source.episodes(forSeriesID: id), adoptFolderSeason: arguments.contains("--adopt-folder-season"))
                 try MappingPlanDocument.proposed(seriesID: id, library: directory, mappings: mappings).write(to: URL(fileURLWithPath: arguments[3]))
                 print("Wrote review plan: \(arguments[3]). Fill canonicalEpisodeID for every unresolved entry before creating a job bundle.")
+            case "merge-plans" where arguments.count >= 4:
+                let root = URL(fileURLWithPath: arguments[1])
+                let output = URL(fileURLWithPath: arguments[2])
+                let documents = try arguments.dropFirst(3).map { try MappingPlanDocument.read(from: URL(fileURLWithPath: $0)) }
+                try MappingPlanDocument.combined(showRoot: root, documents: documents).write(to: output)
+                print("Wrote combined review plan: \(output.path)")
+            case "normalize-plan" where arguments.count == 3:
+                let source = try source()
+                let plan = try MappingPlanDocument.read(from: URL(fileURLWithPath: arguments[1]))
+                let episodes = try await source.episodes(forSeriesID: plan.seriesTVDBID)
+                let index = Dictionary(uniqueKeysWithValues: episodes.map { ($0.tvdbID, $0) })
+                let normalized = try plan.normalized(series: try await source.series(id: plan.seriesTVDBID), episodesByID: index)
+                try normalized.write(to: URL(fileURLWithPath: arguments[2]))
+                print("Wrote normalized review plan: \(arguments[2])")
             case "bundle" where arguments.count >= 3:
                 let source = try source()
                 let planURL = URL(fileURLWithPath: arguments[1]); let plan = try MappingPlanDocument.read(from: planURL)
@@ -56,7 +71,10 @@ struct NoSideMediaCLI {
                 print("Copy or ZIP it, then run ./apply.sh --dry-run \"/path/to/show-root\" on the media Mac.")
             default: throw CLIError.usage
             }
-        } catch { fputs("Error: \(error.localizedDescription)\n", stderr) }
+        } catch {
+            fputs("Error: \(error.localizedDescription)\n", stderr)
+            exit(1)
+        }
     }
     static func credential(_ name: String) throws -> String {
         if let value = ProcessInfo.processInfo.environment[name], !value.isEmpty { return value }
@@ -65,5 +83,5 @@ struct NoSideMediaCLI {
     }
     static func source() throws -> TVDBClient { TVDBClient(credentials: .init(apiKey: try credential("TVDB_API_KEY"), subscriberPIN: ProcessInfo.processInfo.environment["TVDB_PIN"])) }
 }
-private enum CLIError: LocalizedError { case usage, missingCredentials, unresolvedMappings; var errorDescription: String? { switch self { case .usage: "Usage: noside-media inspect <video-or-folder> | search <title> | review <tvdb-id> <folder> [--adopt-folder-season] | plan <tvdb-id> <folder> <plan.json> [--adopt-folder-season] | bundle <plan.json> <new-job-folder> [--no-artwork]"; case .missingCredentials: "Set TVDB_API_KEY before running TVDB commands."; case .unresolvedMappings: "The plan has unresolved or invalid canonicalEpisodeID values." } } }
+private enum CLIError: LocalizedError { case usage, missingCredentials, unresolvedMappings; var errorDescription: String? { switch self { case .usage: "Usage: noside-media inspect <video-or-folder> | search <title> | review <tvdb-id> <folder> [--adopt-folder-season] | plan <tvdb-id> <folder> <plan.json> [--adopt-folder-season] | merge-plans <show-root> <output.json> <plan...> | normalize-plan <plan.json> <output.json> | bundle <plan.json> <new-job-folder> [--no-artwork]"; case .missingCredentials: "Set TVDB_API_KEY before running TVDB commands."; case .unresolvedMappings: "The plan has unresolved or invalid canonicalEpisodeID values." } } }
 private extension Optional { func unwrap(or error: Error) throws -> Wrapped { guard let self else { throw error }; return self } }

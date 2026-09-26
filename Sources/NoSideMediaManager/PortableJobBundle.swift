@@ -14,14 +14,16 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
     public let seriesTitle: String
     public let moves: [Move]
     public let generatedFiles: [String]
+    public let unavailableArtwork: [String]
 
-    public init(jobID: String, series: TVSeries, moves: [Move], generatedFiles: [String]) {
+    public init(jobID: String, series: TVSeries, moves: [Move], generatedFiles: [String], unavailableArtwork: [String] = []) {
         self.formatVersion = 1
         self.jobID = jobID
         self.seriesTVDBID = series.tvdbID
         self.seriesTitle = series.title
         self.moves = moves
         self.generatedFiles = generatedFiles
+        self.unavailableArtwork = unavailableArtwork
     }
 }
 
@@ -65,6 +67,8 @@ public enum PortableJobBundle {
 
         try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
         var generated = ["tvshow.nfo"]
+        var unavailableArtwork = [String]()
+        var artworkJobs = [ArtworkJob]()
         try write(NFOWriter.seriesData(series), relativePath: "tvshow.nfo", in: bundle)
 
         let outputLocations = try mappings.map { mapping -> (ApprovedEpisodeMapping, String) in
@@ -73,14 +77,38 @@ public enum PortableJobBundle {
         }
         for (mapping, videoPath) in outputLocations {
             let nfoPath = replacingExtension(videoPath, with: "nfo")
-            try write(NFOWriter.episodeData(mapping.canonical), relativePath: nfoPath, in: bundle)
-            generated.append(nfoPath)
+            if !generated.contains(nfoPath) {
+                try write(NFOWriter.episodeData(mapping.canonical), relativePath: nfoPath, in: bundle)
+                generated.append(nfoPath)
+            }
             if downloadArtwork, mapping.downloadArtwork, let artwork = mapping.canonical.artworkURL {
                 let jpgPath = replacingExtension(videoPath, with: "jpg")
                 let target = generatedURL(for: jpgPath, in: bundle)
-                try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-                _ = try await ArtworkDownloader.download(artwork, to: target)
-                generated.append(jpgPath)
+                if !generated.contains(jpgPath) && !artworkJobs.contains(where: { $0.path == jpgPath }) {
+                    try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    artworkJobs.append(ArtworkJob(path: jpgPath, url: artwork, target: target))
+                }
+            }
+        }
+        await withTaskGroup(of: ArtworkResult.self) { group in
+            for job in artworkJobs {
+                group.addTask {
+                    do {
+                        _ = try await ArtworkDownloader.download(job.url, to: job.target)
+                        return ArtworkResult(path: job.path)
+                    } catch {
+                        return ArtworkResult(path: job.path, failure: error.localizedDescription)
+                    }
+                }
+            }
+            for await result in group {
+                if let failure = result.failure {
+                    // An absent/expired image must not prevent the reviewed,
+                    // otherwise complete NFO/rename transaction from being portable.
+                    unavailableArtwork.append("\(result.path): \(failure)")
+                } else {
+                    generated.append(result.path)
+                }
             }
         }
         let byFolder = Dictionary(grouping: outputLocations, by: { ($0.1 as NSString).deletingLastPathComponent })
@@ -93,7 +121,7 @@ public enum PortableJobBundle {
         }
 
         generated.sort()
-        let manifest = PortableJobManifest(jobID: jobID, series: series, moves: moves, generatedFiles: generated)
+        let manifest = PortableJobManifest(jobID: jobID, series: series, moves: moves, generatedFiles: generated, unavailableArtwork: unavailableArtwork.sorted())
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
         try script(applyScript(manifest), named: "apply.sh", in: bundle)
@@ -230,10 +258,23 @@ public enum PortableJobBundle {
         Apply creates a local backup under `.noside-mmm-backups/\(manifest.jobID)`.
         Keep it until Emby and the files have been verified. `manifest.json` is the
         frozen review record; `generated/` holds the exact sidecars to be installed.
+        \(manifest.unavailableArtwork.isEmpty ? "All requested TVDB episode artwork was bundled." : "TVDB artwork unavailable for \(manifest.unavailableArtwork.count) item(s); see manifest.json. NFOs and all available artwork are included.")
         """
     }
 
     private static func quote(_ value: String) -> String {
-        "'\(value.replacingOccurrences(of: "'", with: "'\\\"'\\\"'"))'"
+        "'\(value.replacingOccurrences(of: "'", with: "'\"'\"'"))'"
     }
+}
+
+private struct ArtworkJob: Sendable {
+    let path: String
+    let url: URL
+    let target: URL
+}
+
+private struct ArtworkResult: Sendable {
+    let path: String
+    let failure: String?
+    init(path: String, failure: String? = nil) { self.path = path; self.failure = failure }
 }

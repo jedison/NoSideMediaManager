@@ -61,11 +61,21 @@ public struct TVDBClient: TVMetadataSource, Sendable {
         while let url = nextURL {
             let response: TVDBEpisodePage = try await get(url, token: token)
             episodes += response.data.episodes.map {
-                TVEpisode(tvdbID: $0.id, seriesTVDBID: $0.seriesID ?? id, season: $0.seasonNumber ?? 0, number: $0.number ?? 0, title: $0.name ?? "Episode \($0.id)", overview: $0.overview, aired: $0.aired, rating: $0.score, artworkURL: $0.image.flatMap(URL.init(string:)))
+                TVEpisode(tvdbID: $0.id, seriesTVDBID: $0.seriesID ?? id, season: $0.seasonNumber ?? 0, number: $0.number ?? 0, title: $0.name ?? "Episode \($0.id)", overview: $0.overview, aired: $0.aired, rating: $0.score, artworkURL: Self.artworkURL(from: $0.image))
             }
             nextURL = response.links?.next.map { URL(string: $0, relativeTo: baseURL)?.absoluteURL } ?? nil
         }
         return episodes.sorted { ($0.season, $0.number, $0.tvdbID) < ($1.season, $1.number, $1.tvdbID) }
+    }
+
+    /// TVDB can return artwork as an absolute URL, a protocol-relative URL, or
+    /// a legacy `/banners/...` path. Package builders need a fetchable URL.
+    static func artworkURL(from value: String?) -> URL? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        if value.hasPrefix("//") { return URL(string: "https:" + value) }
+        if let url = URL(string: value), let scheme = url.scheme?.lowercased(), (scheme == "https" || scheme == "http"), url.host != nil { return url }
+        let path = value.hasPrefix("/") ? String(value.dropFirst()) : value
+        return URL(string: "https://artworks.thetvdb.com/")?.appendingPathComponent(path)
     }
 
     private func authorizedGet<T: Decodable>(path: String) async throws -> T {
@@ -77,6 +87,7 @@ public struct TVDBClient: TVMetadataSource, Sendable {
         guard !credentials.apiKey.isEmpty else { throw Error.invalidCredentials }
         var request = URLRequest(url: baseURL.appendingPathComponent("login"))
         request.httpMethod = "POST"
+        request.timeoutInterval = 10
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         struct LoginBody: Encodable { let apikey: String; let pin: String? }
         request.httpBody = try JSONEncoder().encode(LoginBody(apikey: credentials.apiKey, pin: credentials.subscriberPIN))
@@ -88,6 +99,7 @@ public struct TVDBClient: TVMetadataSource, Sendable {
 
     private func get<T: Decodable>(_ url: URL, token: String) async throws -> T {
         var request = URLRequest(url: url)
+        request.timeoutInterval = 10
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)

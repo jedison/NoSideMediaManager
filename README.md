@@ -65,6 +65,18 @@ For reviewed mappings and renames, use a transparent plan file:
 ./noside-media bundle ~/Desktop/gbbo-plan.json ~/Desktop/GBBO-mmm-job
 ```
 
+For a show reviewed one season at a time, merge the approved plans and make a
+separate, reviewable canonical-name plan before freezing the job. This retains
+each existing season folder. Files for the same episode with different video
+extensions retain the same basename; only an exact filename collision receives
+an `Edition` suffix.
+
+```sh
+./noside-media merge-plans "/Volumes/Media/TV/GBBO" ~/Desktop/gbbo-combined.json ~/Desktop/Season-*.json
+./noside-media normalize-plan ~/Desktop/gbbo-combined.json ~/Desktop/gbbo-normalized.json
+./noside-media bundle ~/Desktop/gbbo-normalized.json ~/Desktop/GBBO-mmm-job
+```
+
 `bundle` only writes the new job folder on the analysis Mac. It never writes to
 the reviewed library. Copy or ZIP that folder to the Mac connected to the
 media, then run:
