@@ -1,0 +1,8 @@
+.build/
+DerivedData/
+build/
+.DS_Store
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+Credentials.local.swift

@@ -1,0 +1,68 @@
+# NoSide Media Manager
+
+A deliberately small, local-first media metadata tool. Its first job is to
+look up television series and episodes in TVDB and write Kodi-compatible NFO
+sidecar files beside the media.
+
+Requires macOS Monterey 12 or later. It uses only Apple frameworks and has no
+package dependencies.
+
+## What is here
+
+- `NoSideMediaManager`: provider-neutral TV metadata models, XML/NFO writer,
+  TVDB v4 client, and an import service.
+- `noside-media`: a small CLI for looking up a series, then writing `tvshow.nfo`
+  and episode `.nfo` files.
+
+The network boundary is isolated in `TVDBClient`; NFO rendering needs no TVDB
+credentials and is covered by fixture-based tests.
+
+## TVDB credentials
+
+Create a TVDB API key and optionally a subscriber PIN, then export them only
+for the command you run:
+
+```sh
+export TVDB_API_KEY='…'
+export TVDB_PIN='…' # omit when your key does not require it
+```
+
+## Usage
+
+```sh
+swift run noside-media search "The Bear"
+swift run noside-media review 184871 "/Volumes/Media/TV/The Great British Bake Off"
+swift run noside-media import 407318 /Volumes/Media/TV/The\ Bear
+```
+
+`import` fetches the series' English extended record and every episode in
+TVDB's official order
+available from TVDB, writing `tvshow.nfo` plus `S01E01.nfo`-style filenames.
+Existing NFO files are never overwritten unless `--replace` is supplied.
+
+`review` is read-only: it scans local video names and prints the proposed
+TVDB official-order match for each file. Use it first on another Mac or an
+external drive before writing any sidecars.
+
+For reviewed mappings and renames, use a transparent plan file:
+
+```sh
+./noside-media plan 184871 "/Volumes/Media/TV/GBBO" ~/Desktop/gbbo-plan.json
+# Review/edit canonicalEpisodeID and optional destinationPath values.
+./noside-media apply ~/Desktop/gbbo-plan.json
+```
+
+Run the native macOS interface from Xcode by opening `Package.swift`, or from a
+terminal with:
+
+```sh
+swift run NoSideMediaManagerApp
+```
+
+## Development
+
+```sh
+swift test
+```
+
+No credentials, media files, or artwork are stored in this repository.
