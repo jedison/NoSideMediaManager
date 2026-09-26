@@ -31,12 +31,18 @@ export TVDB_PIN='…' # omit when your key does not require it
 
 ```sh
 swift run noside-media search "The Bear"
+swift run noside-media inspect "/Volumes/Movies/TV/Example/Example S01E01.m4v"
 swift run noside-media review 184871 "/Volumes/Media/TV/The Great British Bake Off"
 ```
 
 `review` is read-only: it scans local video names and prints the proposed
 TVDB official-order match for each file. Use it first on another Mac or an
 external drive before writing any sidecars.
+
+`inspect` is also read-only and needs no TVDB key. It prints embedded M4V/MP4
+container facts—title, date, duration, dimensions, audio/subtitle languages,
+and whether artwork is embedded—as JSON. These are review evidence, not an
+automatic episode mapping.
 
 For reviewed mappings and renames, use a transparent plan file:
 
