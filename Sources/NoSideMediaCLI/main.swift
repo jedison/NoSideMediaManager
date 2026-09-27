@@ -22,6 +22,24 @@ struct NoSideMediaCLI {
             case "search" where arguments.count == 2:
                 let source = try source()
                 for result in try await source.searchSeries(named: arguments[1]) { print("\(result.tvdbID)\t\(result.title)\(result.year.map { " (\($0))" } ?? "")") }
+            case "movie-search" where arguments.count == 2:
+                for result in try await movieSource().searchMovies(named: arguments[1]) { print("\(result.tmdbID)\t\(result.title)\(result.year.map { " (\($0))" } ?? "")") }
+            case "movie-plan" where arguments.count == 5:
+                let id = try Int(arguments[1]).unwrap(or: CLIError.usage)
+                let plan = MoviePlanDocument(libraryPath: arguments[2], entries: [.init(sourcePath: arguments[3], tmdbID: id)])
+                try plan.write(to: URL(fileURLWithPath: arguments[4]))
+                print("Wrote movie review plan: \(arguments[4]). Review the TMDB ID before normalization.")
+            case "movie-normalize-plan" where arguments.count == 3:
+                let plan = try MoviePlanDocument.read(from: URL(fileURLWithPath: arguments[1])); let source = try movieSource()
+                let ids = Set(plan.entries.compactMap(\.tmdbID)); var movies = [Int: Movie](); for id in ids { movies[id] = try await source.movie(id: id) }
+                try plan.normalized(movies: movies).write(to: URL(fileURLWithPath: arguments[2]))
+                print("Wrote normalized movie plan: \(arguments[2])")
+            case "movie-bundle" where arguments.count >= 3:
+                let plan = try MoviePlanDocument.read(from: URL(fileURLWithPath: arguments[1]))
+                guard plan.entries.count == 1, let entry = plan.entries.first, let id = entry.tmdbID, let destination = entry.destinationPath else { throw CLIError.unresolvedMappings }
+                let movie = try await movieSource().movie(id: id)
+                let manifest = try await PortableJobBundle.createMovie(at: URL(fileURLWithPath: arguments[2]), libraryRoot: URL(fileURLWithPath: plan.libraryPath), movie: movie, source: URL(fileURLWithPath: entry.sourcePath), destination: URL(fileURLWithPath: destination), downloadArtwork: !arguments.contains("--no-artwork"), notes: ["TMDB movie metadata was frozen into this portable job after review."])
+                print("Created portable movie job \(manifest.jobID): \(arguments[2])")
             case "review" where arguments.count >= 3:
                 let source = try source()
                 let id = try Int(arguments[1]).unwrap(or: CLIError.usage)
@@ -93,6 +111,7 @@ struct NoSideMediaCLI {
         throw CLIError.missingCredentials
     }
     static func source() throws -> TVDBClient { TVDBClient(credentials: .init(apiKey: try credential("TVDB_API_KEY"), subscriberPIN: ProcessInfo.processInfo.environment["TVDB_PIN"])) }
+    static func movieSource() throws -> TMDBClient { TMDBClient(apiKey: try credential("TMDB_API_KEY")) }
 }
-private enum CLIError: LocalizedError { case usage, missingCredentials, unresolvedMappings; var errorDescription: String? { switch self { case .usage: "Usage: noside-media inspect <video-or-folder> | search <title> | review <tvdb-id> <folder> [--adopt-folder-season] | plan <tvdb-id> <folder> [--adopt-folder-season] | merge-plans <show-root> <output.json> <plan...> | normalize-plan <plan.json> <output.json> | bundle <plan.json> <new-job-folder> [--no-artwork|--offline]"; case .missingCredentials: "Set TVDB_API_KEY before running TVDB commands."; case .unresolvedMappings: "The plan has unresolved or invalid canonicalEpisodeID values." } } }
+private enum CLIError: LocalizedError { case usage, missingCredentials, unresolvedMappings; var errorDescription: String? { switch self { case .usage: "Usage: noside-media inspect <video-or-folder> | search <title> | review <tvdb-id> <folder> [--adopt-folder-season] | plan <tvdb-id> <folder> [--adopt-folder-season] | merge-plans <show-root> <output.json> <plan...> | normalize-plan <plan.json> <output.json> | bundle <plan.json> <new-job-folder> [--no-artwork|--offline] | movie-search <title> | movie-plan <tmdb-id> <library-root> <video> <plan.json> | movie-normalize-plan <plan.json> <output.json> | movie-bundle <plan.json> <new-job-folder> [--no-artwork]"; case .missingCredentials: "Set TVDB_API_KEY or TMDB_API_KEY before running provider commands."; case .unresolvedMappings: "The plan has unresolved or invalid provider IDs/destinations." } } }
 private extension Optional { func unwrap(or error: Error) throws -> Wrapped { guard let self else { throw error }; return self } }

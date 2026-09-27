@@ -1,6 +1,20 @@
 import Foundation
 
 public enum NFOWriter {
+    public static func movieData(_ movie: Movie) throws -> Data {
+        let root = XMLElement(name: "movie")
+        add("title", movie.title, to: root)
+        add("originaltitle", movie.originalTitle, to: root)
+        add("plot", movie.overview, to: root)
+        add("premiered", movie.releaseDate, to: root)
+        add("year", movie.year, to: root)
+        add("runtime", movie.runtimeMinutes.map(String.init), to: root)
+        add("rating", movie.rating.map { String($0) }, to: root)
+        for genre in movie.genres { add("genre", genre, to: root) }
+        uniqueID(movie.tmdbID, type: "tmdb", defaultID: true, to: root)
+        let xml = XMLDocument(rootElement: root); xml.characterEncoding = "UTF-8"; xml.version = "1.0"
+        return xml.xmlData(options: [.nodePrettyPrint])
+    }
     public static func seasonData(number: Int, title: String? = nil) throws -> Data {
         let root = XMLElement(name: "season")
         add("title", title ?? "Season \(number)", to: root)

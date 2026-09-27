@@ -1,8 +1,8 @@
 # NoSide Media Manager
 
 A deliberately small, local-first media metadata tool. Its first job is to
-look up television series and episodes in TVDB and write Kodi-compatible NFO
-sidecar files beside the media.
+look up television series and episodes in TVDB, and movies in TMDB, then write
+Kodi-compatible XML/NFO sidecar files beside the media.
 
 Requires macOS Monterey 12 or later. It uses only Apple frameworks and has no
 package dependencies.
@@ -13,6 +13,8 @@ package dependencies.
   TVDB v4 client, and an import service.
 - `noside-media`: a small CLI for looking up a series, reviewing mappings, and
   freezing a portable filesystem-change job.
+
+Movie support uses TMDB and starts as a reviewed, one-movie-at-a-time workflow.
 
 The network boundary is isolated in `TVDBClient`; NFO rendering needs no TVDB
 credentials and is covered by fixture-based tests.
@@ -36,6 +38,13 @@ Keychain lookup remains a deliberate opt-in for advanced users only: set
 `TVDB_USE_KEYCHAIN=1` in addition to creating the Keychain entry. Environment
 variables always take precedence. Use `TVDB_PIN` only when your API key
 requires a PIN.
+
+For movie lookup, create a TMDB v3 API key and export it in the same private
+Terminal session:
+
+```sh
+export TMDB_API_KEY='…'
+```
 
 ## Usage
 
@@ -101,6 +110,25 @@ Each frozen job contains `apply.sh`, `rollback.sh`, `manifest.json`, a
 The scripts create a local, job-specific backup before replacing NFO/JPG
 sidecars, moving videos, or moving subtitle companions. Review the dry-run and
 keep that backup until the media-server scan is verified.
+
+## Movies (TMDB)
+
+Movie work is package-only: the analysis Mac does not write the movie library.
+Search TMDB, create an editable plan with the selected TMDB ID, normalize it,
+then freeze a portable job. The canonical default filename is `Title (Year)`.
+
+```sh
+swift run noside-media movie-search "The Matrix"
+swift run noside-media movie-plan 603 "/Volumes/Movies/Movies" \
+  "/Volumes/Movies/Movies/Incoming/Matrix.mkv" ~/Desktop/matrix-plan.json
+# Review the tmdbID in the JSON, then:
+swift run noside-media movie-normalize-plan ~/Desktop/matrix-plan.json ~/Desktop/matrix-normalized.json
+swift run noside-media movie-bundle ~/Desktop/matrix-normalized.json ~/Desktop/Matrix-mmm-job
+```
+
+The job contains a `<movie>` NFO with TMDB identity and requested poster JPG,
+plus the same `apply.sh --dry-run`, apply, and rollback process as TV jobs.
+Use `--no-artwork` when a job should retain an existing poster sidecar.
 
 Run the native macOS interface from Xcode by opening `Package.swift`, or from a
 terminal with:

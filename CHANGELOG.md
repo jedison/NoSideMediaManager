@@ -2,6 +2,17 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.2.0 — 2026-09-27
+
+### Added
+
+- TMDB-backed movie search, editable movie plans, and canonical `Title (Year)`
+  filename normalization.
+- Kodi/Emby-compatible `<movie>` NFO generation with TMDB unique IDs, release
+  date, plot, runtime, rating, genres, and optional poster artwork.
+- Portable movie job bundles with dry-run, apply, rollback, manifest, and
+  sidecar/subtitle handling identical to TV jobs.
+
 ## 0.1.3 — 2026-09-26
 
 ### Changed

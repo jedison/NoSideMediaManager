@@ -16,8 +16,10 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
     public let generatedFiles: [String]
     public let unavailableArtwork: [String]
     public let notes: [String]
+    public let mediaKind: String
+    public let metadataProvider: String
 
-    public init(jobID: String, series: TVSeries, moves: [Move], generatedFiles: [String], unavailableArtwork: [String] = [], notes: [String] = []) {
+    public init(jobID: String, series: TVSeries, moves: [Move], generatedFiles: [String], unavailableArtwork: [String] = [], notes: [String] = [], mediaKind: String = "tv", metadataProvider: String = "tvdb") {
         self.formatVersion = 1
         self.jobID = jobID
         self.seriesTVDBID = series.tvdbID
@@ -26,6 +28,8 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
         self.generatedFiles = generatedFiles
         self.unavailableArtwork = unavailableArtwork
         self.notes = notes
+        self.mediaKind = mediaKind
+        self.metadataProvider = metadataProvider
     }
 }
 
@@ -47,6 +51,30 @@ public enum PortableJobBundleError: LocalizedError, Equatable {
 /// media files. The builder only writes inside `bundle`; it never changes
 /// `showRoot`.
 public enum PortableJobBundle {
+    /// Creates a portable single-movie transaction. It writes only `bundle`,
+    /// never the reviewed movie folder.
+    @discardableResult
+    public static func createMovie(at bundle: URL, libraryRoot: URL, movie: Movie, source: URL, destination: URL, downloadArtwork: Bool = true, notes: [String] = [], fileManager: FileManager = .default) async throws -> PortableJobManifest {
+        guard !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+        let root = libraryRoot.standardizedFileURL; let jobID = "mmm-\(UUID().uuidString.lowercased())"
+        let sourceRelative = try relative(source, to: root); let destinationRelative = try relative(destination, to: root)
+        try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
+        let nfoPath = replacingExtension(destinationRelative, with: "nfo")
+        try write(NFOWriter.movieData(movie), relativePath: nfoPath, in: bundle)
+        var generated = [nfoPath]; var unavailable = [String]()
+        if downloadArtwork, let url = movie.posterURL {
+            let posterPath = replacingExtension(destinationRelative, with: "jpg")
+            do { _ = try await ArtworkDownloader.download(url, to: generatedURL(for: posterPath, in: bundle)); generated.append(posterPath) }
+            catch { unavailable.append("\(posterPath): \(error.localizedDescription)") }
+        }
+        generated.sort()
+        let facade = TVSeries(tvdbID: movie.tmdbID, title: movie.title)
+        let moves = sourceRelative == destinationRelative ? [] : [PortableJobManifest.Move(source: sourceRelative, destination: destinationRelative)]
+        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: moves, generatedFiles: generated, unavailableArtwork: unavailable, notes: notes, mediaKind: "movie", metadataProvider: "tmdb")
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
+        try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
+        return manifest
+    }
     @discardableResult
     public static func create(
         at bundle: URL,
@@ -246,19 +274,19 @@ public enum PortableJobBundle {
         """
         NoSide Media Manager portable job
         =================================
-        Series: \(manifest.seriesTitle) (TVDB \(manifest.seriesTVDBID))
+        \(manifest.mediaKind == "movie" ? "Movie" : "Series"): \(manifest.seriesTitle) (\(manifest.metadataProvider.uppercased()) \(manifest.seriesTVDBID))
         Job: \(manifest.jobID)
 
         This package is intentionally portable: it contains generated XML/NFO and
         artwork, not any media files. It never embeds a machine-specific media path.
 
         On the Mac with the real library:
-          ./apply.sh --dry-run "/path/to/\(manifest.seriesTitle)"
-          ./apply.sh "/path/to/\(manifest.seriesTitle)"
+          ./apply.sh --dry-run "/path/to/library-root"
+          ./apply.sh "/path/to/library-root"
 
         To undo after a successful apply:
-          ./rollback.sh --dry-run "/path/to/\(manifest.seriesTitle)"
-          ./rollback.sh "/path/to/\(manifest.seriesTitle)"
+          ./rollback.sh --dry-run "/path/to/library-root"
+          ./rollback.sh "/path/to/library-root"
 
         Apply creates a local backup under `.noside-mmm-backups/\(manifest.jobID)`.
         Keep it until Emby and the files have been verified. `manifest.json` is the
