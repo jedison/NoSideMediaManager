@@ -42,3 +42,13 @@ or episode title, summary, dates, rating where available, genres, and TVDB IDs.
 TVDB's v4 API requires an API key at `POST /login`, returns a bearer token, and
 documents `GET /search`, `GET /series/{id}/extended`, and series episode-order
 endpoints. See the [official TVDB v4 API documentation](https://thetvdb.github.io/v4-api/).
+
+`MovieMetadataSource` is the equivalent small seam for TMDB. Movie NFOs use a
+`<movie>` root and TMDB unique ID. Movie audit is read-only and reports sidecar
+presence, existing movie-NFO validity/IDs, likely editions/extras, and
+container-authored facts before a package is considered.
+
+When a source is readable on the analysis Mac, a portable manifest records its
+size and modification time. `apply.sh` rechecks that fingerprint before any
+move. Remote-path-only plans retain normal existence/collision preflight but
+cannot carry a source fingerprint.

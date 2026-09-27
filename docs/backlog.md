@@ -2,6 +2,11 @@
 
 ## Next
 
+- Complete the SwiftUI movie review queue: display TMDB candidates for each bare item, require a per-file selection, and export one batch package without falling back to the CLI.
+- Add optional TMDB backdrop/fanart downloads with explicit Emby/Kodi naming choices and per-item keep/download/replace review.
+- Extend embedded movie extraction to cast, crew, genre, studio, rating, and description where a container exposes them.
+- Replace the lightweight size/mtime safety fingerprint with an optional streaming SHA-256 verification mode for locally mounted libraries.
+- Add a human-readable HTML health report alongside the current JSON report.
 - Build the explicit local ↔ canonical ↔ consumer mapping review screen, using
   GBBO's UK/Netflix/Emby numbering as the acceptance case.
 - Run a copied-one-season GBBO acceptance pilot: scan, map, freeze a portable
@@ -24,8 +29,9 @@
 - Enrich `season.nfo` with TVDB season titles, summaries, dates, and artwork.
 - Save reusable mapping presets as transparent JSON beside a library (never as
   authoritative media metadata), for recurring regional/streaming orders.
-- Add movie review, NFO, artwork, and move workflows using the same apply and
-  manifest model.
+- Add collection/set support and configurable movie-folder layouts.
+- Add explicit handling for editions, extras, trailers, featurettes, and
+  alternate encodes rather than only flagging their likely filename hints.
 - Add TMDB or another provider only as an optional comparison/reference source;
   retain an explicit per-series canonical-order choice.
 - Add subtitle-sidecar inspection and language-aware review beyond the current

@@ -2,6 +2,18 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.3.0 — 2026-09-27
+
+### Added
+
+- Multi-movie TMDB package generation from one explicitly reviewed plan.
+- Movie health reports for invalid NFO XML, duplicate TMDB IDs, missing
+  sidecars, and likely editions/extras.
+- Best-effort source file fingerprints in portable manifests; target applies
+  reject a file changed after review when a fingerprint is available.
+- A Monterey SwiftUI Movies tab for folder audit and embedded-metadata package
+  creation.
+
 ## 0.2.1 — 2026-09-27
 
 ### Added

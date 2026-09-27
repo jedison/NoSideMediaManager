@@ -24,6 +24,11 @@ public struct MovieSearchResult: Sendable, Equatable {
     public init(tmdbID: Int, title: String, year: String? = nil, overview: String? = nil) { self.tmdbID = tmdbID; self.title = title; self.year = year; self.overview = overview }
 }
 
+public struct MovieBundleItem: Sendable {
+    public let movie: Movie; public let source: URL; public let destination: URL; public let downloadArtwork: Bool
+    public init(movie: Movie, source: URL, destination: URL, downloadArtwork: Bool = true) { self.movie = movie; self.source = source; self.destination = destination; self.downloadArtwork = downloadArtwork }
+}
+
 public protocol MovieMetadataSource: Sendable {
     func searchMovies(named query: String) async throws -> [MovieSearchResult]
     func movie(id: Int) async throws -> Movie

@@ -129,6 +129,8 @@ swift run noside-media movie-bundle ~/Desktop/matrix-normalized.json ~/Desktop/M
 The job contains a `<movie>` NFO with TMDB identity and requested poster JPG,
 plus the same `apply.sh --dry-run`, apply, and rollback process as TV jobs.
 Use `--no-artwork` when a job should retain an existing poster sidecar.
+`movie-bundle` also accepts a normalized plan with several explicitly reviewed
+entries and freezes them as one target-Mac transaction.
 
 Start by auditing a movie tree. The JSON report identifies videos that are
 already complete, those whose own container tags/artwork can be preserved, and
@@ -136,6 +138,13 @@ bare videos that need a reviewed TMDB match:
 
 ```sh
 swift run noside-media movie-audit "/Volumes/Movies/Movies" > ~/Desktop/movie-audit.json
+```
+
+For duplicate TMDB IDs, invalid movie NFO XML, missing sidecars, and likely
+editions/extras, generate the related health report:
+
+```sh
+swift run noside-media movie-health "/Volumes/Movies/Movies" > ~/Desktop/movie-health.json
 ```
 
 For an `embeddedMetadataNeedsSidecars` item, freeze sidecars from its existing
@@ -148,6 +157,11 @@ swift run noside-media movie-embedded-bundle "/Volumes/Movies/Movies" \
 
 Items marked `bareNeedsTMDB` intentionally remain unmodified until you choose
 a TMDB result with `movie-search`, then use the reviewed plan workflow above.
+
+When the analysis Mac can read a source video, MMM records its size and
+modification time in `manifest.json`. `apply.sh` rechecks it and refuses a
+changed file. Remote-path-only plans remain supported but cannot include that
+optional fingerprint.
 
 Run the native macOS interface from Xcode by opening `Package.swift`, or from a
 terminal with:

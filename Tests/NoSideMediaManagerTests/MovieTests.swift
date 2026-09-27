@@ -28,4 +28,15 @@ import Testing
     try runMovieScript(bundle.appendingPathComponent("rollback.sh"), [root.path]); #expect(FileManager.default.fileExists(atPath: source.path))
 }
 
+@Test func batchMovieBundleFreezesEveryReviewedMovieAndFingerprint() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let first = root.appendingPathComponent("Incoming/one.mp4"); let second = root.appendingPathComponent("Incoming/two.mkv"); let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: first.deletingLastPathComponent(), withIntermediateDirectories: true); try Data("one".utf8).write(to: first); try Data("two".utf8).write(to: second)
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+    let firstMovie = Movie(tmdbID: 1, title: "One", releaseDate: "2001-01-01"); let secondMovie = Movie(tmdbID: 2, title: "Two", releaseDate: "2002-01-01")
+    let manifest = try await PortableJobBundle.createMovies(at: bundle, libraryRoot: root, items: [MovieBundleItem(movie: firstMovie, source: first, destination: root.appendingPathComponent("One (2001).mp4"), downloadArtwork: false), MovieBundleItem(movie: secondMovie, source: second, destination: root.appendingPathComponent("Two (2002).mkv"), downloadArtwork: false)], downloadArtwork: false)
+    #expect(manifest.moves.count == 2); #expect(manifest.generatedFiles.count == 2); #expect(manifest.sourceFingerprints.count == 2)
+    try runMovieScript(bundle.appendingPathComponent("apply.sh"), [root.path]); #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("One (2001).mp4").path)); #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Two (2002).mkv").path))
+}
+
 private func runMovieScript(_ script: URL, _ arguments: [String]) throws { let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/bash"); process.arguments = [script.path] + arguments; try process.run(); process.waitUntilExit(); #expect(process.terminationStatus == 0) }

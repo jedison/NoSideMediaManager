@@ -24,7 +24,9 @@ private struct ContentView: View {
     @State private var status = "Enter a TVDB key and search for a series."
     @State private var isWorking = false
 
-    var body: some View {
+    var body: some View { TabView { tvScreen.tabItem { Text("TV") }; MovieToolsView().tabItem { Text("Movies") } } }
+
+    private var tvScreen: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Media Manager").font(.largeTitle.weight(.semibold))
             Text("TVDB → Kodi NFO").foregroundStyle(.secondary)
@@ -53,4 +55,27 @@ private struct ContentView: View {
     private func exportPlan() { guard let plan = planDocument() else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "noside-media-plan.json"; guard panel.runModal() == .OK, let url = panel.url else { return }; do { try plan.write(to: url); status = "Plan exported: \(url.lastPathComponent)" } catch { status = error.localizedDescription } }
     private func generateJob() { guard let series = reviewedSeries, let directory = destination else { return }; let selected = approved(); guard !selected.isEmpty else { status = "Select at least one canonical episode."; return }; let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.allowsMultipleSelection = false; panel.message = "Choose where to create the portable job package"; guard panel.runModal() == .OK, let parent = panel.url else { return }; let output = parent.appendingPathComponent("NoSide-MMM-TVDB-\(series.tvdbID)-job", isDirectory: true); let paths = Dictionary(uniqueKeysWithValues: selected.map { mapping in (mapping.local.url, URL(fileURLWithPath: destinationPaths[mapping.local.url] ?? mapping.local.url.path)) }); isWorking = true; status = "Creating a portable job package…"; Task { do { let manifest = try await PortableJobBundle.create(at: output, showRoot: directory, series: series, mappings: selected, destinations: paths, downloadArtwork: downloadArtwork); status = "Job \(manifest.jobID) created. Copy it to the media Mac and dry-run apply.sh." } catch { status = error.localizedDescription }; isWorking = false } }
     private func write(_ result: TVSeriesSearchResult, into directory: URL) { isWorking = true; status = "Fetching \(result.title) and writing NFO files…"; Task { do { let files = try await NFOImportService(source: client()).importSeries(id: result.tvdbID, into: directory); status = "Wrote \(files.count) NFO files to \(directory.lastPathComponent)." } catch { status = error.localizedDescription }; isWorking = false } }
+}
+
+@MainActor
+private struct MovieToolsView: View {
+    @State private var folder: URL?
+    @State private var items = [MovieAuditItem]()
+    @State private var selectedPath: String?
+    @State private var status = "Choose a movie folder to audit. MMM will not modify it."
+    @State private var isWorking = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Movie Manager").font(.largeTitle.weight(.semibold))
+            Text("Audit embedded metadata first; use TMDB only for bare files.").foregroundStyle(.secondary)
+            HStack { Button("Choose and audit folder…", action: chooseFolder).disabled(isWorking); if let folder { Text(folder.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
+            List(items, id: \.videoPath, selection: $selectedPath) { item in
+                VStack(alignment: .leading) { Text(URL(fileURLWithPath: item.videoPath).lastPathComponent); Text(item.state.rawValue + (item.editionHint.map { " · \($0)" } ?? "")).font(.caption).foregroundStyle(item.state == .bareNeedsTMDB ? .orange : .secondary) }
+            }
+            HStack { Button("Create embedded sidecar package…", action: createEmbeddedPackage).disabled(items.first { $0.videoPath == selectedPath }?.state != .embeddedMetadataNeedsSidecars || isWorking); Text("Bare items require an explicit TMDB match in the CLI review flow.").font(.caption).foregroundStyle(.secondary) }
+            Text(status).foregroundStyle(.secondary).lineLimit(2)
+        }.padding(24)
+    }
+    private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; guard panel.runModal() == .OK, let url = panel.url else { return }; folder = url; isWorking = true; status = "Auditing videos and sidecars…"; Task { items = await MovieLibraryAudit.inspect(directory: url); status = "Audited \(items.count) videos."; isWorking = false } }
+    private func createEmbeddedPackage() { guard let folder, let selected = items.first(where: { $0.videoPath == selectedPath }) else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.message = "Choose where to create the portable job"; guard output.runModal() == .OK, let parent = output.url else { return }; isWorking = true; status = "Extracting embedded metadata into a portable package…"; Task { do { let video = URL(fileURLWithPath: selected.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let title = metadata.title, !title.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "This container has no extractable title; use the TMDB review flow."]) }; let job = parent.appendingPathComponent("NoSide-MMM-Embedded-\(video.deletingPathExtension().lastPathComponent)-job"); let manifest = try PortableJobBundle.createEmbeddedMovie(at: job, libraryRoot: folder, source: video, title: title, creationDate: metadata.creationDate, artwork: metadata.artwork); status = "Job \(manifest.jobID) created. Copy it to the media Mac and dry-run apply.sh." } catch { status = error.localizedDescription }; isWorking = false } }
 }

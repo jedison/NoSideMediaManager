@@ -18,8 +18,11 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
     public let notes: [String]
     public let mediaKind: String
     public let metadataProvider: String
+    /// Best-effort source fingerprints. Empty when the analysis Mac could not
+    /// read the media file (for example, a remote-path-only reviewed plan).
+    public let sourceFingerprints: [String: String]
 
-    public init(jobID: String, series: TVSeries, moves: [Move], generatedFiles: [String], unavailableArtwork: [String] = [], notes: [String] = [], mediaKind: String = "tv", metadataProvider: String = "tvdb") {
+    public init(jobID: String, series: TVSeries, moves: [Move], generatedFiles: [String], unavailableArtwork: [String] = [], notes: [String] = [], mediaKind: String = "tv", metadataProvider: String = "tvdb", sourceFingerprints: [String: String] = [:]) {
         self.formatVersion = 1
         self.jobID = jobID
         self.seriesTVDBID = series.tvdbID
@@ -30,6 +33,7 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
         self.notes = notes
         self.mediaKind = mediaKind
         self.metadataProvider = metadataProvider
+        self.sourceFingerprints = sourceFingerprints
     }
 }
 
@@ -51,6 +55,28 @@ public enum PortableJobBundleError: LocalizedError, Equatable {
 /// media files. The builder only writes inside `bundle`; it never changes
 /// `showRoot`.
 public enum PortableJobBundle {
+    /// Freezes many independently reviewed movies in one all-or-nothing target
+    /// transaction. Each item retains its own movie NFO/poster and TMDB ID.
+    @discardableResult
+    public static func createMovies(at bundle: URL, libraryRoot: URL, items: [MovieBundleItem], downloadArtwork: Bool = true, notes: [String] = [], fileManager: FileManager = .default) async throws -> PortableJobManifest {
+        guard !items.isEmpty, !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+        let root = libraryRoot.standardizedFileURL; let jobID = "mmm-\(UUID().uuidString.lowercased())"; try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
+        var moves = [PortableJobManifest.Move](); var generated = [String](); var unavailable = [String](); var locations = [String: URL]()
+        for item in items {
+            let source = try relative(item.source, to: root); let destination = try relative(item.destination, to: root); locations[source] = item.source
+            if source != destination { moves.append(.init(source: source, destination: destination)) }
+            let nfo = replacingExtension(destination, with: "nfo"); try write(NFOWriter.movieData(item.movie), relativePath: nfo, in: bundle); generated.append(nfo)
+            if downloadArtwork, item.downloadArtwork, let url = item.movie.posterURL {
+                let poster = replacingExtension(destination, with: "jpg")
+                do { let target = generatedURL(for: poster, in: bundle); try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true); _ = try await ArtworkDownloader.download(url, to: target); generated.append(poster) }
+                catch { unavailable.append("\(poster): \(error.localizedDescription)") }
+            }
+        }
+        let facade = TVSeries(tvdbID: 0, title: "Movie library")
+        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: moves, generatedFiles: Array(Set(generated)).sorted(), unavailableArtwork: unavailable.sorted(), notes: notes + ["Every movie has a reviewed TMDB ID in the frozen NFO."], mediaKind: "movie", metadataProvider: "tmdb", sourceFingerprints: fingerprints(for: locations))
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
+        try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic); return manifest
+    }
     @discardableResult
     public static func createEmbeddedMovie(at bundle: URL, libraryRoot: URL, source: URL, title: String, creationDate: String?, artwork: Data?, fileManager: FileManager = .default) throws -> PortableJobManifest {
         guard !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
@@ -60,7 +86,7 @@ public enum PortableJobBundle {
         var generated = [nfoPath]
         if let artwork { let imagePath = replacingExtension(sourceRelative, with: "jpg"); let target = generatedURL(for: imagePath, in: bundle); try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true); try artwork.write(to: target, options: .atomic); generated.append(imagePath) }
         let facade = TVSeries(tvdbID: 0, title: title)
-        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: [], generatedFiles: generated.sorted(), notes: ["NFO and artwork were extracted from the video container; no TMDB lookup was used."], mediaKind: "movie", metadataProvider: "embedded")
+        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: [], generatedFiles: generated.sorted(), notes: ["NFO and artwork were extracted from the video container; no TMDB lookup was used."], mediaKind: "movie", metadataProvider: "embedded", sourceFingerprints: fingerprints(for: [sourceRelative: source]))
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
         try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic); return manifest
     }
@@ -83,7 +109,7 @@ public enum PortableJobBundle {
         generated.sort()
         let facade = TVSeries(tvdbID: movie.tmdbID, title: movie.title)
         let moves = sourceRelative == destinationRelative ? [] : [PortableJobManifest.Move(source: sourceRelative, destination: destinationRelative)]
-        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: moves, generatedFiles: generated, unavailableArtwork: unavailable, notes: notes, mediaKind: "movie", metadataProvider: "tmdb")
+        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: moves, generatedFiles: generated, unavailableArtwork: unavailable, notes: notes, mediaKind: "movie", metadataProvider: "tmdb", sourceFingerprints: fingerprints(for: [sourceRelative: source]))
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
         try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
         return manifest
@@ -167,7 +193,9 @@ public enum PortableJobBundle {
         }
 
         generated.sort()
-        let manifest = PortableJobManifest(jobID: jobID, series: series, moves: moves, generatedFiles: generated, unavailableArtwork: unavailableArtwork.sorted(), notes: notes)
+        var sourceLocations = [String: URL]()
+        for mapping in mappings { if let path = try? relative(mapping.local.url, to: root) { sourceLocations[path] = mapping.local.url } }
+        let manifest = PortableJobManifest(jobID: jobID, series: series, moves: moves, generatedFiles: generated, unavailableArtwork: unavailableArtwork.sorted(), notes: notes, sourceFingerprints: fingerprints(for: sourceLocations))
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
         try script(applyScript(manifest), named: "apply.sh", in: bundle)
@@ -181,6 +209,13 @@ public enum PortableJobBundle {
         let rootPath = root.path
         guard path.hasPrefix(rootPath + "/") else { throw PortableJobBundleError.pathOutsideShowRoot(url) }
         return String(path.dropFirst(rootPath.count + 1))
+    }
+
+    private static func fingerprints(for locations: [String: URL], fileManager: FileManager = .default) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: locations.compactMap { relative, url in
+            guard let attributes = try? fileManager.attributesOfItem(atPath: url.path), let size = attributes[.size] as? NSNumber, let date = attributes[.modificationDate] as? Date else { return nil }
+            return (relative, "\(size.int64Value):\(Int64(date.timeIntervalSince1970))")
+        })
     }
 
     private static func replacingExtension(_ path: String, with extensionName: String) -> String {
@@ -207,6 +242,7 @@ public enum PortableJobBundle {
         let preflights = manifest.moves.map { "preflight_video \(quote($0.source)) \(quote($0.destination))" }.joined(separator: "\n")
         let moves = manifest.moves.map { "move_video \(quote($0.source)) \(quote($0.destination))" }.joined(separator: "\n")
         let generatedPreflights = manifest.generatedFiles.map { "preflight_generated \(quote($0))" }.joined(separator: "\n")
+        let fingerprintPreflights = manifest.sourceFingerprints.sorted { $0.key < $1.key }.map { "preflight_fingerprint \(quote($0.key)) \(quote($0.value))" }.joined(separator: "\n")
         let installs = manifest.generatedFiles.map { "install_generated \(quote($0))" }.joined(separator: "\n")
         return """
         #!/usr/bin/env bash
@@ -229,6 +265,7 @@ public enum PortableJobBundle {
         backup() { local rel target saved; rel="$1"; target="$ROOT/$rel"; saved="$BACKUP_ROOT/$rel"; [[ -e "$target" ]] || return 0; [[ -e "$saved" ]] && return 0; run mkdir -p "$(dirname "$saved")"; run cp -p "$target" "$saved"; }
         mark_created() { local rel="$1"; if [[ ! -e "$ROOT/$rel" ]]; then run mkdir -p "$BACKUP_ROOT"; if $DRY_RUN; then echo "DRY-RUN: record created $rel"; else printf '%s\\n' "$rel" >> "$CREATED"; fi; fi; }
         preflight_video() { [[ -f "$ROOT/$1" ]] || { echo "Missing video: $1" >&2; exit 1; }; [[ ! -e "$ROOT/$2" ]] || { echo "Destination video already exists: $2" >&2; exit 1; }; }
+        preflight_fingerprint() { local actual; actual="$(stat -f '%z:%m' "$ROOT/$1")"; [[ "$actual" == "$2" ]] || { echo "Video changed since review: $1 (expected $2, found $actual)" >&2; exit 1; }; }
         preflight_generated() { [[ -f "$BUNDLE_DIR/generated/$1" ]] || { echo "Bundle is missing generated/$1" >&2; exit 1; }; }
         move_optional() { local src="$1" dst="$2"; [[ -e "$ROOT/$src" ]] || return 0; backup "$dst"; run mkdir -p "$(dirname "$ROOT/$dst")"; run mv "$ROOT/$src" "$ROOT/$dst"; }
         move_video() {
@@ -251,6 +288,7 @@ public enum PortableJobBundle {
         install_generated() { local rel="$1"; [[ -f "$BUNDLE_DIR/generated/$rel" ]] || { echo "Bundle is missing generated/$rel" >&2; exit 1; }; backup "$rel"; mark_created "$rel"; run mkdir -p "$(dirname "$ROOT/$rel")"; run cp -p "$BUNDLE_DIR/generated/$rel" "$ROOT/$rel"; }
         # Validate the complete frozen plan before altering a media file.
         \(preflights)
+        \(fingerprintPreflights)
         \(generatedPreflights)
         \(moves)
         \(installs)
