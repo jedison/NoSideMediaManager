@@ -39,4 +39,20 @@ import Testing
     try runMovieScript(bundle.appendingPathComponent("apply.sh"), [root.path]); #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("One (2001).mp4").path)); #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Two (2002).mkv").path))
 }
 
+@Test func movieFolderNormalizationIsExplicitAndKeepsCanonicalStem() throws {
+    let plan = MoviePlanDocument(libraryPath: "/Library/Movies", entries: [.init(sourcePath: "/Library/Movies/Incoming/Matrix.mkv", tmdbID: 603)])
+    let movie = Movie(tmdbID: 603, title: "The Matrix", releaseDate: "1999-03-30")
+    let flat = try plan.normalized(movies: [603: movie]); let folders = try plan.normalized(movies: [603: movie], oneFolderPerMovie: true)
+    #expect(flat.entries[0].destinationPath == "/Library/Movies/Incoming/The Matrix (1999).mkv")
+    #expect(folders.entries[0].destinationPath == "/Library/Movies/Incoming/The Matrix (1999)/The Matrix (1999).mkv")
+}
+
+@Test func sha256FingerprintModeIsOptIn() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true); let source = root.appendingPathComponent("movie.mp4"); let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true); try Data("movie".utf8).write(to: source)
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+    let manifest = try await PortableJobBundle.createMovies(at: bundle, libraryRoot: root, items: [MovieBundleItem(movie: Movie(tmdbID: 1, title: "Movie"), source: source, destination: source, downloadArtwork: false)], downloadArtwork: false, fingerprintMode: .sha256)
+    #expect(manifest.sourceFingerprints["movie.mp4"]?.hasPrefix("sha256:") == true)
+}
+
 private func runMovieScript(_ script: URL, _ arguments: [String]) throws { let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/bash"); process.arguments = [script.path] + arguments; try process.run(); process.waitUntilExit(); #expect(process.terminationStatus == 0) }

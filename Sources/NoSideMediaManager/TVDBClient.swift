@@ -45,6 +45,16 @@ public struct TVDBClient: TVMetadataSource, Sendable {
         return response.data.map { TVSeriesSearchResult(tvdbID: $0.tvdbID, title: $0.name, overview: $0.overview, year: $0.year) }
     }
 
+    /// A comparison/reference source for movie review. MMM does not silently
+    /// merge TMDB and TVDB identities; a future reviewed model will carry both.
+    public func searchMovies(named query: String) async throws -> [TVDBMovieSearchResult] {
+        let token = try await login()
+        var components = URLComponents(url: baseURL.appendingPathComponent("search"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "query", value: query), URLQueryItem(name: "type", value: "movie")]
+        let response: TVDBEnvelope<[SearchRecord]> = try await get(components.url!, token: token)
+        return response.data.map { TVDBMovieSearchResult(tvdbID: $0.tvdbID, title: $0.name, year: $0.year, overview: $0.overview) }
+    }
+
     public func series(id: Int) async throws -> TVSeries {
         let response: TVDBEnvelope<SeriesRecord> = try await authorizedGet(path: "series/\(id)/extended")
         let record = response.data

@@ -24,6 +24,11 @@ public struct MovieSearchResult: Sendable, Equatable {
     public init(tmdbID: Int, title: String, year: String? = nil, overview: String? = nil) { self.tmdbID = tmdbID; self.title = title; self.year = year; self.overview = overview }
 }
 
+public struct TVDBMovieSearchResult: Sendable, Equatable {
+    public let tvdbID: Int; public let title: String; public let year: String?; public let overview: String?
+    public init(tvdbID: Int, title: String, year: String? = nil, overview: String? = nil) { self.tvdbID = tvdbID; self.title = title; self.year = year; self.overview = overview }
+}
+
 public struct MovieBundleItem: Sendable {
     public let movie: Movie; public let source: URL; public let destination: URL; public let downloadArtwork: Bool
     public init(movie: Movie, source: URL, destination: URL, downloadArtwork: Bool = true) { self.movie = movie; self.source = source; self.destination = destination; self.downloadArtwork = downloadArtwork }

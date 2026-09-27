@@ -2,10 +2,9 @@
 
 ## Next
 
-- Complete the SwiftUI movie review queue: display TMDB candidates for each bare item, require a per-file selection, and export one batch package without falling back to the CLI.
+- Complete the SwiftUI movie review queue: display TMDB and TVDB candidates for each bare item, require a per-file selection, and export one batch package without falling back to the CLI.
 - Add optional TMDB backdrop/fanart downloads with explicit Emby/Kodi naming choices and per-item keep/download/replace review.
 - Extend embedded movie extraction to cast, crew, genre, studio, rating, and description where a container exposes them.
-- Replace the lightweight size/mtime safety fingerprint with an optional streaming SHA-256 verification mode for locally mounted libraries.
 - Add a human-readable HTML health report alongside the current JSON report.
 - Build the explicit local ↔ canonical ↔ consumer mapping review screen, using
   GBBO's UK/Netflix/Emby numbering as the acceptance case.

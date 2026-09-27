@@ -119,11 +119,21 @@ then freeze a portable job. The canonical default filename is `Title (Year)`.
 
 ```sh
 swift run noside-media movie-search "The Matrix"
+swift run noside-media movie-tvdb-search "The Matrix" # optional comparison
 swift run noside-media movie-plan 603 "/Volumes/Movies/Movies" \
   "/Volumes/Movies/Movies/Incoming/Matrix.mkv" ~/Desktop/matrix-plan.json
 # Review the tmdbID in the JSON, then:
 swift run noside-media movie-normalize-plan ~/Desktop/matrix-plan.json ~/Desktop/matrix-normalized.json
 swift run noside-media movie-bundle ~/Desktop/matrix-normalized.json ~/Desktop/Matrix-mmm-job
+```
+
+To opt into a one-folder-per-movie layout, add `--movie-folders` while
+normalizing. The generated job moves the video and all supported companion
+sidecars below `Title (Year)/`; it remains reviewable and reversible.
+
+```sh
+swift run noside-media movie-normalize-plan ~/Desktop/matrix-plan.json \
+  ~/Desktop/matrix-folders.json --movie-folders
 ```
 
 The job contains a `<movie>` NFO with TMDB identity and requested poster JPG,
@@ -157,11 +167,16 @@ swift run noside-media movie-embedded-bundle "/Volumes/Movies/Movies" \
 
 Items marked `bareNeedsTMDB` intentionally remain unmodified until you choose
 a TMDB result with `movie-search`, then use the reviewed plan workflow above.
+`movie-tvdb-search` is available alongside it as a TVDB comparison source. It
+does not auto-merge provider identities or change the selected TMDB NFO ID.
 
 When the analysis Mac can read a source video, MMM records its size and
 modification time in `manifest.json`. `apply.sh` rechecks it and refuses a
 changed file. Remote-path-only plans remain supported but cannot include that
 optional fingerprint.
+
+Add `--sha256` to TV or movie `bundle` commands when the analysis Mac can read
+the files and you want a stronger, slower content hash in the frozen job.
 
 Run the native macOS interface from Xcode by opening `Package.swift`, or from a
 terminal with:

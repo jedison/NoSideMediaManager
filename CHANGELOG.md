@@ -2,6 +2,14 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.3.1 — 2026-09-27
+
+### Added
+
+- Explicit one-folder-per-movie layout normalization via `--movie-folders`.
+- Optional, content-based SHA-256 source verification via `--sha256` for
+  locally readable TV and movie package inputs.
+
 ## 0.3.0 — 2026-09-27
 
 ### Added

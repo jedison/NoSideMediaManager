@@ -4,10 +4,20 @@ public struct MoviePlanDocument: Codable, Sendable, Equatable {
     public struct Entry: Codable, Sendable, Equatable { public var sourcePath: String; public var tmdbID: Int?; public var destinationPath: String?; public var downloadArtwork: Bool; public init(sourcePath: String, tmdbID: Int?, destinationPath: String? = nil, downloadArtwork: Bool = true) { self.sourcePath = sourcePath; self.tmdbID = tmdbID; self.destinationPath = destinationPath; self.downloadArtwork = downloadArtwork } }
     public let formatVersion: Int; public let libraryPath: String; public var entries: [Entry]
     public init(libraryPath: String, entries: [Entry]) { self.formatVersion = 1; self.libraryPath = libraryPath; self.entries = entries }
-    public func normalized(movies: [Int: Movie]) throws -> MoviePlanDocument {
+    /// Keeps existing folders by default. `oneFolderPerMovie` is an explicit,
+    /// opt-in library-layout normalisation: movie, NFO, poster and subtitle
+    /// companions then move beneath `Title (Year)/` as one transaction.
+    public func normalized(movies: [Int: Movie], oneFolderPerMovie: Bool = false) throws -> MoviePlanDocument {
         guard entries.allSatisfy({ $0.tmdbID != nil }) else { throw MoviePlanError.unresolvedEntries }
         var result = self
-        for index in result.entries.indices { guard let id = result.entries[index].tmdbID, let movie = movies[id] else { throw MoviePlanError.unresolvedEntries }; let source = URL(fileURLWithPath: result.entries[index].sourcePath); result.entries[index].destinationPath = source.deletingLastPathComponent().appendingPathComponent(Self.safe(movie.title) + (movie.year.map { " (\($0))" } ?? "")).appendingPathExtension(source.pathExtension).path }
+        for index in result.entries.indices {
+            guard let id = result.entries[index].tmdbID, let movie = movies[id] else { throw MoviePlanError.unresolvedEntries }
+            let source = URL(fileURLWithPath: result.entries[index].sourcePath)
+            let stem = Self.safe(movie.title) + (movie.year.map { " (\($0))" } ?? "")
+            let parent = source.deletingLastPathComponent()
+            let destination = oneFolderPerMovie ? parent.appendingPathComponent(stem, isDirectory: true).appendingPathComponent(stem) : parent.appendingPathComponent(stem)
+            result.entries[index].destinationPath = destination.appendingPathExtension(source.pathExtension).path
+        }
         return result
     }
     public func write(to url: URL) throws { let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(self).write(to: url, options: .atomic) }
