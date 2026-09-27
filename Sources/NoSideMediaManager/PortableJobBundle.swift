@@ -51,6 +51,19 @@ public enum PortableJobBundleError: LocalizedError, Equatable {
 /// media files. The builder only writes inside `bundle`; it never changes
 /// `showRoot`.
 public enum PortableJobBundle {
+    @discardableResult
+    public static func createEmbeddedMovie(at bundle: URL, libraryRoot: URL, source: URL, title: String, creationDate: String?, artwork: Data?, fileManager: FileManager = .default) throws -> PortableJobManifest {
+        guard !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+        let root = libraryRoot.standardizedFileURL; let jobID = "mmm-\(UUID().uuidString.lowercased())"; let sourceRelative = try relative(source, to: root)
+        try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
+        let nfoPath = replacingExtension(sourceRelative, with: "nfo"); try write(NFOWriter.embeddedMovieData(title: title, creationDate: creationDate), relativePath: nfoPath, in: bundle)
+        var generated = [nfoPath]
+        if let artwork { let imagePath = replacingExtension(sourceRelative, with: "jpg"); let target = generatedURL(for: imagePath, in: bundle); try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true); try artwork.write(to: target, options: .atomic); generated.append(imagePath) }
+        let facade = TVSeries(tvdbID: 0, title: title)
+        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: [], generatedFiles: generated.sorted(), notes: ["NFO and artwork were extracted from the video container; no TMDB lookup was used."], mediaKind: "movie", metadataProvider: "embedded")
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
+        try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic); return manifest
+    }
     /// Creates a portable single-movie transaction. It writes only `bundle`,
     /// never the reviewed movie folder.
     @discardableResult

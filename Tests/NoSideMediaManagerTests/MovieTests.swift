@@ -8,6 +8,13 @@ import Testing
     #expect(text.contains("<movie>")); #expect(text.contains("<year>1999</year>")); #expect(text.contains("Choice &amp; consequence")); #expect(text.contains("<uniqueid type=\"tmdb\" default=\"true\">603</uniqueid>"))
 }
 
+@Test func movieAuditSeparatesEmbeddedAndBareVideos() {
+    let embedded = EmbeddedMediaInfo(fileName: "Embedded.mp4", title: "Inside", creationDate: nil, durationSeconds: nil, width: nil, height: nil, audioLanguages: [], subtitleLanguages: [], hasEmbeddedArtwork: true)
+    let bare = EmbeddedMediaInfo(fileName: "Bare.mkv", title: nil, creationDate: nil, durationSeconds: nil, width: nil, height: nil, audioLanguages: [], subtitleLanguages: [], hasEmbeddedArtwork: false)
+    #expect(MovieLibraryAudit.classify(nfoExists: false, artworkExists: false, info: embedded) == .embeddedMetadataNeedsSidecars)
+    #expect(MovieLibraryAudit.classify(nfoExists: false, artworkExists: false, info: bare) == .bareNeedsTMDB)
+}
+
 @Test func movieBundleHasRelativePathsAndCanApply() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let source = root.appendingPathComponent("Incoming/Matrix.mkv"); let destination = root.appendingPathComponent("The Matrix (1999).mkv")

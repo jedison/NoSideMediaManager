@@ -2,6 +2,15 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.2.1 — 2026-09-27
+
+### Added
+
+- Recursive movie audit that separates complete files, extractable embedded
+  metadata/artwork, bare files requiring TMDB review, and partial sidecars.
+- Embedded-metadata portable job that preserves container title/date/cover art
+  as NFO/JPG sidecars without any provider lookup or media-file mutation.
+
 ## 0.2.0 — 2026-09-27
 
 ### Added

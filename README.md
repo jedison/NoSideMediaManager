@@ -130,6 +130,25 @@ The job contains a `<movie>` NFO with TMDB identity and requested poster JPG,
 plus the same `apply.sh --dry-run`, apply, and rollback process as TV jobs.
 Use `--no-artwork` when a job should retain an existing poster sidecar.
 
+Start by auditing a movie tree. The JSON report identifies videos that are
+already complete, those whose own container tags/artwork can be preserved, and
+bare videos that need a reviewed TMDB match:
+
+```sh
+swift run noside-media movie-audit "/Volumes/Movies/Movies" > ~/Desktop/movie-audit.json
+```
+
+For an `embeddedMetadataNeedsSidecars` item, freeze sidecars from its existing
+container title/date/cover art—without TMDB or a rename:
+
+```sh
+swift run noside-media movie-embedded-bundle "/Volumes/Movies/Movies" \
+  "/Volumes/Movies/Movies/Example.mp4" ~/Desktop/Example-embedded-job
+```
+
+Items marked `bareNeedsTMDB` intentionally remain unmodified until you choose
+a TMDB result with `movie-search`, then use the reviewed plan workflow above.
+
 Run the native macOS interface from Xcode by opening `Package.swift`, or from a
 terminal with:
 

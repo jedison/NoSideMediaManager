@@ -24,6 +24,14 @@ struct NoSideMediaCLI {
                 for result in try await source.searchSeries(named: arguments[1]) { print("\(result.tvdbID)\t\(result.title)\(result.year.map { " (\($0))" } ?? "")") }
             case "movie-search" where arguments.count == 2:
                 for result in try await movieSource().searchMovies(named: arguments[1]) { print("\(result.tmdbID)\t\(result.title)\(result.year.map { " (\($0))" } ?? "")") }
+            case "movie-audit" where arguments.count == 2:
+                let items = await MovieLibraryAudit.inspect(directory: URL(fileURLWithPath: arguments[1])); let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; print(String(decoding: try encoder.encode(items), as: UTF8.self))
+                let counts = Dictionary(grouping: items, by: \.state).mapValues(\.count); print("\(items.count) videos audited; \(counts[.embeddedMetadataNeedsSidecars, default: 0]) can preserve embedded metadata; \(counts[.bareNeedsTMDB, default: 0]) need TMDB review.")
+            case "movie-embedded-bundle" where arguments.count == 4:
+                let source = URL(fileURLWithPath: arguments[2]); let embedded = try await MediaFileInspector.extractMovieMetadata(source)
+                guard let title = embedded.title, !title.isEmpty else { throw CLIError.unresolvedMappings }
+                let manifest = try PortableJobBundle.createEmbeddedMovie(at: URL(fileURLWithPath: arguments[3]), libraryRoot: URL(fileURLWithPath: arguments[1]), source: source, title: title, creationDate: embedded.creationDate, artwork: embedded.artwork)
+                print("Created embedded-metadata movie job \(manifest.jobID): \(arguments[3])")
             case "movie-plan" where arguments.count == 5:
                 let id = try Int(arguments[1]).unwrap(or: CLIError.usage)
                 let plan = MoviePlanDocument(libraryPath: arguments[2], entries: [.init(sourcePath: arguments[3], tmdbID: id)])
@@ -113,5 +121,5 @@ struct NoSideMediaCLI {
     static func source() throws -> TVDBClient { TVDBClient(credentials: .init(apiKey: try credential("TVDB_API_KEY"), subscriberPIN: ProcessInfo.processInfo.environment["TVDB_PIN"])) }
     static func movieSource() throws -> TMDBClient { TMDBClient(apiKey: try credential("TMDB_API_KEY")) }
 }
-private enum CLIError: LocalizedError { case usage, missingCredentials, unresolvedMappings; var errorDescription: String? { switch self { case .usage: "Usage: noside-media inspect <video-or-folder> | search <title> | review <tvdb-id> <folder> [--adopt-folder-season] | plan <tvdb-id> <folder> [--adopt-folder-season] | merge-plans <show-root> <output.json> <plan...> | normalize-plan <plan.json> <output.json> | bundle <plan.json> <new-job-folder> [--no-artwork|--offline] | movie-search <title> | movie-plan <tmdb-id> <library-root> <video> <plan.json> | movie-normalize-plan <plan.json> <output.json> | movie-bundle <plan.json> <new-job-folder> [--no-artwork]"; case .missingCredentials: "Set TVDB_API_KEY or TMDB_API_KEY before running provider commands."; case .unresolvedMappings: "The plan has unresolved or invalid provider IDs/destinations." } } }
+private enum CLIError: LocalizedError { case usage, missingCredentials, unresolvedMappings; var errorDescription: String? { switch self { case .usage: "Usage: noside-media inspect <video-or-folder> | search <title> | review <tvdb-id> <folder> [--adopt-folder-season] | plan <tvdb-id> <folder> [--adopt-folder-season] | merge-plans <show-root> <output.json> <plan...> | normalize-plan <plan.json> <output.json> | bundle <plan.json> <new-job-folder> [--no-artwork|--offline] | movie-audit <folder> | movie-embedded-bundle <library-root> <video> <new-job-folder> | movie-search <title> | movie-plan <tmdb-id> <library-root> <video> <plan.json> | movie-normalize-plan <plan.json> <output.json> | movie-bundle <plan.json> <new-job-folder> [--no-artwork]"; case .missingCredentials: "Set TVDB_API_KEY or TMDB_API_KEY before running provider commands."; case .unresolvedMappings: "The plan has unresolved or invalid provider IDs/destinations, or the video has no extractable title." } } }
 private extension Optional { func unwrap(or error: Error) throws -> Wrapped { guard let self else { throw error }; return self } }

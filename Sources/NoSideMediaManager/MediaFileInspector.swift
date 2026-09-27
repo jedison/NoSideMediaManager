@@ -49,6 +49,14 @@ public enum MediaFileInspector {
         )
     }
 
+    /// Extracts only container-authored movie facts and cover bytes. No lookup
+    /// or filename inference occurs here, so it is safe for preservation jobs.
+    @MainActor
+    public static func extractMovieMetadata(_ url: URL) async throws -> EmbeddedMovieMetadata {
+        let asset = AVURLAsset(url: url); let metadata = try await asset.load(.commonMetadata)
+        return EmbeddedMovieMetadata(title: stringValue(for: "title", in: metadata), creationDate: stringValue(for: "creationDate", in: metadata), artwork: metadata.first { $0.commonKey?.rawValue == "artwork" }?.dataValue)
+    }
+
     private static func stringValue(for key: String, in metadata: [AVMetadataItem]) -> String? {
         metadata.first { $0.commonKey?.rawValue == key }?.stringValue
     }
