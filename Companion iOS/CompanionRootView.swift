@@ -5,7 +5,7 @@ struct CompanionRootView: View {
     var body: some View {
         NavigationStack {
             Group { if session.server == nil { PairingView() } else { JobListView() } }
-                .navigationTitle("Media Manager")
+                .navigationTitle("microMM")
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink(destination: PairingView()) { Image(systemName: "gear") } } }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(uiColor: .systemBackground).ignoresSafeArea())
@@ -17,15 +17,15 @@ private struct PairingView: View {
     @EnvironmentObject private var session: CompanionSession
     var body: some View {
         Form {
-            Section("MMM Companion") {
+            Section("microMM") {
                 TextField("Old MBA address", text: $session.host).textInputAutocapitalization(.never).autocorrectionDisabled()
-                TextField("Port", value: $session.port, format: .number).keyboardType(.numberPad)
+                TextField("Port", text: Binding(get: { String(session.port) }, set: { session.port = Int($0) ?? session.port })).keyboardType(.numberPad)
                 SecureField("Pairing token", text: $session.token)
             }
             Section { Button("Connect") { session.save(); Task { await session.refresh() } }.disabled(session.host.isEmpty || session.token.isEmpty) }
-            Section { Text("Start Companion in the MMM Mac app, then copy its pairing token here. The phone controls frozen jobs; it never receives direct disk access.").font(.footnote).foregroundStyle(.secondary) }
+            Section { Text("Start microMM on the old MBA, then copy its pairing token here. The phone controls frozen jobs; it never receives direct disk access.").font(.footnote).foregroundStyle(.secondary) }
             Text(session.status).foregroundStyle(.secondary)
-        }.navigationTitle("Pair MMM")
+        }.navigationTitle("Pair microMM")
     }
 }
 

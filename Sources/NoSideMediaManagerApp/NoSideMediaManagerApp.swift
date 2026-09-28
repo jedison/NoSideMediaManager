@@ -9,6 +9,7 @@ struct NoSideMediaManagerApp: App {
 
 @MainActor
 private struct ContentView: View {
+    @State private var selectedTab = (ProcessInfo.processInfo.environment["MMM_COMPANION_AUTOSTART"] == "1" || UserDefaults.standard.bool(forKey: "companion.autoStart")) ? 2 : 0
     @State private var apiKey = ""
     @State private var pin = ""
     @State private var query = ""
@@ -25,7 +26,7 @@ private struct ContentView: View {
     @State private var status = "Enter a TVDB key and search for a series."
     @State private var isWorking = false
 
-    var body: some View { TabView { tvScreen.tabItem { Text("TV") }; MovieToolsView().tabItem { Text("Movies") }; CompanionServerView().tabItem { Text("Companion") } } }
+    var body: some View { TabView(selection: $selectedTab) { tvScreen.tabItem { Text("TV") }.tag(0); MovieToolsView().tabItem { Text("Movies") }.tag(1); CompanionServerView().tabItem { Text("Companion") }.tag(2) } }
 
     private var tvScreen: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -60,13 +61,23 @@ private struct ContentView: View {
 
 @MainActor
 private struct CompanionServerView: View {
-    @State private var jobsRoot = "~/NoSideMediaManagerJobs"
-    @State private var libraryRoot = ""
-    @State private var token = UUID().uuidString.replacingOccurrences(of: "-", with: "")
-    @State private var port = "8347"
+    @State private var jobsRoot: String
+    @State private var libraryRoot: String
+    @State private var token: String
+    @State private var port: String
     @State private var lanVisible = true
     @State private var server: CompanionHTTPServer?
     @State private var status = "Configure the old MBA paths, then start the authenticated Companion."
+    @State private var didAutoStart = false
+
+    init() {
+        let environment = ProcessInfo.processInfo.environment
+        let defaults = UserDefaults.standard
+        _jobsRoot = State(initialValue: environment["MMM_COMPANION_JOBS_ROOT"] ?? defaults.string(forKey: "companion.jobsRoot") ?? "~/NoSideMediaManagerJobs")
+        _libraryRoot = State(initialValue: environment["MMM_COMPANION_LIBRARY_ROOT"] ?? defaults.string(forKey: "companion.libraryRoot") ?? "")
+        _token = State(initialValue: environment["MMM_COMPANION_TOKEN"] ?? defaults.string(forKey: "companion.token") ?? UUID().uuidString.replacingOccurrences(of: "-", with: ""))
+        _port = State(initialValue: environment["MMM_COMPANION_PORT"] ?? defaults.string(forKey: "companion.port") ?? "8347")
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("MMM Companion").font(.largeTitle.weight(.semibold))
@@ -79,6 +90,11 @@ private struct CompanionServerView: View {
             Text(status).foregroundStyle(.secondary).lineLimit(3)
             Spacer()
         }.padding(24)
+            .task {
+                guard (ProcessInfo.processInfo.environment["MMM_COMPANION_AUTOSTART"] == "1" || UserDefaults.standard.bool(forKey: "companion.autoStart")), !didAutoStart else { return }
+                didAutoStart = true
+                toggle()
+            }
     }
     private func pathField(_ label: String, value: Binding<String>) -> some View { HStack { TextField(label, text: value); Button("Choose…") { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; if panel.runModal() == .OK, let url = panel.url { value.wrappedValue = url.path } } } }
     private func toggle() { if let server { server.stop(); self.server = nil; status = "Companion stopped."; return }; guard let number = UInt16(port), !jobsRoot.isEmpty, !libraryRoot.isEmpty else { status = "Enter a valid port and both directory paths."; return }; do { let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobsRoot), libraryRoot: URL(fileURLWithPath: libraryRoot), token: token, version: "0.4.0"); let server = CompanionHTTPServer(service: CompanionJobService(configuration: config), token: token); try server.start(port: number, lanVisible: lanVisible); self.server = server; status = "Companion started on port \(number). \(lanVisible ? "LAN access is enabled." : "Loopback only.")" } catch { status = error.localizedDescription } }

@@ -18,7 +18,7 @@ struct CompanionClient {
     @Published var host = UserDefaults.standard.string(forKey: "companionHost") ?? ""
     @Published var port = UserDefaults.standard.integer(forKey: "companionPort") == 0 ? 8347 : UserDefaults.standard.integer(forKey: "companionPort")
     @Published var token = UserDefaults.standard.string(forKey: "companionToken") ?? ""
-    @Published var server: CompanionServerInfo?; @Published var jobs = [CompanionJob](); @Published var status = "Pair with MMM Companion on the old MBA."; @Published var isLoading = false
+    @Published var server: CompanionServerInfo?; @Published var jobs = [CompanionJob](); @Published var status = "Pair with microMM on the old MBA."; @Published var isLoading = false
     var client: CompanionClient { CompanionClient(host: host, port: port, token: token) }
     func save() { UserDefaults.standard.set(host, forKey: "companionHost"); UserDefaults.standard.set(port, forKey: "companionPort"); UserDefaults.standard.set(token, forKey: "companionToken") }
     func refresh() async { isLoading = true; defer { isLoading = false }; do { server = try await client.health(); jobs = try await client.jobs(); status = "Connected · \(jobs.count) frozen jobs" } catch { status = error.localizedDescription } }
