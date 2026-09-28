@@ -8,7 +8,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 - The macOS microMM window now opens taller, keeping its navigation and action
   controls comfortably visible.
-- Added the padded NoSide app icon to the microMM macOS application bundle.
+- Added the padded NoSide wordmark app icon to the microMM macOS application bundle.
 - Settings now provide reveal/hide controls for protected values and a one-click
   pairing-token copy control.
 
