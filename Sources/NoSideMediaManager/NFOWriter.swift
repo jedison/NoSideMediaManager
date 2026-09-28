@@ -3,6 +3,7 @@ import Foundation
 public enum NFOWriter {
     public static func embeddedMovieData(title: String, creationDate: String?) throws -> Data {
         let root = XMLElement(name: "movie"); add("title", title, to: root); add("premiered", creationDate, to: root)
+        addLockData(to: root)
         let xml = XMLDocument(rootElement: root); xml.characterEncoding = "UTF-8"; xml.version = "1.0"; return xml.xmlData(options: [.nodePrettyPrint])
     }
     public static func movieData(_ movie: Movie) throws -> Data {
@@ -16,6 +17,7 @@ public enum NFOWriter {
         add("rating", movie.rating.map { String($0) }, to: root)
         for genre in movie.genres { add("genre", genre, to: root) }
         uniqueID(movie.tmdbID, type: "tmdb", defaultID: true, to: root)
+        addLockData(to: root)
         let xml = XMLDocument(rootElement: root); xml.characterEncoding = "UTF-8"; xml.version = "1.0"
         return xml.xmlData(options: [.nodePrettyPrint])
     }
@@ -23,6 +25,7 @@ public enum NFOWriter {
         let root = XMLElement(name: "season")
         add("title", title ?? "Season \(number)", to: root)
         add("seasonnumber", String(number), to: root)
+        addLockData(to: root)
         let xml = XMLDocument(rootElement: root)
         xml.characterEncoding = "UTF-8"
         xml.version = "1.0"
@@ -45,6 +48,7 @@ public enum NFOWriter {
         add("aired", episode.aired, to: root)
         add("rating", episode.rating.map { String($0) }, to: root)
         uniqueID(episode.tvdbID, type: "tvdb", defaultID: true, to: root)
+        addLockData(to: root)
         let xml = XMLDocument(rootElement: root)
         xml.characterEncoding = "UTF-8"
         xml.version = "1.0"
@@ -61,6 +65,7 @@ public enum NFOWriter {
         add("rating", series.rating.map { String($0) }, to: root)
         for genre in series.genres { add("genre", genre, to: root) }
         uniqueID(series.tvdbID, type: "tvdb", defaultID: true, to: root)
+        addLockData(to: root)
         return root
     }
 
@@ -75,5 +80,12 @@ public enum NFOWriter {
         element.addAttribute(XMLNode.attribute(withName: "type", stringValue: type) as! XMLNode)
         element.addAttribute(XMLNode.attribute(withName: "default", stringValue: defaultID ? "true" : "false") as! XMLNode)
         parent.addChild(element)
+    }
+
+    /// Emby's whole-item metadata lock. This preserves MMM's reviewed NFO
+    /// values during future library scans while still allowing the NFO itself
+    /// to be deliberately edited and refreshed by the owner.
+    private static func addLockData(to parent: XMLElement) {
+        add("lockdata", "true", to: parent)
     }
 }

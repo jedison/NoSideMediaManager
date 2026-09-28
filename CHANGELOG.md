@@ -2,6 +2,14 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.8 — 2026-09-28
+
+### Changed
+
+- Every newly generated movie, TV show, season, and episode NFO now includes
+  Emby's whole-item metadata lock: `<lockdata>true</lockdata>`. Move-only
+  preservation packages continue to retain existing NFO files unchanged.
+
 ## 0.4.7 — 2026-09-28
 
 ### Fixed

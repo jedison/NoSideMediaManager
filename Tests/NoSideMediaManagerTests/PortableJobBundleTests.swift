@@ -18,6 +18,9 @@ import Testing
     #expect(manifest.moves == [.init(source: "Season 01/Old Name S01E01.mkv", destination: "Season 08/New Name S08E01.mkv")])
     #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("generated/Season 08/New Name S08E01.nfo").path))
     #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("generated/Season 08/season.nfo").path))
+    for nfo in ["generated/tvshow.nfo", "generated/Season 08/New Name S08E01.nfo", "generated/Season 08/season.nfo"] {
+        #expect(try String(contentsOf: bundle.appendingPathComponent(nfo)).contains("<lockdata>true</lockdata>"))
+    }
     let apply = try String(contentsOf: bundle.appendingPathComponent("apply.sh"))
     #expect(apply.contains("--dry-run"))
     #expect(apply.contains(".noside-mmm-backups"))

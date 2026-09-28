@@ -4,6 +4,10 @@ A deliberately small, local-first media metadata tool. Its first job is to
 look up television series and episodes in TVDB, and movies in TMDB, then write
 Kodi-compatible XML/NFO sidecar files beside the media.
 
+Every NFO created by MMM includes Emby's `<lockdata>true</lockdata>` setting,
+so Emby preserves MMM's reviewed metadata during later library scans. Existing
+NFOs carried by a move-only preservation package are never rewritten.
+
 Requires macOS Monterey 12 or later. It uses only Apple frameworks and has no
 package dependencies.
 

@@ -9,12 +9,20 @@ import Testing
     #expect(text.contains("Salt &amp; Pepper"))
     #expect(text.contains("A &lt; B"))
     #expect(text.contains("<uniqueid type=\"tvdb\" default=\"true\">123</uniqueid>"))
+    #expect(text.contains("<lockdata>true</lockdata>"))
 }
 
 @Test func seasonNFOUsesCanonicalSeasonNumber() throws {
     let text = String(decoding: try NFOWriter.seasonData(number: 8), as: UTF8.self)
     #expect(text.contains("<seasonnumber>8</seasonnumber>"))
     #expect(text.contains("<title>Season 8</title>"))
+    #expect(text.contains("<lockdata>true</lockdata>"))
+}
+
+@Test func episodeNFOUsesEmbyMetadataLock() throws {
+    let episode = TVEpisode(tvdbID: 456, seriesTVDBID: 123, season: 1, number: 2, title: "Second episode")
+    let text = String(decoding: try NFOWriter.episodeData(episode), as: UTF8.self)
+    #expect(text.contains("<lockdata>true</lockdata>"))
 }
 
 @Test func importWritesSeriesAndEpisodeFiles() async throws {
@@ -26,6 +34,7 @@ import Testing
     #expect(written.map(\.lastPathComponent).sorted() == ["S01E02.nfo", "tvshow.nfo"])
     #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("tvshow.nfo").path))
     #expect(String(decoding: try Data(contentsOf: directory.appendingPathComponent("S01E02.nfo")), as: UTF8.self).contains("Second episode"))
+    #expect(String(decoding: try Data(contentsOf: directory.appendingPathComponent("tvshow.nfo")), as: UTF8.self).contains("<lockdata>true</lockdata>"))
 }
 
 @Test func importDoesNotPartiallyWriteWhenANFOAlreadyExists() async throws {
