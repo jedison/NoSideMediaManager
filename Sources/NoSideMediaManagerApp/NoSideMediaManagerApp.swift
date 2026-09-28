@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import NoSideMediaManager
 import NoSideMediaCompanionCore
 
@@ -94,15 +95,63 @@ private struct MMMSettingsView: View {
     @State private var lanVisible = UserDefaults.standard.object(forKey: "companion.lanVisible") as? Bool ?? true
     @State private var status = "Settings are stored on this Mac."
     @State private var server: CompanionHTTPServer?
+    @State private var showsAPIKey = false
+    @State private var showsPIN = false
+    @State private var showsToken = false
     var body: some View { VStack(alignment: .leading, spacing: 16) {
         Text("Settings").font(.largeTitle.weight(.semibold)); Text("TVDB is shared by TV work and phone-initiated searches. Keys stay in Keychain.").foregroundStyle(.secondary)
-        SecureField("TVDB API key", text: $apiKey); SecureField("TVDB subscriber PIN (optional)", text: $pin)
-        TextField("Jobs folder", text: $jobsRoot); TextField("Library root", text: $libraryRoot); SecureField("Pairing token", text: $token); HStack { TextField("Port", text: $port).frame(width: 100); Toggle("Allow devices on local network", isOn: $lanVisible) }
+        ConcealedSettingField("TVDB API key", text: $apiKey, isRevealed: $showsAPIKey)
+        ConcealedSettingField("TVDB subscriber PIN (optional)", text: $pin, isRevealed: $showsPIN)
+        TextField("Jobs folder", text: $jobsRoot); TextField("Library root", text: $libraryRoot)
+        HStack(spacing: 8) {
+            ConcealedSettingField("Pairing token", text: $token, isRevealed: $showsToken)
+            Button(action: copyToken) { Label("Copy pairing token", systemImage: "doc.on.doc") }
+                .disabled(token.isEmpty)
+                .accessibilityLabel("Copy pairing token")
+        }
+        HStack { TextField("Port", text: $port).frame(width: 100); Toggle("Allow devices on local network", isOn: $lanVisible) }
         HStack { Button("Save settings", action: save).buttonStyle(.borderedProminent); Button("New pairing token") { token = UUID().uuidString.replacingOccurrences(of: "-", with: "") }; Spacer(); Button(server == nil ? "Start Companion" : "Stop Companion", action: toggle).disabled(server == nil && (libraryRoot.isEmpty || token.isEmpty)) }
         Text("Companion exposes authenticated remote audit, search, and frozen-package actions; it is not a file share.").font(.caption).foregroundStyle(.secondary); Text(status).foregroundStyle(.secondary); Spacer()
     }.padding(24) }
+    private func copyToken() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(token, forType: .string)
+        status = "Pairing token copied."
+    }
     private func save() { do { try TVDBCredentialStore.set(apiKey, named: "TVDB_API_KEY"); try TVDBCredentialStore.set(pin, named: "TVDB_PIN"); let d = UserDefaults.standard; d.set(jobsRoot, forKey: "companion.jobsRoot"); d.set(libraryRoot, forKey: "companion.libraryRoot"); d.set(token, forKey: "companion.token"); d.set(port, forKey: "companion.port"); d.set(lanVisible, forKey: "companion.lanVisible"); status = "Saved. Restart Companion to use changed paths, token, or port." } catch { status = error.localizedDescription } }
     private func toggle() { if let server { server.stop(); self.server = nil; status = "Companion stopped."; return }; guard let number = UInt16(port), !jobsRoot.isEmpty, !libraryRoot.isEmpty else { status = "Enter a valid port and both directory paths."; return }; do { let credentials = apiKey.isEmpty ? nil : TVDBClient.Credentials(apiKey: apiKey, subscriberPIN: pin); let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobsRoot), libraryRoot: URL(fileURLWithPath: libraryRoot), token: token, version: "0.4.2", tvdbCredentials: credentials); let server = CompanionHTTPServer(service: CompanionJobService(configuration: config), token: token); try server.start(port: number, lanVisible: lanVisible); self.server = server; status = "Companion started on port \(number)." } catch { status = error.localizedDescription } }
+}
+
+/// A settings field that stays concealed by default but can be briefly revealed
+/// without changing its stored value.
+private struct ConcealedSettingField: View {
+    let title: String
+    @Binding var text: String
+    @Binding var isRevealed: Bool
+
+    init(_ title: String, text: Binding<String>, isRevealed: Binding<Bool>) {
+        self.title = title
+        _text = text
+        _isRevealed = isRevealed
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Group {
+                if isRevealed {
+                    TextField(title, text: $text)
+                } else {
+                    SecureField(title, text: $text)
+                }
+            }
+            Button { isRevealed.toggle() } label: {
+                Image(systemName: isRevealed ? "eye.slash" : "eye")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(isRevealed ? "Hide \(title)" : "Show \(title)")
+            .help(isRevealed ? "Hide" : "Show")
+        }
+    }
 }
 
 @MainActor
