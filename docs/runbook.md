@@ -1,7 +1,10 @@
 # MMM runbook
 
-Operational notes for the analysis Mac, the old MBA media Mac, and the iPhone
-companion.
+Repository-side engineering reference for MMM. The authoritative operational
+runbook for the old MBA, Emby, media, remote access, and MMM is the Google Doc
+[Emby Server Setup Runbook - Old MacBook Air](<private operational document>).
+Keep this file aligned with that document, but use the Google Doc for live
+operations.
 
 ## Frozen media jobs
 
