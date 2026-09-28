@@ -68,19 +68,13 @@ private struct RemoteToolsView: View {
 private struct JobDetailView: View {
     @EnvironmentObject private var session: CompanionSession
     let job: CompanionJob
-    @State private var result: CompanionOperationResult?
-    @State private var showApply = false
-    @State private var isWorking = false
     var body: some View {
         List {
             Section("Frozen job") {
                 LabeledContent("Status", value: job.state == .applied ? "Applied" : "Ready"); LabeledContent("Provider", value: job.provider.uppercased()); LabeledContent("Moves", value: String(job.moves)); LabeledContent("Generated files", value: String(job.generatedFiles))
                 if job.unavailableArtwork > 0 { LabeledContent("Unavailable artwork", value: String(job.unavailableArtwork)) }
             }
-            Section("Operations") { Button("Dry run") { run(.dryRun) }.disabled(isWorking || job.state == .applied); Button("Apply", role: .destructive) { showApply = true }.disabled(isWorking || job.state == .applied); Button("Rollback") { run(.rollback) }.disabled(isWorking || job.state != .applied) }
-            if let result { Section("\(result.operation.rawValue) log") { Text(result.log.isEmpty ? "No output." : result.log).font(.system(.caption, design: .monospaced)).textSelection(.enabled); if !result.succeeded { Text("Operation failed; no further action was taken automatically.").foregroundStyle(.red) } } }
+            Section("Mac-only execution") { Text("This phone can request review work, search TVDB, and inspect frozen packages. MMM on the Mac performs dry-run, apply, and rollback after local review.").font(.footnote).foregroundStyle(.secondary) }
         }.navigationTitle(job.title)
-            .confirmationDialog("Apply this frozen job?", isPresented: $showApply, titleVisibility: .visible) { Button("Apply \(job.title)", role: .destructive) { run(.apply) } } message: { Text("This changes files only on the old MBA. Run dry-run first and keep its rollback backup.") }
     }
-    private func run(_ operation: CompanionOperation) { isWorking = true; Task { defer { isWorking = false }; do { result = try await session.client.run(job, operation: operation) } catch { result = CompanionOperationResult(jobID: job.id, operation: operation, succeeded: false, log: error.localizedDescription) } } }
 }

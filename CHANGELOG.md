@@ -10,6 +10,8 @@ This project follows [Semantic Versioning](https://semver.org/).
   TVDB search from that folder name, then reviews the selected folder only.
 - The authenticated Companion API and iPhone app now offer remote, read-only
   movie audit and TVDB series search. TVDB credentials remain on the Mac.
+- The iPhone Companion no longer presents dry-run, apply, or rollback
+  controls. Frozen package execution is explicitly a Mac-only MMM workflow.
 
 ## 0.4.1 — 2026-09-28
 
