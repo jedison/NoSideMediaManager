@@ -85,6 +85,24 @@ import Testing
     #expect(MovieLibraryAudit.classify(nfoExists: true, artworkExists: MovieLibraryAudit.primaryArtworkExists(for: base), info: info) == .complete)
 }
 
+@Test func selectedMovieReadinessSeparatesFolderWorkFromMetadataWork() {
+    let ready = MovieAuditItem(videoPath: "/Movies/Matrix.mkv", nfoExists: true, artworkExists: true, embeddedTitle: nil, embeddedCreationDate: nil, hasEmbeddedArtwork: false, tmdbID: 603, nfoTitle: "The Matrix", nfoYear: "1999", nfoIsValid: true, editionHint: nil, state: .complete, folderState: .needsNormalization)
+    let alreadyNormal = MovieAuditItem(videoPath: "/Movies/The Matrix (1999)/The Matrix (1999).mkv", nfoExists: true, artworkExists: true, embeddedTitle: nil, embeddedCreationDate: nil, hasEmbeddedArtwork: false, tmdbID: 603, nfoTitle: "The Matrix", nfoYear: "1999", nfoIsValid: true, editionHint: nil, state: .complete, folderState: .normalized)
+    #expect(ready.isPreservationReady)
+    #expect(!alreadyNormal.isPreservationReady)
+}
+
+@Test func selectedEmbeddedMoviesFreezeAsOneSidecarPackage() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let first = root.appendingPathComponent("one.mp4"); let second = root.appendingPathComponent("two.mkv"); let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true); try Data("one".utf8).write(to: first); try Data("two".utf8).write(to: second)
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+    let manifest = try PortableJobBundle.createEmbeddedMovies(at: bundle, libraryRoot: root, items: [.init(source: first, title: "One", creationDate: nil, artwork: nil), .init(source: second, title: "Two", creationDate: nil, artwork: nil)])
+    #expect(manifest.generatedFiles == ["one.nfo", "two.nfo"])
+    try runMovieScript(bundle.appendingPathComponent("apply.sh"), ["--dry-run", root.path])
+    #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("one.nfo").path))
+}
+
 @Test func sha256FingerprintModeIsOptIn() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true); let source = root.appendingPathComponent("movie.mp4"); let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true); try Data("movie".utf8).write(to: source)

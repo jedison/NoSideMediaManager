@@ -16,6 +16,8 @@ public struct CompanionJob: Codable, Sendable, Equatable, Identifiable {
 public enum CompanionOperation: String, Codable, Sendable { case dryRun = "dry-run", apply, rollback }
 public struct CompanionOperationResult: Codable, Sendable, Equatable { public let jobID: String; public let operation: CompanionOperation; public let succeeded: Bool; public let log: String; public init(jobID: String, operation: CompanionOperation, succeeded: Bool, log: String) { self.jobID = jobID; self.operation = operation; self.succeeded = succeeded; self.log = log } }
 public struct CompanionMovieAuditSummary: Codable, Sendable, Equatable { public let totalVideos: Int; public let byState: [String: Int]; public let invalidNFOs: Int; public init(report: MovieLibraryHealthReport) { totalVideos = report.items.count; byState = report.summary; invalidNFOs = report.invalidNFOs.count } }
+public struct CompanionMovieAuditReport: Codable, Sendable, Equatable { public let items: [MovieAuditItem]; public let totalVideos: Int; public let byState: [String: Int]; public let byFolderState: [String: Int]; public let invalidNFOs: Int; public init(report: MovieLibraryHealthReport) { items = report.items; totalVideos = report.items.count; byState = report.summary; byFolderState = report.folderSummary; invalidNFOs = report.invalidNFOs.count } }
+public struct CompanionMoviePackageRequest: Codable, Sendable, Equatable { public let videoPaths: [String]; public init(videoPaths: [String]) { self.videoPaths = videoPaths } }
 
 public struct CompanionConfiguration: Sendable {
     public let jobsRoot: URL; public let libraryRoot: URL; public let token: String; public let version: String; public let tvdbCredentials: TVDBClient.Credentials?

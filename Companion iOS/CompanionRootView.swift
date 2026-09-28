@@ -53,16 +53,30 @@ private struct RemoteToolsView: View {
     @EnvironmentObject private var session: CompanionSession
     @State private var query = ""
     @State private var results = [TVSeriesSearchResult]()
-    @State private var audit: CompanionMovieAuditSummary?
+    @State private var audit: CompanionMovieAuditReport?
+    @State private var selectedPaths = Set<String>()
+    @State private var packageKind = ""
+    @State private var confirmPackage = false
     @State private var status = "These requests run on the old MBA and do not change media files."
     @State private var working = false
     var body: some View { List {
-        Section("Movie library") { Button("Audit configured movie/library root") { runAudit() }.disabled(working); if let audit { Text("\(audit.totalVideos) videos · \(audit.invalidNFOs) invalid NFOs"); ForEach(audit.byState.sorted(by: { $0.key < $1.key }), id: \.key) { Text("\($0.key): \($0.value)") } } }
+        Section("Movie library") {
+            Button("Audit configured movie/library root") { runAudit() }.disabled(working)
+            if let audit {
+                Text("\(audit.totalVideos) videos · \(audit.invalidNFOs) invalid NFOs")
+                ForEach(audit.byFolderState.sorted(by: { $0.key < $1.key }), id: \.key) { Text("\($0.key): \($0.value)") }
+                HStack { Button("Select all") { selectedPaths = Set(audit.items.map(\.videoPath)) }; Button("Clear") { selectedPaths.removeAll() } }
+                Button("Freeze selected sidecar package") { packageKind = "sidecar"; confirmPackage = true }.disabled(!audit.items.contains { selectedPaths.contains($0.videoPath) && $0.sidecarReady } || working)
+                Button("Freeze selected preservation package") { packageKind = "preservation"; confirmPackage = true }.disabled(!audit.items.contains { selectedPaths.contains($0.videoPath) && $0.preservationReady } || working)
+            }
+        }
+        if let audit { Section("Audited movies") { ForEach(audit.items) { item in Toggle(isOn: Binding(get: { selectedPaths.contains(item.videoPath) }, set: { if $0 { selectedPaths.insert(item.videoPath) } else { selectedPaths.remove(item.videoPath) } })) { VStack(alignment: .leading) { Text(item.nfoTitle ?? URL(fileURLWithPath: item.videoPath).deletingPathExtension().lastPathComponent); Text("\(item.state) · \(item.folderState)").font(.caption).foregroundStyle(item.preservationReady ? .orange : .secondary) } } } } }
         Section("TVDB") { TextField("Search series", text: $query); Button("Search TVDB") { runSearch() }.disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || working); ForEach(results) { result in VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) } } }
         Section { Text(status).font(.footnote).foregroundStyle(.secondary) }
-    }.navigationTitle("Remote tools") }
+    }.navigationTitle("Remote tools").confirmationDialog("Create frozen package?", isPresented: $confirmPackage, titleVisibility: .visible) { Button("Create package") { freezeSelected() } } message: { Text("This creates a reviewed package on the old MBA. It does not modify the media library.") } }
     private func runAudit() { working = true; Task { defer { working = false }; do { audit = try await session.client.movieAudit(); status = "Audit complete." } catch { status = error.localizedDescription } } }
     private func runSearch() { working = true; Task { defer { working = false }; do { results = try await session.client.searchTV(query); status = "Found \(results.count) series." } catch { status = error.localizedDescription } } }
+    private func freezeSelected() { guard let audit else { return }; let eligible = audit.items.filter { selectedPaths.contains($0.videoPath) && (packageKind == "sidecar" ? $0.sidecarReady : $0.preservationReady) }; guard !eligible.isEmpty else { return }; working = true; Task { defer { working = false }; do { let job = try await session.client.freezeMoviePackage(packageKind, videoPaths: eligible.map(\.videoPath)); status = "Frozen job \(job.id) created for \(eligible.count) selected movie(s)."; await session.refresh() } catch { status = error.localizedDescription } } }
 }
 
 private struct JobDetailView: View {

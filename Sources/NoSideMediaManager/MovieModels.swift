@@ -34,6 +34,13 @@ public struct MovieBundleItem: Sendable {
     public init(movie: Movie, source: URL, destination: URL, downloadArtwork: Bool = true) { self.movie = movie; self.source = source; self.destination = destination; self.downloadArtwork = downloadArtwork }
 }
 
+/// Locally extracted container metadata approved for a sidecar-only package.
+/// No provider lookup or media-file mutation is involved.
+public struct EmbeddedMovieBundleItem: Sendable {
+    public let source: URL; public let title: String; public let creationDate: String?; public let artwork: Data?
+    public init(source: URL, title: String, creationDate: String?, artwork: Data?) { self.source = source; self.title = title; self.creationDate = creationDate; self.artwork = artwork }
+}
+
 public protocol MovieMetadataSource: Sendable {
     func searchMovies(named query: String) async throws -> [MovieSearchResult]
     func movie(id: Int) async throws -> Movie

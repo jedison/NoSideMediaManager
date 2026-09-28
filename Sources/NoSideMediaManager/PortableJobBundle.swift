@@ -111,6 +111,34 @@ public enum PortableJobBundle {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
         try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic); return manifest
     }
+    /// Freezes sidecars extracted from multiple selected containers as one
+    /// package. It only writes NFO/JPG outputs inside the package.
+    @discardableResult
+    public static func createEmbeddedMovies(at bundle: URL, libraryRoot: URL, items: [EmbeddedMovieBundleItem], fileManager: FileManager = .default) throws -> PortableJobManifest {
+        guard !items.isEmpty, !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+        let root = libraryRoot.standardizedFileURL; let jobID = "mmm-\(UUID().uuidString.lowercased())"
+        try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
+        var generated = [String](); var sources = [String: URL]()
+        for item in items {
+            let sourceRelative = try relative(item.source, to: root); sources[sourceRelative] = item.source
+            let nfoPath = replacingExtension(sourceRelative, with: "nfo")
+            try write(NFOWriter.embeddedMovieData(title: item.title, creationDate: item.creationDate), relativePath: nfoPath, in: bundle)
+            generated.append(nfoPath)
+            if let artwork = item.artwork {
+                let imagePath = replacingExtension(sourceRelative, with: "jpg")
+                let target = generatedURL(for: imagePath, in: bundle)
+                try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try artwork.write(to: target, options: .atomic)
+                generated.append(imagePath)
+            }
+        }
+        let facade = TVSeries(tvdbID: 0, title: "Embedded movie metadata")
+        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: [], generatedFiles: Array(Set(generated)).sorted(), notes: ["NFO and artwork were extracted from selected video containers; no TMDB lookup was used."], mediaKind: "movie", metadataProvider: "embedded", sourceFingerprints: fingerprints(for: sources))
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
+        try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
+        return manifest
+    }
     /// Creates a portable single-movie transaction. It writes only `bundle`,
     /// never the reviewed movie folder.
     @discardableResult

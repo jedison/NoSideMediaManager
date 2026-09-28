@@ -2,6 +2,16 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.4 — 2026-09-28
+
+### Added
+
+- Movie audits now distinguish `needs folder normalisation` from `folder ready`
+  and metadata-incomplete items.
+- macOS MMM and the iPhone Companion can select individual audited movies or
+  Select All, then request a frozen multi-movie sidecar or preservation package.
+  The Companion creates packages only; it never changes the media library.
+
 ## 0.4.3 — 2026-09-28
 
 ### Changed
