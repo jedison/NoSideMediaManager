@@ -8,14 +8,40 @@ public struct MoviePlanDocument: Codable, Sendable, Equatable {
     /// metadata. The later preservation bundle moves sidecars as-is; it never
     /// replaces the NFO or downloads substitute artwork.
     public static func preservationProposal(library: URL, items: [MovieAuditItem]) -> MoviePlanDocument {
-        let entries = items.compactMap { item -> Entry? in
+        let eligible = items.compactMap { item -> (item: MovieAuditItem, source: URL, folderStem: String)? in
             guard item.state == .complete, item.nfoIsValid == true,
                   let title = item.nfoTitle, !title.isEmpty,
                   let tmdbID = item.tmdbID else { return nil }
             let source = URL(fileURLWithPath: item.videoPath)
             let stem = safe(title) + (item.nfoYear.flatMap { $0.isEmpty ? nil : $0 }.map { " (\($0))" } ?? "")
-            let destination = library.appendingPathComponent(stem, isDirectory: true).appendingPathComponent(stem).appendingPathExtension(source.pathExtension)
-            return Entry(sourcePath: source.path, tmdbID: tmdbID, destinationPath: destination.path, downloadArtwork: false)
+            _ = tmdbID
+            return (item, source, stem)
+        }
+
+        // Multiple files can legitimately represent the same movie: a low-res
+        // copy, different subtitle treatment, or another retained edition.
+        // They share a movie folder, but must have distinct stems so that each
+        // video retains its own NFO and artwork/subtitle sidecars.
+        var usedStemsByFolder = [String: Set<String>]()
+        var entries = [Entry]()
+        for (_, group) in Dictionary(grouping: eligible, by: { $0.item.tmdbID! }).sorted(by: { $0.key < $1.key }) {
+            let ordered = group.sorted { lhs, rhs in
+                let lhsCanonical = isCanonicalMovieCopy(lhs.source, folderStem: lhs.folderStem)
+                let rhsCanonical = isCanonicalMovieCopy(rhs.source, folderStem: rhs.folderStem)
+                if lhsCanonical != rhsCanonical { return lhsCanonical }
+                return lhs.source.path.localizedStandardCompare(rhs.source.path) == .orderedAscending
+            }
+            for (index, candidate) in ordered.enumerated() {
+                let folder = library.appendingPathComponent(candidate.folderStem, isDirectory: true)
+                let folderKey = folder.standardizedFileURL.path.lowercased()
+                var usedStems = usedStemsByFolder[folderKey] ?? []
+                let sourceStem = safe(candidate.source.deletingPathExtension().lastPathComponent)
+                let preferredStem = index == 0 ? candidate.folderStem : "\(candidate.folderStem) [\(sourceStem)]"
+                let destinationStem = uniquePreservationStem(preferredStem, fallback: candidate.folderStem, used: &usedStems)
+                usedStemsByFolder[folderKey] = usedStems
+                let destination = folder.appendingPathComponent(destinationStem).appendingPathExtension(candidate.source.pathExtension)
+                entries.append(Entry(sourcePath: candidate.source.path, tmdbID: candidate.item.tmdbID, destinationPath: destination.path, downloadArtwork: false))
+            }
         }
         return MoviePlanDocument(libraryPath: library.path, entries: entries)
     }
@@ -38,5 +64,19 @@ public struct MoviePlanDocument: Codable, Sendable, Equatable {
     public func write(to url: URL) throws { let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(self).write(to: url, options: .atomic) }
     public static func read(from url: URL) throws -> MoviePlanDocument { try JSONDecoder().decode(MoviePlanDocument.self, from: Data(contentsOf: url)) }
     static func safe(_ value: String) -> String { value.components(separatedBy: CharacterSet(charactersIn: "/:\\?*\"<>|")).joined(separator: " - ") }
+    private static func uniquePreservationStem(_ preferred: String, fallback: String, used: inout Set<String>) -> String {
+        var candidate = preferred
+        var number = 2
+        while used.contains(candidate.lowercased()) {
+            candidate = "\(fallback) [Edition \(number)]"
+            number += 1
+        }
+        used.insert(candidate.lowercased())
+        return candidate
+    }
+    private static func isCanonicalMovieCopy(_ source: URL, folderStem: String) -> Bool {
+        let titleOnly = folderStem.replacingOccurrences(of: #" \(\d{4}\)$"#, with: "", options: .regularExpression)
+        return source.deletingPathExtension().lastPathComponent.caseInsensitiveCompare(titleOnly) == .orderedSame
+    }
 }
 public enum MoviePlanError: LocalizedError { case unresolvedEntries; public var errorDescription: String? { "Every movie entry needs a reviewed TMDB ID." } }

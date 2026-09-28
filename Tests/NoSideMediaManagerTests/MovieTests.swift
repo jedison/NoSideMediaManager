@@ -74,6 +74,36 @@ import Testing
     for (suffix, contents) in originals { #expect(try String(contentsOf: URL(fileURLWithPath: base.path + suffix)) == contents) }
 }
 
+@Test func preservationProposalKeepsMultipleCopiesInOneMovieFolderWithSeparateNFOs() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let first = root.appendingPathComponent("Pride.mp4")
+    let second = root.appendingPathComponent("Pride lowres.mp4")
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data("primary video".utf8).write(to: first)
+    try Data("low-resolution video".utf8).write(to: second)
+    try Data("primary nfo".utf8).write(to: first.deletingPathExtension().appendingPathExtension("nfo"))
+    try Data("low-resolution nfo".utf8).write(to: second.deletingPathExtension().appendingPathExtension("nfo"))
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+
+    let items = [first, second].map { video in
+        MovieAuditItem(videoPath: video.path, nfoExists: true, artworkExists: true, embeddedTitle: nil, embeddedCreationDate: nil, hasEmbeddedArtwork: false, tmdbID: 86829, nfoTitle: "Pride", nfoYear: "2014", nfoIsValid: true, editionHint: nil, state: .complete)
+    }
+    let plan = MoviePlanDocument.preservationProposal(library: root, items: items)
+    let destinations = try plan.entries.map { try #require($0.destinationPath) }
+    #expect(destinations.count == 2)
+    #expect(Set(destinations).count == 2)
+    #expect(Set(destinations.map { URL(fileURLWithPath: $0).deletingLastPathComponent().path }) == [root.appendingPathComponent("Pride (2014)").path])
+    #expect(destinations.contains(root.appendingPathComponent("Pride (2014)/Pride (2014).mp4").path))
+    #expect(destinations.contains(root.appendingPathComponent("Pride (2014)/Pride (2014) [Pride lowres].mp4").path))
+
+    _ = try PortableJobBundle.createExistingMoviePreservation(at: bundle, plan: plan)
+    try runMovieScript(bundle.appendingPathComponent("apply.sh"), [root.path])
+    let nfos = destinations.map { URL(fileURLWithPath: $0).deletingPathExtension().appendingPathExtension("nfo") }
+    let nfoContents = try nfos.map { try String(contentsOf: $0) }
+    #expect(nfoContents.sorted() == ["low-resolution nfo", "primary nfo"])
+}
+
 @Test func moviePreservationBundleDecodesMovieOnlyJSONWithoutTVMappingValidation() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let source = root.appendingPathComponent("20,000 Days on Earth (1080p HD).mp4")

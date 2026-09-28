@@ -2,6 +2,14 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.7 — 2026-09-28
+
+### Fixed
+
+- Preservation plans now place multiple retained copies of one TMDB movie in
+  the same `Title (Year)` folder with distinct edition stems, preserving each
+  video's NFO and matching sidecars separately.
+
 ## 0.4.6 — 2026-09-28
 
 ### Fixed

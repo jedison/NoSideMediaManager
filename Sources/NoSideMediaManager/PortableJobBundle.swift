@@ -433,7 +433,14 @@ public enum PortableJobBundle {
         [[ -n "$ROOT" && -d "$ROOT" ]] || usage
         ROOT="$(cd "$ROOT" && pwd)"; BACKUP_ROOT="$ROOT/.noside-mmm-backups/\(manifest.jobID)"
         run() { if $DRY_RUN; then printf 'DRY-RUN:'; printf ' %q' "$@"; printf '\\n'; else "$@"; fi; }
-        sidecars() { local base="$1"; local file; for file in "$ROOT/$base"*.{nfo,srt,ass,ssa,sub,idx,vtt,jpg,jpeg,png,tbn}; do [[ -e "$file" ]] && printf '%s\\n' "$file"; done; }
+        sidecars() {
+          local base="$1"; local file
+          # Exact stem, recognised artwork names, and language subtitle suffixes.
+          # Do not use "$base"*: "Pride" must not claim "Pride lowres".
+          for file in "$ROOT/$base".{nfo,srt,ass,ssa,sub,idx,vtt,jpg,jpeg,png,tbn} "$ROOT/$base"-*.{jpg,jpeg,png,tbn} "$ROOT/$base".*.{srt,ass,ssa,sub,idx,vtt}; do
+            [[ -e "$file" ]] && printf '%s\\n' "$file"
+          done
+        }
         preflight_fingerprint() { local actual; if [[ "$2" == sha256:* ]]; then actual="sha256:$(shasum -a 256 "$ROOT/$1" | awk '{print $1}')"; else actual="$(stat -f '%z:%m' "$ROOT/$1")"; fi; [[ "$actual" == "$2" ]] || { echo "Video changed since review: $1 (expected $2, found $actual)" >&2; exit 1; }; }
         preflight_move() {
           local src="$1" dst="$2" srcbase="${1%.*}" dstbase="${2%.*}" sidecar suffix target
@@ -468,7 +475,12 @@ public enum PortableJobBundle {
         ROOT="$(cd "$ROOT" && pwd)"; BACKUP_ROOT="$ROOT/.noside-mmm-backups/\(manifest.jobID)"
         [[ -d "$BACKUP_ROOT" ]] || { echo "Applied-job marker not found: $BACKUP_ROOT" >&2; exit 1; }
         run() { if $DRY_RUN; then printf 'DRY-RUN:'; printf ' %q' "$@"; printf '\\n'; else "$@"; fi; }
-        sidecars() { local base="$1"; local file; for file in "$ROOT/$base"*.{nfo,srt,ass,ssa,sub,idx,vtt,jpg,jpeg,png,tbn}; do [[ -e "$file" ]] && printf '%s\\n' "$file"; done; }
+        sidecars() {
+          local base="$1"; local file
+          for file in "$ROOT/$base".{nfo,srt,ass,ssa,sub,idx,vtt,jpg,jpeg,png,tbn} "$ROOT/$base"-*.{jpg,jpeg,png,tbn} "$ROOT/$base".*.{srt,ass,ssa,sub,idx,vtt}; do
+            [[ -e "$file" ]] && printf '%s\\n' "$file"
+          done
+        }
         rollback_with_sidecars() {
           local src="$1" dst="$2" srcbase="${1%.*}" dstbase="${2%.*}" sidecar suffix target
           [[ -f "$ROOT/$src" ]] || { echo "Missing moved video: $src" >&2; exit 1; }
