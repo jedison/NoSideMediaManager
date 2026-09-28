@@ -23,7 +23,7 @@ private struct ContentView: View {
     @State private var artworkSelections = [URL: Bool]()
     @State private var destinationPaths = [URL: String]()
     @State private var destination: URL?
-    @State private var status = "Enter a TVDB key and search for a series."
+    @State private var status = "Choose the local show folder, then search TVDB from its name."
     @State private var isWorking = false
 
     var body: some View { TabView(selection: $selectedTab) { tvScreen.tabItem { Text("TV") }.tag(0); MovieToolsView().tabItem { Text("Movies") }.tag(1); CompanionServerView().tabItem { Text("Companion") }.tag(2) } }
@@ -32,10 +32,11 @@ private struct ContentView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Media Manager").font(.largeTitle.weight(.semibold))
             Text("TVDB → Kodi NFO").foregroundStyle(.secondary)
+            HStack { Button("Choose TV show folder…", action: chooseTVFolder).disabled(isWorking); if let destination { Text(destination.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
             HStack { TextField("TVDB API key", text: $apiKey); SecureField("Subscriber PIN (optional)", text: $pin) }
-            HStack { TextField("Find a series", text: $query); Button("Search", action: search).disabled(query.isEmpty || apiKey.isEmpty || isWorking) }
+            HStack { TextField("Search TVDB (suggested from folder)", text: $query); Button("Search TVDB", action: search).disabled(query.isEmpty || apiKey.isEmpty || destination == nil || isWorking) }
             List(results, id: \.tvdbID) { result in
-                HStack { VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) }; Spacer(); Button("Review folder…") { chooseDestination(for: result) }.disabled(isWorking) }
+                HStack { VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) }; Spacer(); Button("Review selected folder") { if let destination { review(result, in: destination) } }.disabled(isWorking || destination == nil) }
             }
             if !mappings.isEmpty { mappingReview }
             Text(status).font(.callout).foregroundStyle(.secondary).lineLimit(2)
@@ -44,10 +45,12 @@ private struct ContentView: View {
 
     private func client() -> TVDBClient { TVDBClient(credentials: .init(apiKey: apiKey, subscriberPIN: pin)) }
     private func search() { isWorking = true; status = "Searching TVDB…"; Task { do { results = try await client().searchSeries(named: query); status = "Found \(results.count) series." } catch { status = error.localizedDescription }; isWorking = false } }
-    private func chooseDestination(for result: TVSeriesSearchResult) {
+    private func chooseTVFolder() {
         let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        destination = url; review(result, in: url)
+        destination = url
+        query = url.lastPathComponent.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ").replacingOccurrences(of: #"(?i)season\s*\d+"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
+        status = "Folder selected. Check the suggested search, then choose the correct TVDB series."
     }
     private var mappingReview: some View { VStack(alignment: .leading) { Text("Mapping review").font(.headline); List(mappings) { mapping in VStack(alignment: .leading) { HStack { Text(mapping.local.url.lastPathComponent).lineLimit(1); if let count = nfoDifferenceCounts[mapping.local.url], count > 0 { Text("NFO Δ\(count)").foregroundStyle(.orange).font(.caption) }; Toggle("Artwork", isOn: Binding(get: { artworkSelections[mapping.local.url] ?? true }, set: { artworkSelections[mapping.local.url] = $0 })).labelsHidden(); Picker("Canonical episode", selection: Binding(get: { chosenEpisodeIDs[mapping.local.url] ?? mapping.canonical?.tvdbID ?? 0 }, set: { chosenEpisodeIDs[mapping.local.url] = $0 })) { Text("Needs review").tag(0); ForEach(canonicalEpisodes, id: \.tvdbID) { episode in Text("S\(episode.season)E\(episode.number) · \(episode.title)").tag(episode.tvdbID) } }.labelsHidden() }; TextField("Keep location, or enter a full destination video path", text: Binding(get: { destinationPaths[mapping.local.url] ?? mapping.local.url.path }, set: { destinationPaths[mapping.local.url] = $0 })).font(.caption) } }.frame(minHeight: 180); Toggle("Enable selected TVDB episode artwork downloads", isOn: $downloadArtwork); HStack { Button("Export JSON plan…", action: exportPlan).disabled(reviewedSeries == nil); Button("Generate portable job…", action: generateJob).disabled(reviewedSeries == nil || isWorking) }; Text("This Mac only creates a reviewed package; apply.sh changes the library on the target Mac.").font(.caption).foregroundStyle(.secondary) } }
     private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = client().series(id: result.tvdbID); let episodes = try await client().episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
@@ -65,6 +68,8 @@ private struct CompanionServerView: View {
     @State private var libraryRoot: String
     @State private var token: String
     @State private var port: String
+    @State private var tvdbAPIKey: String
+    @State private var tvdbPIN: String
     @State private var lanVisible = true
     @State private var server: CompanionHTTPServer?
     @State private var status = "Configure the old MBA paths, then start the authenticated Companion."
@@ -77,6 +82,8 @@ private struct CompanionServerView: View {
         _libraryRoot = State(initialValue: environment["MMM_COMPANION_LIBRARY_ROOT"] ?? defaults.string(forKey: "companion.libraryRoot") ?? "")
         _token = State(initialValue: environment["MMM_COMPANION_TOKEN"] ?? defaults.string(forKey: "companion.token") ?? UUID().uuidString.replacingOccurrences(of: "-", with: ""))
         _port = State(initialValue: environment["MMM_COMPANION_PORT"] ?? defaults.string(forKey: "companion.port") ?? "8347")
+        _tvdbAPIKey = State(initialValue: environment["TVDB_API_KEY"] ?? defaults.string(forKey: "companion.tvdbAPIKey") ?? "")
+        _tvdbPIN = State(initialValue: environment["TVDB_PIN"] ?? defaults.string(forKey: "companion.tvdbPIN") ?? "")
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -84,6 +91,7 @@ private struct CompanionServerView: View {
             Text("Runs inside this MMM Mac app. It exposes jobs—not a general file share.").foregroundStyle(.secondary)
             pathField("Jobs directory", value: $jobsRoot)
             pathField("Library root for these jobs", value: $libraryRoot)
+            HStack { SecureField("TVDB API key for phone searches", text: $tvdbAPIKey); SecureField("TVDB PIN (optional)", text: $tvdbPIN) }
             HStack { SecureField("Pairing token", text: $token); Button("New token") { token = UUID().uuidString.replacingOccurrences(of: "-", with: "") }; Button("Copy") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(token, forType: .string) } }
             HStack { TextField("Port", text: $port).frame(width: 90); Toggle("Allow devices on local network", isOn: $lanVisible); Spacer(); Button(server == nil ? "Start Companion" : "Stop Companion", action: toggle).disabled(server == nil && (libraryRoot.isEmpty || token.isEmpty)) }
             GroupBox("Phone pairing") { VStack(alignment: .leading, spacing: 6) { Text("Enter this Mac’s local IP address, port, and pairing token in the iOS app."); Text("Apply requires a second confirmation carrying the exact job ID. Keep this on your trusted home network or VPN.").font(.caption).foregroundStyle(.secondary) } }
@@ -97,7 +105,7 @@ private struct CompanionServerView: View {
             }
     }
     private func pathField(_ label: String, value: Binding<String>) -> some View { HStack { TextField(label, text: value); Button("Choose…") { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; if panel.runModal() == .OK, let url = panel.url { value.wrappedValue = url.path } } } }
-    private func toggle() { if let server { server.stop(); self.server = nil; status = "Companion stopped."; return }; guard let number = UInt16(port), !jobsRoot.isEmpty, !libraryRoot.isEmpty else { status = "Enter a valid port and both directory paths."; return }; do { let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobsRoot), libraryRoot: URL(fileURLWithPath: libraryRoot), token: token, version: "0.4.0"); let server = CompanionHTTPServer(service: CompanionJobService(configuration: config), token: token); try server.start(port: number, lanVisible: lanVisible); self.server = server; status = "Companion started on port \(number). \(lanVisible ? "LAN access is enabled." : "Loopback only.")" } catch { status = error.localizedDescription } }
+    private func toggle() { if let server { server.stop(); self.server = nil; status = "Companion stopped."; return }; guard let number = UInt16(port), !jobsRoot.isEmpty, !libraryRoot.isEmpty else { status = "Enter a valid port and both directory paths."; return }; UserDefaults.standard.set(tvdbAPIKey, forKey: "companion.tvdbAPIKey"); UserDefaults.standard.set(tvdbPIN, forKey: "companion.tvdbPIN"); do { let credentials = tvdbAPIKey.isEmpty ? nil : TVDBClient.Credentials(apiKey: tvdbAPIKey, subscriberPIN: tvdbPIN); let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobsRoot), libraryRoot: URL(fileURLWithPath: libraryRoot), token: token, version: "0.4.1", tvdbCredentials: credentials); let server = CompanionHTTPServer(service: CompanionJobService(configuration: config), token: token); try server.start(port: number, lanVisible: lanVisible); self.server = server; status = "Companion started on port \(number). \(lanVisible ? "LAN access is enabled." : "Loopback only.")" } catch { status = error.localizedDescription } }
 }
 
 @MainActor

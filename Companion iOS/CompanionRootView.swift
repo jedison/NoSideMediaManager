@@ -34,6 +34,7 @@ private struct JobListView: View {
     var body: some View {
         List {
             Section { Text(session.status).font(.footnote).foregroundStyle(.secondary) }
+            Section { NavigationLink("Remote audit & TVDB search", destination: RemoteToolsView()) }
             ForEach(session.jobs) { job in
                 NavigationLink(value: job) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -46,6 +47,22 @@ private struct JobListView: View {
             .overlay { if session.isLoading { ProgressView() } }
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { Task { await session.refresh() } } label: { Image(systemName: "arrow.clockwise") } } }
     }
+}
+
+private struct RemoteToolsView: View {
+    @EnvironmentObject private var session: CompanionSession
+    @State private var query = ""
+    @State private var results = [TVSeriesSearchResult]()
+    @State private var audit: CompanionMovieAuditSummary?
+    @State private var status = "These requests run on the old MBA and do not change media files."
+    @State private var working = false
+    var body: some View { List {
+        Section("Movie library") { Button("Audit configured movie/library root") { runAudit() }.disabled(working); if let audit { Text("\(audit.totalVideos) videos · \(audit.invalidNFOs) invalid NFOs"); ForEach(audit.byState.sorted(by: { $0.key < $1.key }), id: \.key) { Text("\($0.key): \($0.value)") } } }
+        Section("TVDB") { TextField("Search series", text: $query); Button("Search TVDB") { runSearch() }.disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || working); ForEach(results) { result in VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) } } }
+        Section { Text(status).font(.footnote).foregroundStyle(.secondary) }
+    }.navigationTitle("Remote tools") }
+    private func runAudit() { working = true; Task { defer { working = false }; do { audit = try await session.client.movieAudit(); status = "Audit complete." } catch { status = error.localizedDescription } } }
+    private func runSearch() { working = true; Task { defer { working = false }; do { results = try await session.client.searchTV(query); status = "Found \(results.count) series." } catch { status = error.localizedDescription } } }
 }
 
 private struct JobDetailView: View {

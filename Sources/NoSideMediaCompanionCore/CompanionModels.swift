@@ -15,8 +15,9 @@ public struct CompanionJob: Codable, Sendable, Equatable, Identifiable {
 
 public enum CompanionOperation: String, Codable, Sendable { case dryRun = "dry-run", apply, rollback }
 public struct CompanionOperationResult: Codable, Sendable, Equatable { public let jobID: String; public let operation: CompanionOperation; public let succeeded: Bool; public let log: String; public init(jobID: String, operation: CompanionOperation, succeeded: Bool, log: String) { self.jobID = jobID; self.operation = operation; self.succeeded = succeeded; self.log = log } }
+public struct CompanionMovieAuditSummary: Codable, Sendable, Equatable { public let totalVideos: Int; public let byState: [String: Int]; public let invalidNFOs: Int; public init(report: MovieLibraryHealthReport) { totalVideos = report.items.count; byState = report.summary; invalidNFOs = report.invalidNFOs.count } }
 
 public struct CompanionConfiguration: Sendable {
-    public let jobsRoot: URL; public let libraryRoot: URL; public let token: String; public let version: String
-    public init(jobsRoot: URL, libraryRoot: URL, token: String, version: String) { self.jobsRoot = jobsRoot.standardizedFileURL; self.libraryRoot = libraryRoot.standardizedFileURL; self.token = token; self.version = version }
+    public let jobsRoot: URL; public let libraryRoot: URL; public let token: String; public let version: String; public let tvdbCredentials: TVDBClient.Credentials?
+    public init(jobsRoot: URL, libraryRoot: URL, token: String, version: String, tvdbCredentials: TVDBClient.Credentials? = nil) { self.jobsRoot = jobsRoot.standardizedFileURL; self.libraryRoot = libraryRoot.standardizedFileURL; self.token = token; self.version = version; self.tvdbCredentials = tvdbCredentials }
 }

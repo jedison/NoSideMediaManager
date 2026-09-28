@@ -2,6 +2,15 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.2 — 2026-09-28
+
+### Changed
+
+- TV review now starts by selecting the local show folder; MMM suggests a
+  TVDB search from that folder name, then reviews the selected folder only.
+- The authenticated Companion API and iPhone app now offer remote, read-only
+  movie audit and TVDB series search. TVDB credentials remain on the Mac.
+
 ## 0.4.1 — 2026-09-28
 
 ### Added

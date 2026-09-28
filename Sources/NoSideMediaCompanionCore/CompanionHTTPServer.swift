@@ -24,10 +24,12 @@ public final class CompanionHTTPServer: @unchecked Sendable {
     }
     private func route(_ raw: String) async -> String {
         let lines = raw.components(separatedBy: "\r\n"); guard let first = lines.first?.split(separator: " "), first.count >= 2 else { return response(400, ["error": "Malformed request"]) }
-        let method = String(first[0]); let path = String(first[1]); let headers = Dictionary(uniqueKeysWithValues: lines.dropFirst().compactMap { line -> (String, String)? in guard let index = line.firstIndex(of: ":") else { return nil }; return (line[..<index].lowercased(), line[line.index(after: index)...].trimmingCharacters(in: .whitespaces)) })
+        let method = String(first[0]); let target = String(first[1]); let components = URLComponents(string: "http://microMM\(target)"); let path = components?.path ?? target; let headers = Dictionary(uniqueKeysWithValues: lines.dropFirst().compactMap { line -> (String, String)? in guard let index = line.firstIndex(of: ":") else { return nil }; return (line[..<index].lowercased(), line[line.index(after: index)...].trimmingCharacters(in: .whitespaces)) })
         guard headers["authorization"] == "Bearer \(token)" else { return response(401, ["error": "Unauthorized"]) }
         if method == "GET", path == "/v1/health" { return response(200, await service.serverInfo()) }
         if method == "GET", path == "/v1/jobs" { return response(200, await service.jobs()) }
+        if method == "GET", path == "/v1/audit/movies" { return response(200, await service.movieAudit()) }
+        if method == "GET", path == "/v1/search/tv" { guard let query = components?.queryItems?.first(where: { $0.name == "query" })?.value?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else { return response(400, ["error": "A TV search query is required."]) }; do { return response(200, try await service.searchTV(query: query)) } catch { return response(400, ["error": error.localizedDescription]) } }
         let parts = path.split(separator: "/").map(String.init)
         guard method == "POST", parts.count == 4, parts[0] == "v1", parts[1] == "jobs", let operation = CompanionOperation(rawValue: parts[3]) else { return response(404, ["error": "Not found"]) }
         let jobID = parts[2]

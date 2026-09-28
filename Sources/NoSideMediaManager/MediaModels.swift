@@ -46,7 +46,7 @@ public struct TVEpisode: Sendable, Equatable {
     }
 }
 
-public struct TVSeriesSearchResult: Sendable, Equatable {
+public struct TVSeriesSearchResult: Codable, Sendable, Equatable {
     public let tvdbID: Int
     public let title: String
     public let overview: String?
