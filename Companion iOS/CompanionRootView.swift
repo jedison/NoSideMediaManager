@@ -7,6 +7,8 @@ struct CompanionRootView: View {
             Group { if session.server == nil { PairingView() } else { JobListView() } }
                 .navigationTitle("Media Manager")
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink(destination: PairingView()) { Image(systemName: "gear") } } }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(uiColor: .systemBackground).ignoresSafeArea())
         }.task { if !session.host.isEmpty && !session.token.isEmpty { await session.refresh() } }
     }
 }
