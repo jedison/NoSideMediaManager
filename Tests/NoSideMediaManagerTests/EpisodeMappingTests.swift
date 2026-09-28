@@ -24,6 +24,15 @@ import Testing
     #expect(mapping.first?.canonical == nil)
 }
 
+@Test func tvAuditReportsLocalDuplicateEpisodeCandidates() {
+    let first = LocalEpisodeFile(url: URL(fileURLWithPath: "/TV/Season 01/Show S01E01.mkv"), season: 1, episode: 1, folderSeason: 1)
+    let second = LocalEpisodeFile(url: URL(fileURLWithPath: "/TV/Season 01/Show S01E01.mp4"), season: 1, episode: 1, folderSeason: 1)
+    let conflict = LocalEpisodeFile(url: URL(fileURLWithPath: "/TV/Season 08/Show S07E02.mkv"), season: 7, episode: 2, folderSeason: 8)
+    let audit = TVLibraryAudit.report(for: [first, second, conflict])
+    #expect(audit.duplicates == [.init(season: 1, episode: 1, videoPaths: [first.url.path, second.url.path])])
+    #expect(audit.folderSeasonConflicts == 1)
+}
+
 @Test func embeddedTitleCanProposeSameSeasonEpisodeButNotOverrideConflict() {
     let episode = TVEpisode(tvdbID: 44, seriesTVDBID: 1, season: 4, number: 1, title: "Cake")
     let titleMatched = LocalEpisodeFile(url: URL(fileURLWithPath: "/tmp/30 Series 4, Cake.m4v"), season: 4, episode: 0, folderSeason: 4, metadataTitle: "Series 4, Cake")

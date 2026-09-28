@@ -2,6 +2,19 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.5 — 2026-09-28
+
+### Changed
+
+- TVDB credentials are now shown only in Settings, never on the TV workflow.
+- TVDB credentials are read only when a TVDB action needs them, avoiding an
+  unnecessary Keychain request when microMM starts.
+- Added a TV-folder audit with local duplicate-episode candidates, unnumbered
+  videos, and filename-versus-folder season conflicts.
+- Movie audits can now filter to items needing folder normalisation, embedded
+  metadata, or incomplete sidecars; **Select filtered** preserves any prior
+  selection. The iPhone companion has the equivalent movie filters.
+
 ## 0.4.4 — 2026-09-28
 
 ### Added

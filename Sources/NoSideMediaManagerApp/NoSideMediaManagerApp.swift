@@ -16,8 +16,6 @@ struct NoSideMediaManagerApp: App {
 @MainActor
 private struct ContentView: View {
     @State private var selectedTab = (ProcessInfo.processInfo.environment["MMM_COMPANION_AUTOSTART"] == "1" || UserDefaults.standard.bool(forKey: "companion.autoStart")) ? 2 : 0
-    @State private var apiKey = TVDBCredentialStore.value(named: "TVDB_API_KEY") ?? ""
-    @State private var pin = ""
     @State private var query = ""
     @State private var results = [TVSeriesSearchResult]()
     @State private var mappings = [EpisodeMapping]()
@@ -31,6 +29,8 @@ private struct ContentView: View {
     @State private var destination: URL?
     @State private var status = "Choose the local show folder, then search TVDB from its name."
     @State private var isWorking = false
+    @State private var tvAudit: TVLibraryAuditReport?
+    @State private var tvAuditFilter = "all"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,8 +60,8 @@ private struct ContentView: View {
             Text("Media Manager").font(.largeTitle.weight(.semibold))
             Text("TVDB → Kodi NFO").foregroundStyle(.secondary)
             HStack { Button("Choose TV show folder…", action: chooseTVFolder).disabled(isWorking); if let destination { Text(destination.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
-            HStack { TextField("TVDB API key", text: $apiKey); SecureField("Subscriber PIN (optional)", text: $pin) }
-            HStack { TextField("Search TVDB (suggested from folder)", text: $query); Button("Search TVDB", action: search).disabled(query.isEmpty || apiKey.isEmpty || destination == nil || isWorking) }
+            HStack { Button("Audit TV folder", action: auditTVFolder).disabled(destination == nil || isWorking); TextField("Search TVDB (suggested from folder)", text: $query); Button("Search TVDB", action: search).disabled(query.isEmpty || destination == nil || isWorking) }
+            if let tvAudit { tvAuditSummary(tvAudit) }
             List(results, id: \.tvdbID) { result in
                 HStack { VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) }; Spacer(); Button("Review selected folder") { if let destination { review(result, in: destination) } }.disabled(isWorking || destination == nil) }
             }
@@ -70,17 +70,35 @@ private struct ContentView: View {
         }.padding(24)
     }
 
-    private func client() -> TVDBClient { TVDBClient(credentials: .init(apiKey: apiKey, subscriberPIN: pin)) }
+    private func client() throws -> TVDBClient { guard let apiKey = TVDBCredentialStore.value(named: "TVDB_API_KEY"), !apiKey.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "Add the TVDB API key in Settings first."]) }; return TVDBClient(credentials: .init(apiKey: apiKey, subscriberPIN: TVDBCredentialStore.value(named: "TVDB_PIN"))) }
     private func search() { isWorking = true; status = "Searching TVDB…"; Task { do { results = try await client().searchSeries(named: query); status = "Found \(results.count) series." } catch { status = error.localizedDescription }; isWorking = false } }
     private func chooseTVFolder() {
         let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         destination = url
+        tvAudit = nil
         query = url.lastPathComponent.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ").replacingOccurrences(of: #"(?i)season\s*\d+"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
         status = "Folder selected. Check the suggested search, then choose the correct TVDB series."
     }
+    private func auditTVFolder() { guard let destination else { return }; isWorking = true; status = "Auditing local TV files…"; Task { do { let report = try await TVLibraryAudit.inspect(directory: destination); tvAudit = report; status = "Audited \(report.items.count) videos; \(report.duplicates.count) duplicate episode candidate(s)." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func tvAuditSummary(_ audit: TVLibraryAuditReport) -> some View { VStack(alignment: .leading, spacing: 4) { Text("TV audit · \(audit.items.count) videos · \(audit.duplicates.count) duplicate episode candidate(s) · \(audit.unnumberedCount) unnumbered").font(.caption).foregroundStyle(.secondary); Picker("Show", selection: $tvAuditFilter) { Text("All").tag("all"); Text("Multiple copies").tag("duplicates"); Text("Folder season conflicts").tag("conflicts"); Text("Unnumbered").tag("unnumbered") }.pickerStyle(.menu); ScrollView { LazyVStack(alignment: .leading, spacing: 3) { ForEach(filteredTVAuditItems(audit)) { item in Text("\(item.episodeKey ?? "Unnumbered") · \(URL(fileURLWithPath: item.videoPath).lastPathComponent)").font(.caption).foregroundStyle(item.folderSeason.map { $0 != item.season } == true ? .orange : .secondary).lineLimit(1) } } }.frame(maxHeight: 120) } }
+    private func filteredTVAuditItems(_ audit: TVLibraryAuditReport) -> [TVEpisodeAuditItem] {
+        let duplicatePaths = Set(audit.duplicates.flatMap(\.videoPaths))
+        switch tvAuditFilter {
+        case "duplicates":
+            return audit.items.filter { duplicatePaths.contains($0.videoPath) }
+        case "conflicts":
+            return audit.items.filter { item in
+                item.folderSeason.map { folderSeason in folderSeason != item.season } == true
+            }
+        case "unnumbered":
+            return audit.items.filter { $0.episodeKey == nil }
+        default:
+            return audit.items
+        }
+    }
     private var mappingReview: some View { VStack(alignment: .leading) { Text("Mapping review").font(.headline); List(mappings) { mapping in VStack(alignment: .leading) { HStack { Text(mapping.local.url.lastPathComponent).lineLimit(1); if let count = nfoDifferenceCounts[mapping.local.url], count > 0 { Text("NFO Δ\(count)").foregroundStyle(.orange).font(.caption) }; Toggle("Artwork", isOn: Binding(get: { artworkSelections[mapping.local.url] ?? true }, set: { artworkSelections[mapping.local.url] = $0 })).labelsHidden(); Picker("Canonical episode", selection: Binding(get: { chosenEpisodeIDs[mapping.local.url] ?? mapping.canonical?.tvdbID ?? 0 }, set: { chosenEpisodeIDs[mapping.local.url] = $0 })) { Text("Needs review").tag(0); ForEach(canonicalEpisodes, id: \.tvdbID) { episode in Text("S\(episode.season)E\(episode.number) · \(episode.title)").tag(episode.tvdbID) } }.labelsHidden() }; TextField("Keep location, or enter a full destination video path", text: Binding(get: { destinationPaths[mapping.local.url] ?? mapping.local.url.path }, set: { destinationPaths[mapping.local.url] = $0 })).font(.caption) } }.frame(minHeight: 180); Toggle("Enable selected TVDB episode artwork downloads", isOn: $downloadArtwork); HStack { Button("Export JSON plan…", action: exportPlan).disabled(reviewedSeries == nil); Button("Generate portable job…", action: generateJob).disabled(reviewedSeries == nil || isWorking) }; Text("This Mac only creates a reviewed package; apply.sh changes the library on the target Mac.").font(.caption).foregroundStyle(.secondary) } }
-    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = client().series(id: result.tvdbID); let episodes = try await client().episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
     private func approved() -> [ApprovedEpisodeMapping] { let index = Dictionary(uniqueKeysWithValues: canonicalEpisodes.map { ($0.tvdbID, $0) }); return mappings.compactMap { mapping in chosenEpisodeIDs[mapping.local.url].flatMap { index[$0] }.map { ApprovedEpisodeMapping(local: mapping.local, canonical: $0, downloadArtwork: artworkSelections[mapping.local.url] ?? false) } } }
     private func renamePlan() throws -> MediaRenamePlan? { let moves = mappings.compactMap { mapping -> MediaRename? in let path = destinationPaths[mapping.local.url] ?? mapping.local.url.path; return path == mapping.local.url.path ? nil : MediaRename(source: mapping.local.url, destination: URL(fileURLWithPath: path)) }; return moves.isEmpty ? nil : try MediaRenamePlan(renames: moves) }
     private func planDocument() -> MappingPlanDocument? { guard let directory = destination, let series = reviewedSeries else { return nil }; return MappingPlanDocument(seriesTVDBID: series.tvdbID, libraryPath: directory.path, entries: mappings.map { MappingPlanDocument.Entry(sourcePath: $0.local.url.path, canonicalEpisodeID: chosenEpisodeIDs[$0.local.url], destinationPath: destinationPaths[$0.local.url], downloadArtwork: artworkSelections[$0.local.url] ?? false) }) }
@@ -164,6 +182,7 @@ private struct MovieToolsView: View {
     @State private var folder: URL?
     @State private var items = [MovieAuditItem]()
     @State private var selectedPaths = Set<String>()
+    @State private var auditFilter = "all"
     @State private var status = "Choose a movie folder to audit. MMM will not modify it."
     @State private var isWorking = false
     var body: some View {
@@ -171,14 +190,15 @@ private struct MovieToolsView: View {
             Text("Movie Manager").font(.largeTitle.weight(.semibold))
             Text("Audit first. Complete movies can be reorganised without rewriting their NFOs or artwork.").foregroundStyle(.secondary)
             HStack { Button("Choose and audit folder…", action: chooseFolder).disabled(isWorking); if let folder { Text(folder.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
-            List(items, id: \.videoPath, selection: $selectedPaths) { item in
+            Picker("Show", selection: $auditFilter) { Text("All").tag("all"); Text("Needs folder normalisation").tag("needsFolder"); Text("Embedded metadata").tag("embedded"); Text("Incomplete").tag("incomplete") }.pickerStyle(.menu)
+            List(filteredItems, id: \.videoPath, selection: $selectedPaths) { item in
                 VStack(alignment: .leading) {
                     Text(item.nfoTitle ?? URL(fileURLWithPath: item.videoPath).lastPathComponent)
                     Text("\(item.state.rawValue) · \(folderLabel(item.folderState))\(item.editionHint.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(item.state == .bareNeedsTMDB ? .orange : .secondary)
                 }
             }
             HStack {
-                Button("Select all") { selectedPaths = Set(items.map(\.videoPath)) }.disabled(items.isEmpty)
+                Button("Select filtered") { selectedPaths.formUnion(filteredItems.map(\.videoPath)) }.disabled(filteredItems.isEmpty)
                 Button("Clear selection") { selectedPaths.removeAll() }.disabled(selectedPaths.isEmpty)
                 Spacer()
                 Button("Freeze sidecar package…", action: createEmbeddedPackage).disabled(selectedItems(of: .embeddedMetadataNeedsSidecars).isEmpty || isWorking)
@@ -190,6 +210,7 @@ private struct MovieToolsView: View {
     }
     private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; guard panel.runModal() == .OK, let url = panel.url else { return }; folder = url; isWorking = true; status = "Auditing videos and sidecars…"; Task { items = await MovieLibraryAudit.inspect(directory: url); status = "Audited \(items.count) videos."; isWorking = false } }
     private func selectedItems(of state: MovieSidecarState) -> [MovieAuditItem] { items.filter { selectedPaths.contains($0.videoPath) && $0.state == state } }
+    private var filteredItems: [MovieAuditItem] { switch auditFilter { case "needsFolder": items.filter(\.isPreservationReady); case "embedded": items.filter { $0.state == .embeddedMetadataNeedsSidecars }; case "incomplete": items.filter { !$0.isPreservationReady && $0.state != .embeddedMetadataNeedsSidecars }; default: items } }
     private func folderLabel(_ state: MovieFolderState) -> String { switch state { case .normalized: "folder ready"; case .needsNormalization: "needs folder normalisation"; case .metadataIncomplete: "folder not assessed" } }
     private func createEmbeddedPackage() { guard let folder else { return }; let selected = selectedItems(of: .embeddedMetadataNeedsSidecars); guard !selected.isEmpty else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.message = "Choose where to create the portable sidecar package"; guard output.runModal() == .OK, let parent = output.url else { return }; isWorking = true; status = "Extracting selected embedded metadata into a portable package…"; Task { do { var approved = [EmbeddedMovieBundleItem](); for item in selected { let video = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let title = metadata.title, !title.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "One selected container no longer has an extractable title; re-audit it before packaging."]) }; approved.append(.init(source: video, title: title, creationDate: metadata.creationDate, artwork: metadata.artwork)) }; let job = parent.appendingPathComponent("NoSide-MMM-Embedded-Selected-job"); let manifest = try PortableJobBundle.createEmbeddedMovies(at: job, libraryRoot: folder, items: approved); status = "Job \(manifest.jobID) created for \(approved.count) selected movie(s). Dry-run it on the media Mac." } catch { status = error.localizedDescription }; isWorking = false } }
     private func exportPreservationPlan() {
