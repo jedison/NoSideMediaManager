@@ -14,6 +14,9 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Movie audits can now filter to items needing folder normalisation, embedded
   metadata, or incomplete sidecars; **Select filtered** preserves any prior
   selection. The iPhone companion has the equivalent movie filters.
+- The iPhone companion now follows the NoSide home pattern with **How microMM
+  works** (information button), a dedicated Settings sheet, and visible app
+  and connected-Mac version/build information.
 
 ## 0.4.4 — 2026-09-28
 

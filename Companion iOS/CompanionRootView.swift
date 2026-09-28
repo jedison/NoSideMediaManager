@@ -2,30 +2,133 @@ import SwiftUI
 
 struct CompanionRootView: View {
     @EnvironmentObject private var session: CompanionSession
+    @State private var isShowingInfo = false
+    @State private var isShowingSettings = false
+
     var body: some View {
         NavigationStack {
             Group { if session.server == nil { PairingView() } else { JobListView() } }
                 .navigationTitle("microMM")
-                .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink(destination: PairingView()) { Image(systemName: "gear") } } }
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { isShowingInfo = true } label: {
+                            Image(systemName: "info.circle")
+                        }
+                        .accessibilityLabel("How microMM works")
+                        .accessibilityIdentifier("micromm.home.info")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { isShowingSettings = true } label: {
+                            Image(systemName: "gearshape")
+                        }
+                        .accessibilityLabel("Settings")
+                        .accessibilityIdentifier("micromm.home.settings")
+                    }
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(uiColor: .systemBackground).ignoresSafeArea())
-        }.task { if !session.host.isEmpty && !session.token.isEmpty { await session.refresh() } }
+        }
+        .sheet(isPresented: $isShowingInfo) {
+            NavigationStack {
+                CompanionInfoView()
+                    .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { isShowingInfo = false } } }
+            }
+        }
+        .sheet(isPresented: $isShowingSettings) {
+            NavigationStack {
+                CompanionSettingsView()
+                    .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { isShowingSettings = false } } }
+            }
+        }
+        .task { if !session.host.isEmpty && !session.token.isEmpty { await session.refresh() } }
     }
 }
 
 private struct PairingView: View {
     @EnvironmentObject private var session: CompanionSession
     var body: some View {
-        Form {
-            Section("microMM") {
-                TextField("Old MBA address", text: $session.host).textInputAutocapitalization(.never).autocorrectionDisabled()
-                TextField("Port", text: Binding(get: { String(session.port) }, set: { session.port = Int($0) ?? session.port })).keyboardType(.numberPad)
-                SecureField("Pairing token", text: $session.token)
+        List {
+            Section("Connect microMM") {
+                Text("Enter the old MBA address and pairing token in Settings, then connect.")
+                NavigationLink("Open Settings", destination: CompanionSettingsView())
             }
-            Section { Button("Connect") { session.save(); Task { await session.refresh() } }.disabled(session.host.isEmpty || session.token.isEmpty) }
-            Section { Text("Start microMM on the old MBA, then copy its pairing token here. The phone controls frozen jobs; it never receives direct disk access.").font(.footnote).foregroundStyle(.secondary) }
+            Section("Safety") {
+                Text("The phone can request and review frozen jobs. It does not receive direct disk access or make unreviewed library changes.")
+                    .foregroundStyle(.secondary)
+            }
             Text(session.status).foregroundStyle(.secondary)
-        }.navigationTitle("Pair microMM")
+        }.navigationTitle("Connect")
+    }
+}
+
+private struct CompanionSettingsView: View {
+    @EnvironmentObject private var session: CompanionSession
+
+    var body: some View {
+        Form {
+            Section("microMM connection") {
+                TextField("Old MBA address", text: $session.host)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                TextField("Port", text: Binding(get: { String(session.port) }, set: { session.port = Int($0) ?? session.port }))
+                    .keyboardType(.numberPad)
+                SecureField("Pairing token", text: $session.token)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+            Section {
+                Button("Connect") {
+                    session.save()
+                    Task { await session.refresh() }
+                }
+                .disabled(session.host.isEmpty || session.token.isEmpty || session.isLoading)
+            }
+            Section("Status") {
+                Text(session.status).foregroundStyle(.secondary)
+                if let server = session.server {
+                    LabeledContent("Old MBA microMM", value: server.version)
+                }
+            }
+            Section {
+                Text("Connection details stay on this iPhone. The pairing token authorizes the companion service, not filesystem access.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Settings")
+        .onDisappear { session.save() }
+    }
+}
+
+private enum CompanionBuildVersion {
+    static let label: String = {
+        let bundle = Bundle.main
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        return "Version \(version) (\(build))"
+    }()
+}
+
+private struct CompanionInfoView: View {
+    @EnvironmentObject private var session: CompanionSession
+
+    var body: some View {
+        List {
+            Section("How it works") {
+                Label("Connect this iPhone to microMM on the old MBA with its address and pairing token.", systemImage: "1.circle.fill")
+                Label("Audit, search, and choose items for a frozen package.", systemImage: "2.circle.fill")
+                Label("Review dry-run, apply, and rollback results from the job detail.", systemImage: "3.circle.fill")
+            }
+            Section("Important") {
+                Text("microMM on the phone does not directly change the media library. All library changes remain in reviewed, rollbackable packages on the old MBA.")
+                    .foregroundStyle(.secondary)
+            }
+            Section("About") {
+                LabeledContent("iPhone app", value: CompanionBuildVersion.label)
+                LabeledContent("Old MBA microMM", value: session.server?.version ?? "Not connected")
+            }
+        }
+        .navigationTitle("How microMM works")
     }
 }
 
