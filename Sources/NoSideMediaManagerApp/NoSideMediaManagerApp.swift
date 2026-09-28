@@ -26,7 +26,32 @@ private struct ContentView: View {
     @State private var status = "Choose the local show folder, then search TVDB from its name."
     @State private var isWorking = false
 
-    var body: some View { TabView(selection: $selectedTab) { tvScreen.tabItem { Text("TV") }.tag(0); MovieToolsView().tabItem { Text("Movies") }.tag(1); CompanionServerView().tabItem { Text("Companion") }.tag(2) } }
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                navigationButton("TV", tag: 0)
+                navigationButton("Movies", tag: 1)
+                navigationButton("Companion", tag: 2)
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            Divider()
+            Group {
+                switch selectedTab {
+                case 0: tvScreen
+                case 1: MovieToolsView()
+                default: CompanionServerView()
+                }
+            }
+        }
+    }
+
+    private func navigationButton(_ title: String, tag: Int) -> some View {
+        Button(title) { selectedTab = tag }
+            .buttonStyle(.borderedProminent)
+            .tint(selectedTab == tag ? .accentColor : .gray)
+    }
 
     private var tvScreen: some View {
         VStack(alignment: .leading, spacing: 16) {
