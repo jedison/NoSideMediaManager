@@ -7,7 +7,7 @@
     <key>CFBundleDisplayName</key>
     <string>microMM</string>
     <key>CFBundleExecutable</key>
-    <string>microMM</string>
+    <string>NoSideMediaManagerApp</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
@@ -21,7 +21,7 @@
     <key>CFBundleShortVersionString</key>
     <string>0.4.3</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>3</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>NSHighResolutionCapable</key>
