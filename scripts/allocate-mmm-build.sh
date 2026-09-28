@@ -1,14 +1,14 @@
 #!/bin/zsh
-# Reserve one globally unique MMM build number for a distributable iOS or
-# macOS build, then synchronise derived packaging metadata.
+# Reserve one globally unique MMM build number for a requested distributable
+# release, then synchronise derived packaging metadata.
 set -euo pipefail
 
-if [[ $# -ne 1 || ( "$1" != "ios" && "$1" != "macos" ) ]]; then
-  print -u2 "Usage: $(basename "$0") ios|macos"
+if [[ $# -ne 1 || ( "$1" != "ios" && "$1" != "macos" && "$1" != "both" ) ]]; then
+  print -u2 "Usage: $(basename "$0") ios|macos|both"
   exit 64
 fi
 
-component="$1"
+release_scope="$1"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 registry="$root/release/NoSideMediaManagerRelease.xcconfig"
 lock="$root/release/.build-allocation.lock"
@@ -28,7 +28,7 @@ fi
 
 next_build=$((build + 1))
 if [[ "${MMM_RELEASE_DRY_RUN:-0}" == "1" ]]; then
-  print "Would reserve NoSide Media Manager $version (build $next_build) for $component."
+  print "Would reserve NoSide Media Manager $version (build $next_build) for $release_scope."
   exit 0
 fi
 temporary="$(mktemp "$registry.XXXXXX")"
@@ -45,5 +45,9 @@ for plist in "$root/distribution/microMM/Info.plist"; do
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $next_build" "$plist"
 done
 
-print "Reserved NoSide Media Manager $version (build $next_build) for $component."
-print "Build that component now. A later build of either platform must reserve another number."
+print "Reserved NoSide Media Manager $version (build $next_build) for $release_scope."
+if [[ "$release_scope" == "both" ]]; then
+  print "Build and distribute both macOS and iOS artifacts with this same number."
+else
+  print "Build and distribute the $release_scope artifact now. A later release reserves another number."
+fi

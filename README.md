@@ -36,17 +36,20 @@ Frozen jobs remain portable and do not need microMM installed to run their
 
 `release/NoSideMediaManagerRelease.xcconfig` is the single source of truth for
 the MMM marketing version and the global build number. Before producing a
-distributable app, reserve a number for its platform:
+distributable release, reserve one number for its requested scope:
 
 ```sh
 ./scripts/allocate-mmm-build.sh ios
 ./scripts/allocate-mmm-build.sh macos
+./scripts/allocate-mmm-build.sh both
 ```
 
-Each command increments the same counter exactly once and synchronises the
-derived macOS packaging files. Ordinary local development and simulator builds
-do not reserve a number. For example, starting at build 10, an iOS release
-claims 11 and a later macOS release claims 12.
+Each command increments the shared counter exactly once and synchronises the
+derived macOS packaging files. `both` is one coordinated release: its macOS
+and iOS artifacts deliberately share one build number. Ordinary local
+development and simulator builds do not reserve a number. For example,
+starting at build 10, a requested combined release claims build 11 for both
+apps; the next separate release claims 12.
 
 Movie support uses TMDB and starts as a reviewed, one-movie-at-a-time workflow.
 

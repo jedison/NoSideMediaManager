@@ -13,7 +13,8 @@ This project follows [Semantic Versioning](https://semver.org/).
 - The iPhone Companion now uses the same 0.4.9 / build 10 release identity as
   microMM on macOS.
 - Added one shared release registry and a global build-number allocator. Each
-  distributable iOS or macOS build reserves the next number from that registry.
+  requested release reserves the next number from that registry; a coordinated
+  iOS-and-macOS release shares one build number across both artifacts.
 
 ## 0.4.8 — 2026-09-28
 
