@@ -2,6 +2,8 @@
 
 ## Shipped
 
+- Integrated macOS MMM Companion server and native iOS companion project;
+  both compile locally. See `docs/companion-architecture.md`.
 - TVDB television review, canonical episode mapping, NFO/JPG generation, and portable dry-run/apply/rollback jobs.
 - TMDB movie lookup and transparent JSON plans. `movie-bundle` accepts a reviewed plan containing multiple movies and freezes one transaction.
 - Movie audit (`movie-audit`) that recursively reports complete items, extractable embedded metadata, bare videos needing TMDB review, and partial sidecars.

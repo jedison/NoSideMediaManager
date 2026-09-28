@@ -1,5 +1,6 @@
 import SwiftUI
 import NoSideMediaManager
+import NoSideMediaCompanionCore
 
 @main
 struct NoSideMediaManagerApp: App {
@@ -24,7 +25,7 @@ private struct ContentView: View {
     @State private var status = "Enter a TVDB key and search for a series."
     @State private var isWorking = false
 
-    var body: some View { TabView { tvScreen.tabItem { Text("TV") }; MovieToolsView().tabItem { Text("Movies") } } }
+    var body: some View { TabView { tvScreen.tabItem { Text("TV") }; MovieToolsView().tabItem { Text("Movies") }; CompanionServerView().tabItem { Text("Companion") } } }
 
     private var tvScreen: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -55,6 +56,32 @@ private struct ContentView: View {
     private func exportPlan() { guard let plan = planDocument() else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "noside-media-plan.json"; guard panel.runModal() == .OK, let url = panel.url else { return }; do { try plan.write(to: url); status = "Plan exported: \(url.lastPathComponent)" } catch { status = error.localizedDescription } }
     private func generateJob() { guard let series = reviewedSeries, let directory = destination else { return }; let selected = approved(); guard !selected.isEmpty else { status = "Select at least one canonical episode."; return }; let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.allowsMultipleSelection = false; panel.message = "Choose where to create the portable job package"; guard panel.runModal() == .OK, let parent = panel.url else { return }; let output = parent.appendingPathComponent("NoSide-MMM-TVDB-\(series.tvdbID)-job", isDirectory: true); let paths = Dictionary(uniqueKeysWithValues: selected.map { mapping in (mapping.local.url, URL(fileURLWithPath: destinationPaths[mapping.local.url] ?? mapping.local.url.path)) }); isWorking = true; status = "Creating a portable job package…"; Task { do { let manifest = try await PortableJobBundle.create(at: output, showRoot: directory, series: series, mappings: selected, destinations: paths, downloadArtwork: downloadArtwork); status = "Job \(manifest.jobID) created. Copy it to the media Mac and dry-run apply.sh." } catch { status = error.localizedDescription }; isWorking = false } }
     private func write(_ result: TVSeriesSearchResult, into directory: URL) { isWorking = true; status = "Fetching \(result.title) and writing NFO files…"; Task { do { let files = try await NFOImportService(source: client()).importSeries(id: result.tvdbID, into: directory); status = "Wrote \(files.count) NFO files to \(directory.lastPathComponent)." } catch { status = error.localizedDescription }; isWorking = false } }
+}
+
+@MainActor
+private struct CompanionServerView: View {
+    @State private var jobsRoot = "~/NoSideMediaManagerJobs"
+    @State private var libraryRoot = ""
+    @State private var token = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+    @State private var port = "8347"
+    @State private var lanVisible = true
+    @State private var server: CompanionHTTPServer?
+    @State private var status = "Configure the old MBA paths, then start the authenticated Companion."
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("MMM Companion").font(.largeTitle.weight(.semibold))
+            Text("Runs inside this MMM Mac app. It exposes jobs—not a general file share.").foregroundStyle(.secondary)
+            pathField("Jobs directory", value: $jobsRoot)
+            pathField("Library root for these jobs", value: $libraryRoot)
+            HStack { SecureField("Pairing token", text: $token); Button("New token") { token = UUID().uuidString.replacingOccurrences(of: "-", with: "") }; Button("Copy") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(token, forType: .string) } }
+            HStack { TextField("Port", text: $port).frame(width: 90); Toggle("Allow devices on local network", isOn: $lanVisible); Spacer(); Button(server == nil ? "Start Companion" : "Stop Companion", action: toggle).disabled(server == nil && (libraryRoot.isEmpty || token.isEmpty)) }
+            GroupBox("Phone pairing") { VStack(alignment: .leading, spacing: 6) { Text("Enter this Mac’s local IP address, port, and pairing token in the iOS app."); Text("Apply requires a second confirmation carrying the exact job ID. Keep this on your trusted home network or VPN.").font(.caption).foregroundStyle(.secondary) } }
+            Text(status).foregroundStyle(.secondary).lineLimit(3)
+            Spacer()
+        }.padding(24)
+    }
+    private func pathField(_ label: String, value: Binding<String>) -> some View { HStack { TextField(label, text: value); Button("Choose…") { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; if panel.runModal() == .OK, let url = panel.url { value.wrappedValue = url.path } } } }
+    private func toggle() { if let server { server.stop(); self.server = nil; status = "Companion stopped."; return }; guard let number = UInt16(port), !jobsRoot.isEmpty, !libraryRoot.isEmpty else { status = "Enter a valid port and both directory paths."; return }; do { let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobsRoot), libraryRoot: URL(fileURLWithPath: libraryRoot), token: token, version: "0.3.1"); let server = CompanionHTTPServer(service: CompanionJobService(configuration: config), token: token); try server.start(port: number, lanVisible: lanVisible); self.server = server; status = "Companion started on port \(number). \(lanVisible ? "LAN access is enabled." : "Loopback only.")" } catch { status = error.localizedDescription } }
 }
 
 @MainActor

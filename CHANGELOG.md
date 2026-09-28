@@ -2,6 +2,15 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.0 — 2026-09-28
+
+### Added
+
+- MMM Companion server hosted inside the original macOS SwiftUI app, with
+  authenticated frozen-job listing and dry-run/apply/rollback operations.
+- Native iOS 16+ MMM Companion project for pairing, job review, operation logs,
+  and explicit apply confirmation.
+
 ## 0.3.1 — 2026-09-27
 
 ### Added

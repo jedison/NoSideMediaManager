@@ -2,6 +2,11 @@
 
 ## Next
 
+- Pair the iOS Companion with the old MBA using a real frozen job and validate
+  dry-run, explicit apply, rollback, and log display before broader use.
+- Move the iOS pairing token from UserDefaults to Keychain; add QR pairing and
+  Bonjour discovery after the first network pilot.
+- Add allowed multiple media roots/job-root mapping to the Companion server.
 - Complete the SwiftUI movie review queue: display TMDB and TVDB candidates for each bare item, require a per-file selection, and export one batch package without falling back to the CLI.
 - Add optional TMDB backdrop/fanart downloads with explicit Emby/Kodi naming choices and per-item keep/download/replace review.
 - Extend embedded movie extraction to cast, crew, genre, studio, rating, and description where a container exposes them.
