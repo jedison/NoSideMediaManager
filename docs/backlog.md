@@ -7,7 +7,7 @@
 - Move the iOS pairing token from UserDefaults to Keychain; add QR pairing and
   Bonjour discovery after the first network pilot.
 - Add allowed multiple media roots/job-root mapping to the Companion server.
-- Complete the SwiftUI movie review queue: display TMDB and TVDB candidates for each bare item, require a per-file selection, and export one batch package without falling back to the CLI.
+- Complete the SwiftUI movie review queue: display TMDB and TVDB candidates for each bare item, require a per-file selection, and export one batch package without falling back to the CLI. The existing-NFO preservation route is now available in the UI.
 - Add optional TMDB backdrop/fanart downloads with explicit Emby/Kodi naming choices and per-item keep/download/replace review.
 - Extend embedded movie extraction to cast, crew, genre, studio, rating, and description where a container exposes them.
 - Add a human-readable HTML health report alongside the current JSON report.

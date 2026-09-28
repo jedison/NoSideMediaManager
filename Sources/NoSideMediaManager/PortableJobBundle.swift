@@ -135,6 +135,40 @@ public enum PortableJobBundle {
         try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
         return manifest
     }
+    /// Freezes a move-only, one-folder-per-movie transaction for films which
+    /// already have valid local NFO metadata.  Unlike the TMDB authoring flow,
+    /// this deliberately does not rewrite NFO XML or replace artwork: the
+    /// reviewed sidecars are moved byte-for-byte with their video.
+    @discardableResult
+    public static func createExistingMoviePreservation(at bundle: URL, plan: MoviePlanDocument, fingerprintMode: SourceFingerprintMode = .metadata, fileManager: FileManager = .default) throws -> PortableJobManifest {
+        guard !plan.entries.isEmpty else { throw PortableJobBundleError.unresolvedMapping }
+        guard !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+        let root = URL(fileURLWithPath: plan.libraryPath).standardizedFileURL
+        var sources = [String: URL](); var moves = [PortableJobManifest.Move]()
+        for entry in plan.entries {
+            guard entry.tmdbID != nil, let destinationPath = entry.destinationPath else { throw PortableJobBundleError.unresolvedMapping }
+            let source = URL(fileURLWithPath: entry.sourcePath)
+            let destination = URL(fileURLWithPath: destinationPath)
+            let sourceRelative = try relative(source, to: root)
+            let destinationRelative = try relative(destination, to: root)
+            guard sourceRelative != destinationRelative else { continue }
+            sources[sourceRelative] = source
+            moves.append(.init(source: sourceRelative, destination: destinationRelative))
+        }
+        guard !moves.isEmpty else { throw PortableJobBundleError.unresolvedMapping }
+        let destinationSet = Set(moves.map(\.destination))
+        guard destinationSet.count == moves.count else { throw PortableJobBundleError.unresolvedMapping }
+        let jobID = "mmm-\(UUID().uuidString.lowercased())"
+        try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
+        let facade = TVSeries(tvdbID: 0, title: "Existing movie library")
+        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: moves, generatedFiles: [], notes: ["Existing valid NFO XML and recognised sidecars are preserved exactly; this package only reorganises them."], mediaKind: "movie", metadataProvider: "existing-nfo", sourceFingerprints: fingerprints(for: sources, mode: fingerprintMode))
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
+        try script(preservationApplyScript(manifest), named: "apply.sh", in: bundle)
+        try script(preservationRollbackScript(manifest), named: "rollback.sh", in: bundle)
+        try preservationReadme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
+        return manifest
+    }
     @discardableResult
     public static func create(
         at bundle: URL,
@@ -325,6 +359,70 @@ public enum PortableJobBundle {
         """
     }
 
+    private static func preservationApplyScript(_ manifest: PortableJobManifest) -> String {
+        let preflights = manifest.moves.map { "preflight_move \(quote($0.source)) \(quote($0.destination))" }.joined(separator: "\n")
+        let fingerprints = manifest.sourceFingerprints.sorted { $0.key < $1.key }.map { "preflight_fingerprint \(quote($0.key)) \(quote($0.value))" }.joined(separator: "\n")
+        let moves = manifest.moves.map { "move_with_sidecars \(quote($0.source)) \(quote($0.destination))" }.joined(separator: "\n")
+        return """
+        #!/usr/bin/env bash
+        # Frozen NoSide Media Manager preservation job \(manifest.jobID). Generated; do not edit paths.
+        set -euo pipefail
+        shopt -s nullglob
+        usage() { echo "Usage: $0 [--dry-run] /path/to/movie-library-root" >&2; exit 64; }
+        DRY_RUN=false; ROOT=""
+        for arg in "$@"; do if [[ "$arg" == "--dry-run" ]]; then DRY_RUN=true; elif [[ -z "$ROOT" ]]; then ROOT="$arg"; else usage; fi; done
+        [[ -n "$ROOT" && -d "$ROOT" ]] || usage
+        ROOT="$(cd "$ROOT" && pwd)"; BACKUP_ROOT="$ROOT/.noside-mmm-backups/\(manifest.jobID)"
+        run() { if $DRY_RUN; then printf 'DRY-RUN:'; printf ' %q' "$@"; printf '\\n'; else "$@"; fi; }
+        sidecars() { local base="$1"; local file; for file in "$ROOT/$base"*.{nfo,srt,ass,ssa,sub,idx,vtt,jpg,jpeg,png,tbn}; do [[ -e "$file" ]] && printf '%s\\n' "$file"; done; }
+        preflight_fingerprint() { local actual; if [[ "$2" == sha256:* ]]; then actual="sha256:$(shasum -a 256 "$ROOT/$1" | awk '{print $1}')"; else actual="$(stat -f '%z:%m' "$ROOT/$1")"; fi; [[ "$actual" == "$2" ]] || { echo "Video changed since review: $1 (expected $2, found $actual)" >&2; exit 1; }; }
+        preflight_move() {
+          local src="$1" dst="$2" srcbase="${1%.*}" dstbase="${2%.*}" sidecar suffix target
+          [[ -f "$ROOT/$src" ]] || { echo "Missing video: $src" >&2; exit 1; }
+          [[ ! -e "$ROOT/$dst" ]] || { echo "Destination video already exists: $dst" >&2; exit 1; }
+          while IFS= read -r sidecar; do suffix="${sidecar#"$ROOT/$srcbase"}"; target="$ROOT/$dstbase$suffix"; [[ ! -e "$target" ]] || { echo "Destination sidecar already exists: ${target#"$ROOT/"}" >&2; exit 1; }; done < <(sidecars "$srcbase")
+        }
+        move_with_sidecars() {
+          local src="$1" dst="$2" srcbase="${1%.*}" dstbase="${2%.*}" sidecar suffix
+          run mkdir -p "$BACKUP_ROOT" "$(dirname "$ROOT/$dst")"; run mv "$ROOT/$src" "$ROOT/$dst"
+          while IFS= read -r sidecar; do suffix="${sidecar#"$ROOT/$srcbase"}"; run mkdir -p "$(dirname "$ROOT/$dstbase$suffix")"; run mv "$sidecar" "$ROOT/$dstbase$suffix"; done < <(sidecars "$srcbase")
+        }
+        # Validate every destination and every reviewed source before moving anything.
+        \(preflights)
+        \(fingerprints)
+        \(moves)
+        if $DRY_RUN; then echo "Dry run complete: no media-library files changed."; else echo "Applied \(manifest.jobID). Backup marker: $BACKUP_ROOT"; fi
+        """
+    }
+
+    private static func preservationRollbackScript(_ manifest: PortableJobManifest) -> String {
+        let moves = manifest.moves.reversed().map { "rollback_with_sidecars \(quote($0.destination)) \(quote($0.source))" }.joined(separator: "\n")
+        return """
+        #!/usr/bin/env bash
+        # Reverses NoSide Media Manager preservation job \(manifest.jobID).
+        set -euo pipefail
+        shopt -s nullglob
+        usage() { echo "Usage: $0 [--dry-run] /path/to/movie-library-root" >&2; exit 64; }
+        DRY_RUN=false; ROOT=""
+        for arg in "$@"; do if [[ "$arg" == "--dry-run" ]]; then DRY_RUN=true; elif [[ -z "$ROOT" ]]; then ROOT="$arg"; else usage; fi; done
+        [[ -n "$ROOT" && -d "$ROOT" ]] || usage
+        ROOT="$(cd "$ROOT" && pwd)"; BACKUP_ROOT="$ROOT/.noside-mmm-backups/\(manifest.jobID)"
+        [[ -d "$BACKUP_ROOT" ]] || { echo "Applied-job marker not found: $BACKUP_ROOT" >&2; exit 1; }
+        run() { if $DRY_RUN; then printf 'DRY-RUN:'; printf ' %q' "$@"; printf '\\n'; else "$@"; fi; }
+        sidecars() { local base="$1"; local file; for file in "$ROOT/$base"*.{nfo,srt,ass,ssa,sub,idx,vtt,jpg,jpeg,png,tbn}; do [[ -e "$file" ]] && printf '%s\\n' "$file"; done; }
+        rollback_with_sidecars() {
+          local src="$1" dst="$2" srcbase="${1%.*}" dstbase="${2%.*}" sidecar suffix target
+          [[ -f "$ROOT/$src" ]] || { echo "Missing moved video: $src" >&2; exit 1; }
+          [[ ! -e "$ROOT/$dst" ]] || { echo "Rollback collision: $dst" >&2; exit 1; }
+          while IFS= read -r sidecar; do suffix="${sidecar#"$ROOT/$srcbase"}"; target="$ROOT/$dstbase$suffix"; [[ ! -e "$target" ]] || { echo "Rollback collision: ${target#"$ROOT/"}" >&2; exit 1; }; done < <(sidecars "$srcbase")
+          run mkdir -p "$(dirname "$ROOT/$dst")"; run mv "$ROOT/$src" "$ROOT/$dst"
+          while IFS= read -r sidecar; do suffix="${sidecar#"$ROOT/$srcbase"}"; run mkdir -p "$(dirname "$ROOT/$dstbase$suffix")"; run mv "$sidecar" "$ROOT/$dstbase$suffix"; done < <(sidecars "$srcbase")
+        }
+        \(moves)
+        if $DRY_RUN; then echo "Dry-run rollback complete: no media-library files changed."; else echo "Rollback complete for \(manifest.jobID)."; fi
+        """
+    }
+
     private static func rollbackScript(_ manifest: PortableJobManifest) -> String {
         let reverseMoves = manifest.moves.reversed().map { "rollback_video \(quote($0.destination)) \(quote($0.source))" }.joined(separator: "\n")
         return """
@@ -373,6 +471,31 @@ public enum PortableJobBundle {
         frozen review record; `generated/` holds the exact sidecars to be installed.
         \(manifest.unavailableArtwork.isEmpty ? "All requested TVDB episode artwork was bundled." : "TVDB artwork unavailable for \(manifest.unavailableArtwork.count) item(s); see manifest.json. NFOs and all available artwork are included.")
         \(manifest.notes.isEmpty ? "" : "Notes:\n" + manifest.notes.map { "- \($0)" }.joined(separator: "\n"))
+        """
+    }
+
+    private static func preservationReadme(_ manifest: PortableJobManifest) -> String {
+        """
+        NoSide Media Manager preservation job
+        =====================================
+        Existing movie library normalisation
+        Job: \(manifest.jobID)
+
+        This frozen package makes no new metadata and downloads no artwork. It
+        moves each reviewed video plus matching NFO, poster, fanart, logo, and
+        subtitle sidecars unchanged into its planned movie folder.
+
+        On the Mac with the real library:
+          ./apply.sh --dry-run "/path/to/movie-library-root"
+          ./apply.sh "/path/to/movie-library-root"
+
+        To undo after a successful apply:
+          ./rollback.sh --dry-run "/path/to/movie-library-root"
+          ./rollback.sh "/path/to/movie-library-root"
+
+        Apply creates `.noside-mmm-backups/\(manifest.jobID)` as an applied-job
+        marker. The transaction refuses any destination collision and verifies
+        each video fingerprint before it begins.
         """
     }
 

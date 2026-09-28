@@ -4,6 +4,21 @@ public struct MoviePlanDocument: Codable, Sendable, Equatable {
     public struct Entry: Codable, Sendable, Equatable { public var sourcePath: String; public var tmdbID: Int?; public var destinationPath: String?; public var downloadArtwork: Bool; public init(sourcePath: String, tmdbID: Int?, destinationPath: String? = nil, downloadArtwork: Bool = true) { self.sourcePath = sourcePath; self.tmdbID = tmdbID; self.destinationPath = destinationPath; self.downloadArtwork = downloadArtwork } }
     public let formatVersion: Int; public let libraryPath: String; public var entries: [Entry]
     public init(libraryPath: String, entries: [Entry]) { self.formatVersion = 1; self.libraryPath = libraryPath; self.entries = entries }
+    /// Creates a folder-normalisation proposal from existing, valid movie NFO
+    /// metadata. The later preservation bundle moves sidecars as-is; it never
+    /// replaces the NFO or downloads substitute artwork.
+    public static func preservationProposal(library: URL, items: [MovieAuditItem]) -> MoviePlanDocument {
+        let entries = items.compactMap { item -> Entry? in
+            guard item.state == .complete, item.nfoIsValid == true,
+                  let title = item.nfoTitle, !title.isEmpty,
+                  let tmdbID = item.tmdbID else { return nil }
+            let source = URL(fileURLWithPath: item.videoPath)
+            let stem = safe(title) + (item.nfoYear.flatMap { $0.isEmpty ? nil : $0 }.map { " (\($0))" } ?? "")
+            let destination = library.appendingPathComponent(stem, isDirectory: true).appendingPathComponent(stem).appendingPathExtension(source.pathExtension)
+            return Entry(sourcePath: source.path, tmdbID: tmdbID, destinationPath: destination.path, downloadArtwork: false)
+        }
+        return MoviePlanDocument(libraryPath: library.path, entries: entries)
+    }
     /// Keeps existing folders by default. `oneFolderPerMovie` is an explicit,
     /// opt-in library-layout normalisation: movie, NFO, poster and subtitle
     /// companions then move beneath `Title (Year)/` as one transaction.
@@ -22,6 +37,6 @@ public struct MoviePlanDocument: Codable, Sendable, Equatable {
     }
     public func write(to url: URL) throws { let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(self).write(to: url, options: .atomic) }
     public static func read(from url: URL) throws -> MoviePlanDocument { try JSONDecoder().decode(MoviePlanDocument.self, from: Data(contentsOf: url)) }
-    private static func safe(_ value: String) -> String { value.components(separatedBy: CharacterSet(charactersIn: "/:\\?*\"<>|")).joined(separator: " - ") }
+    static func safe(_ value: String) -> String { value.components(separatedBy: CharacterSet(charactersIn: "/:\\?*\"<>|")).joined(separator: " - ") }
 }
 public enum MoviePlanError: LocalizedError { case unresolvedEntries; public var errorDescription: String? { "Every movie entry needs a reviewed TMDB ID." } }

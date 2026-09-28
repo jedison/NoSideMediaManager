@@ -1,4 +1,4 @@
-# Delivery status — 2026-09-27
+# Delivery status — 2026-09-28
 
 ## Shipped
 
@@ -11,6 +11,10 @@
 - Movie health report (`movie-health`): invalid movie NFO XML, duplicate TMDB IDs, missing sidecars, and likely editions/extras are visible in JSON.
 - Portable manifests contain relative paths, generated sidecars, rollback instructions, and best-effort size/mtime source fingerprints. The target script rejects changed files when a fingerprint was available at review time.
 - A Monterey SwiftUI Movies tab can audit a selected folder and generate an embedded-metadata package for a selected eligible file.
+- Complete movies with valid TMDB NFOs can now be exported as an editable
+  preservation plan and frozen into a move-only per-movie-folder package.
+  Existing XML, posters, fanart, clearlogos, and subtitle sidecars are moved
+  byte-for-byte rather than regenerated.
 - TVDB movie search is available as a second, read-only candidate source beside TMDB. Provider IDs are never auto-merged.
 
 ## Operating model

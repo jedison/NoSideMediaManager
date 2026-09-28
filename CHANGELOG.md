@@ -2,6 +2,17 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.1 — 2026-09-28
+
+### Added
+
+- Preservation-first normalisation for complete movies: existing valid TMDB
+  NFOs and recognised poster, fanart, clearlogo, and subtitle sidecars move
+  unchanged into `Title (Year)/Title (Year).ext` folders.
+- Editable preservation plans and frozen move-only packages in both the CLI
+  and macOS Movies screen, with source fingerprints, preflight collision
+  checks, dry-run, and reversible rollback.
+
 ## 0.4.0 — 2026-09-28
 
 ### Added

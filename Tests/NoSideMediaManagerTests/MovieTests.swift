@@ -47,6 +47,33 @@ import Testing
     #expect(folders.entries[0].destinationPath == "/Library/Movies/Incoming/The Matrix (1999)/The Matrix (1999).mkv")
 }
 
+@Test func preservationPlanAndBundleMoveExistingSidecarsWithoutReplacingThem() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let source = root.appendingPathComponent("12 Monkeys.mp4")
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data("video".utf8).write(to: source)
+    let base = source.deletingPathExtension()
+    let originals = [".nfo": "rich nfo", "-poster.jpg": "poster", "-fanart.jpg": "fanart", "-clearlogo.png": "logo", ".en.srt": "subtitle"]
+    for (suffix, contents) in originals { try Data(contents.utf8).write(to: URL(fileURLWithPath: base.path + suffix)) }
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+    let item = MovieAuditItem(videoPath: source.path, nfoExists: true, artworkExists: true, embeddedTitle: nil, embeddedCreationDate: nil, hasEmbeddedArtwork: false, tmdbID: 63, nfoTitle: "12 Monkeys", nfoYear: "1995", nfoIsValid: true, editionHint: nil, state: .complete)
+    let plan = MoviePlanDocument.preservationProposal(library: root, items: [item])
+    #expect(plan.entries[0].destinationPath == root.appendingPathComponent("12 Monkeys (1995)/12 Monkeys (1995).mp4").path)
+    let manifest = try PortableJobBundle.createExistingMoviePreservation(at: bundle, plan: plan)
+    #expect(manifest.metadataProvider == "existing-nfo")
+    #expect(manifest.generatedFiles.isEmpty)
+    try runMovieScript(bundle.appendingPathComponent("apply.sh"), ["--dry-run", root.path])
+    #expect(FileManager.default.fileExists(atPath: source.path))
+    try runMovieScript(bundle.appendingPathComponent("apply.sh"), [root.path])
+    let destinationBase = root.appendingPathComponent("12 Monkeys (1995)/12 Monkeys (1995)")
+    #expect(FileManager.default.fileExists(atPath: destinationBase.appendingPathExtension("mp4").path))
+    for (suffix, contents) in originals { #expect(try String(contentsOf: URL(fileURLWithPath: destinationBase.path + suffix)) == contents) }
+    try runMovieScript(bundle.appendingPathComponent("rollback.sh"), [root.path])
+    #expect(FileManager.default.fileExists(atPath: source.path))
+    for (suffix, contents) in originals { #expect(try String(contentsOf: URL(fileURLWithPath: base.path + suffix)) == contents) }
+}
+
 @Test func movieAuditAcceptsTinyMediaManagerPosterSidecar() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }

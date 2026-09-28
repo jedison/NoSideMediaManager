@@ -170,6 +170,30 @@ a TMDB result with `movie-search`, then use the reviewed plan workflow above.
 `movie-tvdb-search` is available alongside it as a TVDB comparison source. It
 does not auto-merge provider identities or change the selected TMDB NFO ID.
 
+### Preserve and normalise existing complete movies
+
+For films already carrying a valid TMDB movie NFO and primary poster, use the
+preservation route. It needs no API key and never regenerates XML or artwork.
+It proposes a `Title (Year)/Title (Year).ext` layout, then freezes a move-only
+job that carries the existing NFO, `-poster`, `-fanart`, `-clearlogo`, and
+subtitle sidecars along unchanged.
+
+```sh
+swift run noside-media movie-preservation-plan "/Volumes/Movies/My/Movies" \
+  ~/Desktop/movie-preservation-plan.json
+# Review/edit destinationPath values in this JSON before freezing it.
+swift run noside-media movie-preservation-bundle \
+  ~/Desktop/movie-preservation-plan.json ~/Desktop/movie-preservation-job
+cd ~/Desktop/movie-preservation-job
+./apply.sh --dry-run "/Volumes/Movies/My/Movies"
+./apply.sh "/Volumes/Movies/My/Movies"
+```
+
+The Movies screen provides the same two steps as **Export preservation plan**
+and **Freeze preservation package**. The package refuses source changes or any
+destination collision before moving its first file, and `rollback.sh` reverses
+the folder/file moves.
+
 When the analysis Mac can read a source video, MMM records its size and
 modification time in `manifest.json`. `apply.sh` rechecks it and refuses a
 changed file. Remote-path-only plans remain supported but cannot include that

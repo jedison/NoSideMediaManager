@@ -110,15 +110,36 @@ private struct MovieToolsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Movie Manager").font(.largeTitle.weight(.semibold))
-            Text("Audit embedded metadata first; use TMDB only for bare files.").foregroundStyle(.secondary)
+            Text("Audit first. Complete movies can be reorganised without rewriting their NFOs or artwork.").foregroundStyle(.secondary)
             HStack { Button("Choose and audit folder…", action: chooseFolder).disabled(isWorking); if let folder { Text(folder.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
             List(items, id: \.videoPath, selection: $selectedPath) { item in
-                VStack(alignment: .leading) { Text(URL(fileURLWithPath: item.videoPath).lastPathComponent); Text(item.state.rawValue + (item.editionHint.map { " · \($0)" } ?? "")).font(.caption).foregroundStyle(item.state == .bareNeedsTMDB ? .orange : .secondary) }
+                VStack(alignment: .leading) { Text(item.nfoTitle ?? URL(fileURLWithPath: item.videoPath).lastPathComponent); Text(item.state.rawValue + (item.editionHint.map { " · \($0)" } ?? "")).font(.caption).foregroundStyle(item.state == .bareNeedsTMDB ? .orange : .secondary) }
             }
-            HStack { Button("Create embedded sidecar package…", action: createEmbeddedPackage).disabled(items.first { $0.videoPath == selectedPath }?.state != .embeddedMetadataNeedsSidecars || isWorking); Text("Bare items require an explicit TMDB match in the CLI review flow.").font(.caption).foregroundStyle(.secondary) }
+            HStack {
+                Button("Create embedded sidecar package…", action: createEmbeddedPackage).disabled(items.first { $0.videoPath == selectedPath }?.state != .embeddedMetadataNeedsSidecars || isWorking)
+                Button("Export preservation plan…", action: exportPreservationPlan).disabled(!items.contains { $0.state == .complete && $0.nfoIsValid == true && $0.tmdbID != nil } || isWorking)
+                Button("Freeze preservation package…", action: createPreservationPackage).disabled(isWorking)
+            }
+            Text("Preservation moves complete movies into Title (Year) folders with their existing NFO, poster, fanart, logos and subtitles untouched. Bare items still need an explicit TMDB match in the CLI review flow.").font(.caption).foregroundStyle(.secondary)
             Text(status).foregroundStyle(.secondary).lineLimit(2)
         }.padding(24)
     }
     private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; guard panel.runModal() == .OK, let url = panel.url else { return }; folder = url; isWorking = true; status = "Auditing videos and sidecars…"; Task { items = await MovieLibraryAudit.inspect(directory: url); status = "Audited \(items.count) videos."; isWorking = false } }
     private func createEmbeddedPackage() { guard let folder, let selected = items.first(where: { $0.videoPath == selectedPath }) else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.message = "Choose where to create the portable job"; guard output.runModal() == .OK, let parent = output.url else { return }; isWorking = true; status = "Extracting embedded metadata into a portable package…"; Task { do { let video = URL(fileURLWithPath: selected.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let title = metadata.title, !title.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "This container has no extractable title; use the TMDB review flow."]) }; let job = parent.appendingPathComponent("NoSide-MMM-Embedded-\(video.deletingPathExtension().lastPathComponent)-job"); let manifest = try PortableJobBundle.createEmbeddedMovie(at: job, libraryRoot: folder, source: video, title: title, creationDate: metadata.creationDate, artwork: metadata.artwork); status = "Job \(manifest.jobID) created. Copy it to the media Mac and dry-run apply.sh." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func exportPreservationPlan() {
+        guard let folder else { return }
+        let plan = MoviePlanDocument.preservationProposal(library: folder, items: items)
+        guard !plan.entries.isEmpty else { status = "No complete movies with valid TMDB NFOs are ready to preserve."; return }
+        let panel = NSSavePanel(); panel.nameFieldStringValue = "mmm-movie-preservation-plan.json"; panel.message = "Save the editable preservation plan for review"
+        guard panel.runModal() == .OK, let output = panel.url else { return }
+        do { try plan.write(to: output); status = "Saved a preservation plan for \(plan.entries.count) movie(s). Review destination paths, then freeze it." } catch { status = error.localizedDescription }
+    }
+    private func createPreservationPackage() {
+        let input = NSOpenPanel(); input.canChooseDirectories = false; input.canChooseFiles = true; input.allowsMultipleSelection = false; input.message = "Choose the reviewed preservation plan"
+        guard input.runModal() == .OK, let planURL = input.url else { return }
+        let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.message = "Choose where to create the portable preservation package"
+        guard output.runModal() == .OK, let parent = output.url else { return }
+        isWorking = true; status = "Freezing preservation package…"
+        Task { do { let plan = try MoviePlanDocument.read(from: planURL); let job = parent.appendingPathComponent("NoSide-MMM-Movie-Preservation-job"); let manifest = try PortableJobBundle.createExistingMoviePreservation(at: job, plan: plan); status = "Job \(manifest.jobID) created. Copy it to the media Mac and dry-run apply.sh." } catch { status = error.localizedDescription }; isWorking = false }
+    }
 }
