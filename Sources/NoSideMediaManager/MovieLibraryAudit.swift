@@ -20,10 +20,17 @@ public enum MovieLibraryAudit {
         for video in MediaFileInspector.videoFiles(in: directory) {
             guard let info = try? await MediaFileInspector.inspect(video) else { continue }
             let base = video.deletingPathExtension(); let nfo = base.appendingPathExtension("nfo"); let nfoExists = FileManager.default.fileExists(atPath: nfo.path); let parsed = nfoExists ? inspectNFO(nfo) : nil
-            let image = ["jpg", "jpeg", "png"].contains { FileManager.default.fileExists(atPath: base.appendingPathExtension($0).path) }
+            let image = primaryArtworkExists(for: base)
             items.append(MovieAuditItem(videoPath: video.path, nfoExists: nfoExists, artworkExists: image, embeddedTitle: info.title, embeddedCreationDate: info.creationDate, hasEmbeddedArtwork: info.hasEmbeddedArtwork, tmdbID: parsed?.id, nfoIsValid: nfoExists ? parsed?.valid ?? false : nil, editionHint: editionHint(video.lastPathComponent), state: classify(nfoExists: nfoExists, artworkExists: image, info: info)))
         }
         return items
+    }
+    /// Supports both MMM's stem artwork and tinyMediaManager's conventional
+    /// `Title-poster.jpg` sidecar without treating fanart or logos as posters.
+    static func primaryArtworkExists(for base: URL, fileManager: FileManager = .default) -> Bool {
+        ["", "-poster"].contains { suffix in
+            ["jpg", "jpeg", "png"].contains { fileManager.fileExists(atPath: URL(fileURLWithPath: base.path + suffix).appendingPathExtension($0).path) }
+        }
     }
     @MainActor public static func health(directory: URL) async -> MovieLibraryHealthReport {
         let items = await inspect(directory: directory)

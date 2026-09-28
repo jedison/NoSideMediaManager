@@ -47,6 +47,17 @@ import Testing
     #expect(folders.entries[0].destinationPath == "/Library/Movies/Incoming/The Matrix (1999)/The Matrix (1999).mkv")
 }
 
+@Test func movieAuditAcceptsTinyMediaManagerPosterSidecar() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let base = root.appendingPathComponent("12 Monkeys")
+    try Data("poster".utf8).write(to: URL(fileURLWithPath: base.path + "-poster").appendingPathExtension("jpg"))
+    #expect(MovieLibraryAudit.primaryArtworkExists(for: base))
+    let info = EmbeddedMediaInfo(fileName: "12 Monkeys.mp4", title: nil, creationDate: nil, durationSeconds: nil, width: nil, height: nil, audioLanguages: [], subtitleLanguages: [], hasEmbeddedArtwork: false)
+    #expect(MovieLibraryAudit.classify(nfoExists: true, artworkExists: MovieLibraryAudit.primaryArtworkExists(for: base), info: info) == .complete)
+}
+
 @Test func sha256FingerprintModeIsOptIn() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true); let source = root.appendingPathComponent("movie.mp4"); let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true); try Data("movie".utf8).write(to: source)
