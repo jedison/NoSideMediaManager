@@ -5,7 +5,12 @@ import NoSideMediaCompanionCore
 
 @main
 struct NoSideMediaManagerApp: App {
-    var body: some Scene { WindowGroup { ContentView().frame(minWidth: 620, minHeight: 420) } }
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .frame(minWidth: 720, idealWidth: 840, minHeight: 620, idealHeight: 700)
+        }
+    }
 }
 
 @MainActor
