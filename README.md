@@ -32,6 +32,22 @@ The older standalone `noside-media` deployment is retired rather than used.
 Frozen jobs remain portable and do not need microMM installed to run their
 `apply.sh` or `rollback.sh` scripts.
 
+## Shared release identity
+
+`release/NoSideMediaManagerRelease.xcconfig` is the single source of truth for
+the MMM marketing version and the global build number. Before producing a
+distributable app, reserve a number for its platform:
+
+```sh
+./scripts/allocate-mmm-build.sh ios
+./scripts/allocate-mmm-build.sh macos
+```
+
+Each command increments the same counter exactly once and synchronises the
+derived macOS packaging files. Ordinary local development and simulator builds
+do not reserve a number. For example, starting at build 10, an iOS release
+claims 11 and a later macOS release claims 12.
+
 Movie support uses TMDB and starts as a reviewed, one-movie-at-a-time workflow.
 
 The network boundary is isolated in `TVDBClient`; NFO rendering needs no TVDB

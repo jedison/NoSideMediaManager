@@ -9,6 +9,9 @@ struct NoSideMediaCLI {
             let arguments = Array(CommandLine.arguments.dropFirst())
             guard let command = arguments.first else { throw CLIError.usage }
             switch command {
+            case "--version" where arguments.count == 1,
+                 "version" where arguments.count == 1:
+                print(MMMReleaseInfo.display())
             case "inspect" where arguments.count == 2:
                 let url = URL(fileURLWithPath: arguments[1]); var isDirectory: ObjCBool = false
                 let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

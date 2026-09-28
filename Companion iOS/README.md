@@ -8,7 +8,8 @@ movie volume.
 
 The iPhone companion shares microMM's release identity. This source currently
 builds as version **0.4.9**, build **10**, matching the macOS microMM app and
-its bundled CLI.
+its bundled CLI. Its Xcode project reads those values from the shared
+`../release/NoSideMediaManagerRelease.xcconfig` registry.
 
 Open `NoSideMediaCompanion.xcodeproj` in Xcode, select your development team,
 then install it to an iPhone. The app targets iOS 16+.

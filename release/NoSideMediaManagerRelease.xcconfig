@@ -1,0 +1,4 @@
+// The single source of truth for every distributable NoSide Media Manager build.
+// Reserve the next global build number with scripts/allocate-mmm-build.sh.
+MMM_RELEASE_VERSION = 0.4.9
+MMM_RELEASE_BUILD = 10
