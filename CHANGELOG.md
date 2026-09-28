@@ -2,6 +2,15 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.6 — 2026-09-28
+
+### Fixed
+
+- Movie-preservation bundles now use movie-specific validation. They never
+  require a TVDB episode mapping or TVDB credentials.
+- Duplicate `destinationPath` values now identify the preservation-plan
+  collision instead of incorrectly reporting a missing canonical TVDB episode.
+
 ## 0.4.5 — 2026-09-28
 
 ### Changed

@@ -72,6 +72,34 @@ public enum PortableJobBundleError: LocalizedError, Equatable {
     }
 }
 
+/// Validation failures for a move-only movie preservation plan. These are
+/// intentionally distinct from `PortableJobBundleError.unresolvedMapping`,
+/// which belongs solely to TVDB episode mapping.
+public enum MoviePreservationBundleError: LocalizedError, Equatable {
+    case emptyPlan
+    case missingTMDBID(sourcePath: String)
+    case missingDestinationPath(sourcePath: String)
+    case noMoves
+    case destinationCollisions([String])
+
+    public var errorDescription: String? {
+        switch self {
+        case .emptyPlan:
+            return "Movie preservation plan has no selected movies."
+        case .missingTMDBID(let sourcePath):
+            return "Movie preservation entry is missing its reviewed TMDB ID: \(sourcePath)"
+        case .missingDestinationPath(let sourcePath):
+            return "Movie preservation entry is missing destinationPath: \(sourcePath)"
+        case .noMoves:
+            return "Movie preservation plan has no moves after review."
+        case .destinationCollisions(let destinations):
+            let displayed = destinations.prefix(10).joined(separator: ", ")
+            let remaining = destinations.count > 10 ? " (and \(destinations.count - 10) more)" : ""
+            return "Movie preservation plan has duplicate destinationPath values. Edit the plan so each movie/edition has a distinct destination: \(displayed)\(remaining)"
+        }
+    }
+}
+
 /// Builds a directory which can be copied or zipped without bringing along the
 /// media files. The builder only writes inside `bundle`; it never changes
 /// `showRoot`.
@@ -169,12 +197,13 @@ public enum PortableJobBundle {
     /// reviewed sidecars are moved byte-for-byte with their video.
     @discardableResult
     public static func createExistingMoviePreservation(at bundle: URL, plan: MoviePlanDocument, fingerprintMode: SourceFingerprintMode = .metadata, fileManager: FileManager = .default) throws -> PortableJobManifest {
-        guard !plan.entries.isEmpty else { throw PortableJobBundleError.unresolvedMapping }
+        guard !plan.entries.isEmpty else { throw MoviePreservationBundleError.emptyPlan }
         guard !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
         let root = URL(fileURLWithPath: plan.libraryPath).standardizedFileURL
         var sources = [String: URL](); var moves = [PortableJobManifest.Move]()
         for entry in plan.entries {
-            guard entry.tmdbID != nil, let destinationPath = entry.destinationPath else { throw PortableJobBundleError.unresolvedMapping }
+            guard entry.tmdbID != nil else { throw MoviePreservationBundleError.missingTMDBID(sourcePath: entry.sourcePath) }
+            guard let destinationPath = entry.destinationPath, !destinationPath.isEmpty else { throw MoviePreservationBundleError.missingDestinationPath(sourcePath: entry.sourcePath) }
             let source = URL(fileURLWithPath: entry.sourcePath)
             let destination = URL(fileURLWithPath: destinationPath)
             let sourceRelative = try relative(source, to: root)
@@ -183,9 +212,11 @@ public enum PortableJobBundle {
             sources[sourceRelative] = source
             moves.append(.init(source: sourceRelative, destination: destinationRelative))
         }
-        guard !moves.isEmpty else { throw PortableJobBundleError.unresolvedMapping }
-        let destinationSet = Set(moves.map(\.destination))
-        guard destinationSet.count == moves.count else { throw PortableJobBundleError.unresolvedMapping }
+        guard !moves.isEmpty else { throw MoviePreservationBundleError.noMoves }
+        let destinations = Dictionary(grouping: moves.map(\.destination), by: { $0 })
+            .compactMap { destination, occurrences in occurrences.count > 1 ? destination : nil }
+            .sorted()
+        guard destinations.isEmpty else { throw MoviePreservationBundleError.destinationCollisions(destinations) }
         let jobID = "mmm-\(UUID().uuidString.lowercased())"
         try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
         let facade = TVSeries(tvdbID: 0, title: "Existing movie library")

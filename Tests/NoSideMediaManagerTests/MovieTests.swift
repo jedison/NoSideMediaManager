@@ -74,6 +74,64 @@ import Testing
     for (suffix, contents) in originals { #expect(try String(contentsOf: URL(fileURLWithPath: base.path + suffix)) == contents) }
 }
 
+@Test func moviePreservationBundleDecodesMovieOnlyJSONWithoutTVMappingValidation() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let source = root.appendingPathComponent("20,000 Days on Earth (1080p HD).mp4")
+    let destination = root.appendingPathComponent("20,000 Days on Earth (2014)/20,000 Days on Earth (2014).mp4")
+    let planURL = root.appendingPathComponent("movie-preservation-plan.json")
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data("video".utf8).write(to: source)
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+
+    let json: [String: Any] = [
+        "formatVersion": 1,
+        "libraryPath": root.path,
+        "entries": [[
+            "sourcePath": source.path,
+            "destinationPath": destination.path,
+            "tmdbID": 246400,
+            "downloadArtwork": false
+        ]]
+    ]
+    let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+    try data.write(to: planURL)
+    #expect(!String(decoding: data, as: UTF8.self).contains("canonicalEpisodeID"))
+
+    let plan = try MoviePlanDocument.read(from: planURL)
+    let manifest = try PortableJobBundle.createExistingMoviePreservation(at: bundle, plan: plan)
+    #expect(manifest.mediaKind == "movie")
+    #expect(manifest.metadataProvider == "existing-nfo")
+    #expect(manifest.moves == [.init(source: source.lastPathComponent, destination: "20,000 Days on Earth (2014)/20,000 Days on Earth (2014).mp4")])
+    #expect(!manifest.notes.joined(separator: " ").contains("TVDB"))
+}
+
+@Test func moviePreservationDestinationCollisionIsNeverReportedAsTVMappingError() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let first = root.appendingPathComponent("Pride.mp4")
+    let second = root.appendingPathComponent("Pride lowres.mp4")
+    let destination = root.appendingPathComponent("Pride (2014)/Pride (2014).mp4")
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data("one".utf8).write(to: first)
+    try Data("two".utf8).write(to: second)
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+
+    let plan = MoviePlanDocument(libraryPath: root.path, entries: [
+        .init(sourcePath: first.path, tmdbID: 86829, destinationPath: destination.path, downloadArtwork: false),
+        .init(sourcePath: second.path, tmdbID: 86829, destinationPath: destination.path, downloadArtwork: false)
+    ])
+    var failure: Error?
+    do {
+        _ = try PortableJobBundle.createExistingMoviePreservation(at: bundle, plan: plan)
+    } catch {
+        failure = error
+    }
+    #expect(failure is MoviePreservationBundleError)
+    #expect(failure?.localizedDescription.contains("duplicate destinationPath") == true)
+    #expect(failure?.localizedDescription.contains("canonical TVDB episode") == false)
+}
+
 @Test func movieAuditAcceptsTinyMediaManagerPosterSidecar() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }
