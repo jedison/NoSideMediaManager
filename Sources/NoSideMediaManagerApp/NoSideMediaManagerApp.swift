@@ -28,13 +28,14 @@ private struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                navigationButton("TV", tag: 0)
-                navigationButton("Movies", tag: 1)
-                navigationButton("Companion", tag: 2)
-                Spacer()
+            Picker("Section", selection: $selectedTab) {
+                Text("TV").tag(0)
+                Text("Movies").tag(1)
+                Text("Companion").tag(2)
             }
-            .padding(.horizontal, 20)
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 310)
             .padding(.vertical, 12)
             Divider()
             Group {
@@ -47,11 +48,6 @@ private struct ContentView: View {
         }
     }
 
-    private func navigationButton(_ title: String, tag: Int) -> some View {
-        Button(title) { selectedTab = tag }
-            .buttonStyle(.borderedProminent)
-            .tint(selectedTab == tag ? .accentColor : .gray)
-    }
 
     private var tvScreen: some View {
         VStack(alignment: .leading, spacing: 16) {

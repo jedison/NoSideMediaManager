@@ -12,6 +12,7 @@ struct CompanionClient {
     func jobs() async throws -> [CompanionJob] { try await perform(try request(path: "/v1/jobs")) }
     func movieAudit() async throws -> CompanionMovieAuditSummary { try await perform(try request(path: "/v1/audit/movies")) }
     func searchTV(_ query: String) async throws -> [TVSeriesSearchResult] { let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query; return try await perform(try request(path: "/v1/search/tv?query=\(encoded)")) }
+    func run(_ job: CompanionJob, operation: CompanionOperation) async throws -> CompanionOperationResult { try await perform(try request(path: "/v1/jobs/\(job.id)/\(operation.rawValue)", method: "POST", confirm: operation == .apply ? job.id : nil)) }
     private func perform<T: Decodable>(_ request: URLRequest) async throws -> T { let (data, response) = try await URLSession.shared.data(for: request); guard let http = response as? HTTPURLResponse else { throw CompanionClientError.server("No response from Companion.") }; guard (200...299).contains(http.statusCode) else { let message = (try? JSONDecoder().decode([String: String].self, from: data)["error"]) ?? "Companion request failed (HTTP \(http.statusCode))."; throw CompanionClientError.server(message) }; return try JSONDecoder().decode(T.self, from: data) }
 }
 
