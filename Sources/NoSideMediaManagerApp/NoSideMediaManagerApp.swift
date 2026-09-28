@@ -3,6 +3,12 @@ import AppKit
 import NoSideMediaManager
 import NoSideMediaCompanionCore
 
+private enum MMMAppRelease {
+    static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"
+    static let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+    static var display: String { "\(version) (build \(build))" }
+}
+
 @main
 struct NoSideMediaManagerApp: App {
     var body: some Scene {
@@ -134,6 +140,7 @@ private struct MMMSettingsView: View {
         }
         HStack { TextField("Port", text: $port).frame(width: 100); Toggle("Allow devices on local network", isOn: $lanVisible) }
         HStack { Button("Save settings", action: save).buttonStyle(.borderedProminent); Button("New pairing token") { token = UUID().uuidString.replacingOccurrences(of: "-", with: "") }; Spacer(); Button(server == nil ? "Start Companion" : "Stop Companion", action: toggle).disabled(server == nil && (libraryRoot.isEmpty || token.isEmpty)) }
+        Text("microMM \(MMMAppRelease.display) · Built-in CLI: microMM.app/Contents/MacOS/noside-media").font(.caption).foregroundStyle(.secondary)
         Text("Companion exposes authenticated remote audit, search, and frozen-package actions; it is not a file share.").font(.caption).foregroundStyle(.secondary); Text(status).foregroundStyle(.secondary); Spacer()
     }.padding(24) }
     private func copyToken() {
@@ -142,7 +149,7 @@ private struct MMMSettingsView: View {
         status = "Pairing token copied."
     }
     private func save() { do { try TVDBCredentialStore.set(apiKey, named: "TVDB_API_KEY"); try TVDBCredentialStore.set(pin, named: "TVDB_PIN"); let d = UserDefaults.standard; d.set(jobsRoot, forKey: "companion.jobsRoot"); d.set(libraryRoot, forKey: "companion.libraryRoot"); d.set(token, forKey: "companion.token"); d.set(port, forKey: "companion.port"); d.set(lanVisible, forKey: "companion.lanVisible"); status = "Saved. Restart Companion to use changed paths, token, or port." } catch { status = error.localizedDescription } }
-    private func toggle() { if let server { server.stop(); self.server = nil; status = "Companion stopped."; return }; guard let number = UInt16(port), !jobsRoot.isEmpty, !libraryRoot.isEmpty else { status = "Enter a valid port and both directory paths."; return }; do { let credentials = apiKey.isEmpty ? nil : TVDBClient.Credentials(apiKey: apiKey, subscriberPIN: pin); let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobsRoot), libraryRoot: URL(fileURLWithPath: libraryRoot), token: token, version: "0.4.2", tvdbCredentials: credentials); let server = CompanionHTTPServer(service: CompanionJobService(configuration: config), token: token); try server.start(port: number, lanVisible: lanVisible); self.server = server; status = "Companion started on port \(number)." } catch { status = error.localizedDescription } }
+    private func toggle() { if let server { server.stop(); self.server = nil; status = "Companion stopped."; return }; guard let number = UInt16(port), !jobsRoot.isEmpty, !libraryRoot.isEmpty else { status = "Enter a valid port and both directory paths."; return }; do { let credentials = apiKey.isEmpty ? nil : TVDBClient.Credentials(apiKey: apiKey, subscriberPIN: pin); let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobsRoot), libraryRoot: URL(fileURLWithPath: libraryRoot), token: token, version: MMMAppRelease.display, tvdbCredentials: credentials); let server = CompanionHTTPServer(service: CompanionJobService(configuration: config), token: token); try server.start(port: number, lanVisible: lanVisible); self.server = server; status = "Companion started on port \(number)." } catch { status = error.localizedDescription } }
 }
 
 /// A settings field that stays concealed by default but can be briefly revealed

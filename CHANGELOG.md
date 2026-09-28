@@ -2,6 +2,15 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.9 — 2026-09-28
+
+### Changed
+
+- `microMM.app` now ships the matching `noside-media` CLI inside its bundle,
+  so the macOS UI, Companion server, and CLI are deployed as one release.
+- Settings show the built-in CLI location. Companion now reports the app's
+  actual version and build rather than a stale fixed version.
+
 ## 0.4.8 — 2026-09-28
 
 ### Changed

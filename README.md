@@ -18,6 +18,20 @@ package dependencies.
 - `noside-media`: a small CLI for looking up a series, reviewing mappings, and
   freezing a portable filesystem-change job.
 
+## One app, including the CLI
+
+The deployed `microMM.app` contains the macOS interface, Companion server, and
+the matching command-line executable. They are built from the same MMM core and
+always share one release number. Run the bundled CLI directly when needed:
+
+```sh
+"~/NoSideMediaManagerJobs/microMM.app/Contents/MacOS/noside-media" --help
+```
+
+The older standalone `noside-media` deployment is retired rather than used.
+Frozen jobs remain portable and do not need microMM installed to run their
+`apply.sh` or `rollback.sh` scripts.
+
 Movie support uses TMDB and starts as a reviewed, one-movie-at-a-time workflow.
 
 The network boundary is isolated in `TVDBClient`; NFO rendering needs no TVDB
