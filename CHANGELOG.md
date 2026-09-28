@@ -10,6 +10,8 @@ This project follows [Semantic Versioning](https://semver.org/).
   so the macOS UI, Companion server, and CLI are deployed as one release.
 - Settings show the built-in CLI location. Companion now reports the app's
   actual version and build rather than a stale fixed version.
+- The iPhone Companion now uses the same 0.4.9 / build 10 release identity as
+  microMM on macOS.
 
 ## 0.4.8 — 2026-09-28
 
