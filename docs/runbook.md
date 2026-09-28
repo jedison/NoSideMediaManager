@@ -34,6 +34,59 @@ The old MBA's Firewall must allow incoming connections for `microMM.app`. If
 the iPhone resolves the hostname but cannot connect, confirm that rule before
 troubleshooting the Companion itself.
 
+### Tailscale
+
+Install Tailscale on the analysis Mac, old MBA, and iPhone, then authenticate
+each device into the same Tailnet. The old MBA's current MagicDNS name is:
+
+```text
+your-media-server.your-tailnet.ts.net
+```
+
+Use that hostname in microMM on the iPhone, rather than a changing home-LAN
+address. Check the old MBA's Tailnet reachability from the analysis Mac with:
+
+```zsh
+tailscale ping --timeout=10s your-media-server.your-tailnet.ts.net
+```
+
+If the name does not resolve on the iPhone, first open Tailscale there and
+confirm it is connected to the same Tailnet. A successful Tailscale ping but a
+failed Companion connection usually means that `microMM.app` is not yet
+allowed in the old MBA's Firewall settings.
+
+### SSH from the analysis Mac to the old MBA
+
+The current key-based connection is:
+
+```zsh
+ssh jedison@your-media-server
+```
+
+Verify it without allowing a password fallback:
+
+```zsh
+ssh -o BatchMode=yes -o ConnectTimeout=12 jedison@your-media-server
+```
+
+For a new analysis Mac, first enable **Remote Login** on the old MBA under
+**System Preferences → Sharing**. Then add the new Mac's public SSH key to the
+old MBA account. From the new Mac, the following sends the default Ed25519
+public key and asks for the old MBA account password once:
+
+```zsh
+cat ~/.ssh/id_ed25519.pub | ssh jedison@your-media-server 'umask 077; mkdir -p ~/.ssh; cat >> ~/.ssh/authorized_keys'
+```
+
+If the new Mac does not yet have that key, create it first:
+
+```zsh
+ssh-keygen -t ed25519
+```
+
+Never copy a private key between Macs. Test the new key using the password-free
+verification command above before relying on it for media work.
+
 ## Old MBA Wi-Fi keeper
 
 The old MBA has a system LaunchDaemon package at:
