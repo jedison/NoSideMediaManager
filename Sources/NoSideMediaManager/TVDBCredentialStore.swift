@@ -18,4 +18,12 @@ public enum TVDBCredentialStore {
               let value = String(data: data, encoding: .utf8), !value.isEmpty else { return nil }
         return value
     }
+    public static func set(_ value: String, named name: String) throws {
+        let query: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: "NoSideMediaManager.\(name)", kSecAttrAccount: NSUserName()]
+        let data = Data(value.utf8)
+        let status = SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+            ? SecItemUpdate(query as CFDictionary, [kSecValueData: data] as CFDictionary)
+            : SecItemAdd((query.merging([kSecValueData: data]) { _, new in new }) as CFDictionary, nil)
+        guard status == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status), userInfo: nil) }
+    }
 }

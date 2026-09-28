@@ -10,7 +10,7 @@ struct NoSideMediaManagerApp: App {
 @MainActor
 private struct ContentView: View {
     @State private var selectedTab = (ProcessInfo.processInfo.environment["MMM_COMPANION_AUTOSTART"] == "1" || UserDefaults.standard.bool(forKey: "companion.autoStart")) ? 2 : 0
-    @State private var apiKey = ""
+    @State private var apiKey = TVDBCredentialStore.value(named: "TVDB_API_KEY") ?? ""
     @State private var pin = ""
     @State private var query = ""
     @State private var results = [TVSeriesSearchResult]()
@@ -32,6 +32,7 @@ private struct ContentView: View {
                 Text("TV").tag(0)
                 Text("Movies").tag(1)
                 Text("Companion").tag(2)
+                Text("Settings").tag(3)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -42,7 +43,8 @@ private struct ContentView: View {
                 switch selectedTab {
                 case 0: tvScreen
                 case 1: MovieToolsView()
-                default: CompanionServerView()
+                case 2: CompanionServerView()
+                default: MMMSettingsView()
                 }
             }
         }
@@ -89,8 +91,6 @@ private struct CompanionServerView: View {
     @State private var libraryRoot: String
     @State private var token: String
     @State private var port: String
-    @State private var tvdbAPIKey: String
-    @State private var tvdbPIN: String
     @State private var lanVisible = true
     @State private var server: CompanionHTTPServer?
     @State private var status = "Configure the old MBA paths, then start the authenticated Companion."
@@ -103,8 +103,6 @@ private struct CompanionServerView: View {
         _libraryRoot = State(initialValue: environment["MMM_COMPANION_LIBRARY_ROOT"] ?? defaults.string(forKey: "companion.libraryRoot") ?? "")
         _token = State(initialValue: environment["MMM_COMPANION_TOKEN"] ?? defaults.string(forKey: "companion.token") ?? UUID().uuidString.replacingOccurrences(of: "-", with: ""))
         _port = State(initialValue: environment["MMM_COMPANION_PORT"] ?? defaults.string(forKey: "companion.port") ?? "8347")
-        _tvdbAPIKey = State(initialValue: environment["TVDB_API_KEY"] ?? defaults.string(forKey: "companion.tvdbAPIKey") ?? "")
-        _tvdbPIN = State(initialValue: environment["TVDB_PIN"] ?? defaults.string(forKey: "companion.tvdbPIN") ?? "")
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -112,7 +110,6 @@ private struct CompanionServerView: View {
             Text("Runs inside this MMM Mac app. It exposes jobs—not a general file share.").foregroundStyle(.secondary)
             pathField("Jobs directory", value: $jobsRoot)
             pathField("Library root for these jobs", value: $libraryRoot)
-            HStack { SecureField("TVDB API key for phone searches", text: $tvdbAPIKey); SecureField("TVDB PIN (optional)", text: $tvdbPIN) }
             HStack { SecureField("Pairing token", text: $token); Button("New token") { token = UUID().uuidString.replacingOccurrences(of: "-", with: "") }; Button("Copy") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(token, forType: .string) } }
             HStack { TextField("Port", text: $port).frame(width: 90); Toggle("Allow devices on local network", isOn: $lanVisible); Spacer(); Button(server == nil ? "Start Companion" : "Stop Companion", action: toggle).disabled(server == nil && (libraryRoot.isEmpty || token.isEmpty)) }
             GroupBox("Phone pairing") { VStack(alignment: .leading, spacing: 6) { Text("Enter this Mac’s local IP address, port, and pairing token in the iOS app."); Text("Apply requires a second confirmation carrying the exact job ID. Keep this on your trusted home network or VPN.").font(.caption).foregroundStyle(.secondary) } }
@@ -126,7 +123,27 @@ private struct CompanionServerView: View {
             }
     }
     private func pathField(_ label: String, value: Binding<String>) -> some View { HStack { TextField(label, text: value); Button("Choose…") { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; if panel.runModal() == .OK, let url = panel.url { value.wrappedValue = url.path } } } }
-    private func toggle() { if let server { server.stop(); self.server = nil; status = "Companion stopped."; return }; guard let number = UInt16(port), !jobsRoot.isEmpty, !libraryRoot.isEmpty else { status = "Enter a valid port and both directory paths."; return }; UserDefaults.standard.set(tvdbAPIKey, forKey: "companion.tvdbAPIKey"); UserDefaults.standard.set(tvdbPIN, forKey: "companion.tvdbPIN"); do { let credentials = tvdbAPIKey.isEmpty ? nil : TVDBClient.Credentials(apiKey: tvdbAPIKey, subscriberPIN: tvdbPIN); let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobsRoot), libraryRoot: URL(fileURLWithPath: libraryRoot), token: token, version: "0.4.1", tvdbCredentials: credentials); let server = CompanionHTTPServer(service: CompanionJobService(configuration: config), token: token); try server.start(port: number, lanVisible: lanVisible); self.server = server; status = "Companion started on port \(number). \(lanVisible ? "LAN access is enabled." : "Loopback only.")" } catch { status = error.localizedDescription } }
+    private func toggle() { if let server { server.stop(); self.server = nil; status = "Companion stopped."; return }; guard let number = UInt16(port), !jobsRoot.isEmpty, !libraryRoot.isEmpty else { status = "Enter a valid port and both directory paths."; return }; let key = TVDBCredentialStore.value(named: "TVDB_API_KEY") ?? ""; let pin = TVDBCredentialStore.value(named: "TVDB_PIN") ?? ""; do { let credentials = key.isEmpty ? nil : TVDBClient.Credentials(apiKey: key, subscriberPIN: pin); let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobsRoot), libraryRoot: URL(fileURLWithPath: libraryRoot), token: token, version: "0.4.2", tvdbCredentials: credentials); let server = CompanionHTTPServer(service: CompanionJobService(configuration: config), token: token); try server.start(port: number, lanVisible: lanVisible); self.server = server; status = "Companion started on port \(number). \(lanVisible ? "LAN access is enabled." : "Loopback only.")" } catch { status = error.localizedDescription } }
+}
+
+@MainActor
+private struct MMMSettingsView: View {
+    @State private var apiKey = TVDBCredentialStore.value(named: "TVDB_API_KEY") ?? ""
+    @State private var pin = TVDBCredentialStore.value(named: "TVDB_PIN") ?? ""
+    @State private var jobsRoot = UserDefaults.standard.string(forKey: "companion.jobsRoot") ?? "~/NoSideMediaManagerJobs"
+    @State private var libraryRoot = UserDefaults.standard.string(forKey: "companion.libraryRoot") ?? ""
+    @State private var token = UserDefaults.standard.string(forKey: "companion.token") ?? ""
+    @State private var port = UserDefaults.standard.string(forKey: "companion.port") ?? "8347"
+    @State private var lanVisible = UserDefaults.standard.object(forKey: "companion.lanVisible") as? Bool ?? true
+    @State private var status = "Settings are stored on this Mac."
+    var body: some View { VStack(alignment: .leading, spacing: 16) {
+        Text("Settings").font(.largeTitle.weight(.semibold)); Text("TVDB is shared by TV work and phone-initiated searches. Keys stay in Keychain.").foregroundStyle(.secondary)
+        SecureField("TVDB API key", text: $apiKey); SecureField("TVDB subscriber PIN (optional)", text: $pin)
+        TextField("Jobs folder", text: $jobsRoot); TextField("Library root", text: $libraryRoot); SecureField("Pairing token", text: $token); HStack { TextField("Port", text: $port).frame(width: 100); Toggle("Allow devices on local network", isOn: $lanVisible) }
+        HStack { Button("Save settings", action: save).buttonStyle(.borderedProminent); Button("New pairing token") { token = UUID().uuidString.replacingOccurrences(of: "-", with: "") } }
+        Text("Restart Companion after changing its network or path settings.").font(.caption).foregroundStyle(.secondary); Text(status).foregroundStyle(.secondary); Spacer()
+    }.padding(24) }
+    private func save() { do { try TVDBCredentialStore.set(apiKey, named: "TVDB_API_KEY"); try TVDBCredentialStore.set(pin, named: "TVDB_PIN"); let d = UserDefaults.standard; d.set(jobsRoot, forKey: "companion.jobsRoot"); d.set(libraryRoot, forKey: "companion.libraryRoot"); d.set(token, forKey: "companion.token"); d.set(port, forKey: "companion.port"); d.set(lanVisible, forKey: "companion.lanVisible"); status = "Saved. Restart Companion to use changed paths, token, or port." } catch { status = error.localizedDescription } }
 }
 
 @MainActor
