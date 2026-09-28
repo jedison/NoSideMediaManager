@@ -38,7 +38,7 @@ private struct JobListView: View {
                 NavigationLink(value: job) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(job.title)
-                        Text("\(job.mediaKind.uppercased()) · \(job.provider.uppercased()) · \(job.moves) moves · \(job.generatedFiles) sidecars").font(.caption).foregroundStyle(.secondary)
+                        Text("\(job.state == .applied ? "APPLIED · " : "")\(job.mediaKind.uppercased()) · \(job.provider.uppercased()) · \(job.moves) moves · \(job.generatedFiles) sidecars").font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }.navigationDestination(for: CompanionJob.self) { JobDetailView(job: $0) }
@@ -57,10 +57,10 @@ private struct JobDetailView: View {
     var body: some View {
         List {
             Section("Frozen job") {
-                LabeledContent("Provider", value: job.provider.uppercased()); LabeledContent("Moves", value: String(job.moves)); LabeledContent("Generated files", value: String(job.generatedFiles))
+                LabeledContent("Status", value: job.state == .applied ? "Applied" : "Ready"); LabeledContent("Provider", value: job.provider.uppercased()); LabeledContent("Moves", value: String(job.moves)); LabeledContent("Generated files", value: String(job.generatedFiles))
                 if job.unavailableArtwork > 0 { LabeledContent("Unavailable artwork", value: String(job.unavailableArtwork)) }
             }
-            Section("Operations") { Button("Dry run") { run(.dryRun) }.disabled(isWorking); Button("Apply", role: .destructive) { showApply = true }.disabled(isWorking); Button("Rollback") { run(.rollback) }.disabled(isWorking) }
+            Section("Operations") { Button("Dry run") { run(.dryRun) }.disabled(isWorking || job.state == .applied); Button("Apply", role: .destructive) { showApply = true }.disabled(isWorking || job.state == .applied); Button("Rollback") { run(.rollback) }.disabled(isWorking || job.state != .applied) }
             if let result { Section("\(result.operation.rawValue) log") { Text(result.log.isEmpty ? "No output." : result.log).font(.system(.caption, design: .monospaced)).textSelection(.enabled); if !result.succeeded { Text("Operation failed; no further action was taken automatically.").foregroundStyle(.red) } } }
         }.navigationTitle(job.title)
             .confirmationDialog("Apply this frozen job?", isPresented: $showApply, titleVisibility: .visible) { Button("Apply \(job.title)", role: .destructive) { run(.apply) } } message: { Text("This changes files only on the old MBA. Run dry-run first and keep its rollback backup.") }

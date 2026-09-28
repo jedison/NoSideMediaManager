@@ -24,6 +24,8 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
     /// read the media file (for example, a remote-path-only reviewed plan).
     public let sourceFingerprints: [String: String]
 
+    private enum CodingKeys: String, CodingKey { case formatVersion, jobID, seriesTVDBID, seriesTitle, moves, generatedFiles, unavailableArtwork, notes, mediaKind, metadataProvider, sourceFingerprints }
+
     public init(jobID: String, series: TVSeries, moves: [Move], generatedFiles: [String], unavailableArtwork: [String] = [], notes: [String] = [], mediaKind: String = "tv", metadataProvider: String = "tvdb", sourceFingerprints: [String: String] = [:]) {
         self.formatVersion = 1
         self.jobID = jobID
@@ -36,6 +38,23 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
         self.mediaKind = mediaKind
         self.metadataProvider = metadataProvider
         self.sourceFingerprints = sourceFingerprints
+    }
+
+    /// Version-one job packages omitted fields added later for movies and
+    /// fingerprints. They remain readable history instead of disappearing.
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        formatVersion = try values.decodeIfPresent(Int.self, forKey: .formatVersion) ?? 1
+        jobID = try values.decode(String.self, forKey: .jobID)
+        seriesTVDBID = try values.decodeIfPresent(Int.self, forKey: .seriesTVDBID) ?? 0
+        seriesTitle = try values.decodeIfPresent(String.self, forKey: .seriesTitle) ?? "Legacy MMM job"
+        moves = try values.decodeIfPresent([Move].self, forKey: .moves) ?? []
+        generatedFiles = try values.decodeIfPresent([String].self, forKey: .generatedFiles) ?? []
+        unavailableArtwork = try values.decodeIfPresent([String].self, forKey: .unavailableArtwork) ?? []
+        notes = try values.decodeIfPresent([String].self, forKey: .notes) ?? []
+        mediaKind = try values.decodeIfPresent(String.self, forKey: .mediaKind) ?? "tv"
+        metadataProvider = try values.decodeIfPresent(String.self, forKey: .metadataProvider) ?? "tvdb"
+        sourceFingerprints = try values.decodeIfPresent([String: String].self, forKey: .sourceFingerprints) ?? [:]
     }
 }
 

@@ -15,3 +15,14 @@ import Testing
     #expect(found == [CompanionJob(manifest: manifest)])
     #expect(await service.serverInfo().libraryRoot == library.path)
 }
+
+@Test func companionReadsLegacyManifestAndMarksBackupAsApplied() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let jobs = root.appendingPathComponent("jobs", isDirectory: true); let library = root.appendingPathComponent("library", isDirectory: true); let job = jobs.appendingPathComponent("legacy", isDirectory: true)
+    try FileManager.default.createDirectory(at: job, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: library.appendingPathComponent(".noside-mmm-backups/mmm-legacy"), withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let data = "{\"formatVersion\":1,\"jobID\":\"mmm-legacy\",\"seriesTVDBID\":1,\"seriesTitle\":\"Legacy show\",\"moves\":[],\"generatedFiles\":[],\"unavailableArtwork\":[],\"notes\":[]}".data(using: .utf8)!
+    try data.write(to: job.appendingPathComponent("manifest.json"))
+    let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: library, token: "secret", version: "test"))
+    #expect(await service.jobs().first?.state == .applied)
+}
