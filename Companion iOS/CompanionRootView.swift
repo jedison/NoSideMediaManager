@@ -145,6 +145,10 @@ private struct JobListView: View {
     var body: some View {
         List {
             Section { Text(session.status).font(.footnote).foregroundStyle(.secondary) }
+            Section {
+                Button { Task { await session.refresh() } } label: { Label("Refresh jobs", systemImage: "arrow.clockwise") }
+                    .disabled(session.isLoading)
+            }
             Section { NavigationLink("Remote audit & TVDB search", destination: RemoteToolsView()) }
             ForEach(session.jobs) { job in
                 NavigationLink(destination: JobDetailView(job: job)) {
@@ -156,7 +160,6 @@ private struct JobListView: View {
             }
         }.refreshable { await session.refresh() }
             .overlay { if session.isLoading { ProgressView() } }
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { Task { await session.refresh() } } label: { Image(systemName: "arrow.clockwise") } } }
     }
 
     private func jobSummary(_ job: CompanionJob) -> String {
@@ -169,7 +172,6 @@ private struct RemoteToolsView: View {
     @EnvironmentObject private var session: CompanionSession
     @State private var query = ""
     @State private var results = [TVSeriesSearchResult]()
-    @State private var audit: CompanionMovieAuditReport?
     @State private var tvFolders = [CompanionTVFolder]()
     @State private var selectedTVFolder = ""
     @State private var tvAudit: CompanionTVAuditReport?
@@ -181,8 +183,10 @@ private struct RemoteToolsView: View {
     @State private var working = false
     var body: some View { List {
         Section("Movie library") {
-            Button("Audit configured movie/library root") { runAudit() }.disabled(working)
-            if let audit {
+            Button("Audit configured movie/library root") { session.startMovieAudit() }.disabled(working || session.isMovieAuditLoading)
+            if session.isMovieAuditLoading { ProgressView("Auditing on the old MBA…") }
+            Text(session.movieAuditStatus).font(.footnote).foregroundStyle(.secondary)
+            if let audit = session.movieAudit {
                 Text("\(audit.totalVideos) videos · \(audit.ignoredVideos ?? 0) ignored extras · \(audit.invalidNFOs) invalid NFOs")
                 ForEach(audit.byFolderState.sorted(by: { $0.key < $1.key }), id: \.key) { Text("\($0.key): \($0.value)") }
                 Picker("Show", selection: $auditFilter) { Text("All").tag("all"); Text("Needs folder normalisation").tag("needsFolder"); Text("Embedded metadata").tag("embedded"); Text("Incomplete metadata or sidecars").tag("incomplete") }
@@ -191,16 +195,15 @@ private struct RemoteToolsView: View {
                 Button("Freeze selected preservation package") { packageKind = "preservation"; confirmPackage = true }.disabled(!audit.items.contains { selectedPaths.contains($0.videoPath) && $0.preservationReady } || working)
             }
         }
-        if let audit { Section("Audited movies") { ForEach(filteredAuditItems(from: audit)) { item in Toggle(isOn: Binding(get: { selectedPaths.contains(item.videoPath) }, set: { if $0 { selectedPaths.insert(item.videoPath) } else { selectedPaths.remove(item.videoPath) } })) { VStack(alignment: .leading) { Text(item.nfoTitle ?? URL(fileURLWithPath: item.videoPath).deletingPathExtension().lastPathComponent); Text("\(item.state) · \(item.folderState)").font(.caption).foregroundStyle(item.preservationReady ? .orange : .secondary) } } } } }
+        if let audit = session.movieAudit { Section("Audited movies") { ForEach(filteredAuditItems(from: audit)) { item in Toggle(isOn: Binding(get: { selectedPaths.contains(item.videoPath) }, set: { if $0 { selectedPaths.insert(item.videoPath) } else { selectedPaths.remove(item.videoPath) } })) { VStack(alignment: .leading) { Text(item.nfoTitle ?? URL(fileURLWithPath: item.videoPath).deletingPathExtension().lastPathComponent); Text("\(item.state) · \(item.folderState)").font(.caption).foregroundStyle(item.preservationReady ? .orange : .secondary) } } } } }
         Section("TVDB") { TextField("Search series", text: $query); Button("Search TVDB") { runSearch() }.disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || working); ForEach(results) { result in VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) } } }
         Section("TV library") { Button("Load TV show folders") { loadTVFolders() }.disabled(working); if !tvFolders.isEmpty { Picker("Show folder", selection: $selectedTVFolder) { Text("Choose a show").tag(""); ForEach(tvFolders) { Text($0.name).tag($0.name) } }; Button("Audit selected TV folder") { runTVAudit() }.disabled(selectedTVFolder.isEmpty || working); Button("Search TVDB from folder") { query = selectedTVFolder; runSearch() }.disabled(selectedTVFolder.isEmpty || working) }; if let tvAudit { Text("\(tvAudit.folder): \(tvAudit.report.items.count) videos · \(tvAudit.report.duplicates.count) duplicate episode candidate(s) · \(tvAudit.report.unnumberedCount) unnumbered").font(.caption); ForEach(tvAudit.report.duplicates) { duplicate in Text("S\(duplicate.season)E\(duplicate.episode): \(duplicate.videoPaths.count) copies").font(.caption).foregroundStyle(.orange) } } }
         Section { Text(status).font(.footnote).foregroundStyle(.secondary) }
     }.navigationTitle("Remote tools").confirmationDialog("Create frozen package?", isPresented: $confirmPackage, titleVisibility: .visible) { Button("Create package") { freezeSelected() } } message: { Text("This creates a reviewed package on the old MBA. It does not modify the media library.") } }
-    private func runAudit() { working = true; Task { defer { working = false }; do { audit = try await session.client.movieAudit(); status = "Audit complete." } catch { status = error.localizedDescription } } }
     private func runSearch() { working = true; Task { defer { working = false }; do { results = try await session.client.searchTV(query); status = "Found \(results.count) series." } catch { status = error.localizedDescription } } }
     private func loadTVFolders() { working = true; Task { defer { working = false }; do { tvFolders = try await session.client.tvFolders(); status = "Loaded \(tvFolders.count) TV show folders." } catch { status = error.localizedDescription } } }
     private func runTVAudit() { working = true; Task { defer { working = false }; do { tvAudit = try await session.client.tvAudit(folder: selectedTVFolder); status = "TV audit complete." } catch { status = error.localizedDescription } } }
-    private func freezeSelected() { guard let audit else { return }; let eligible = audit.items.filter { selectedPaths.contains($0.videoPath) && (packageKind == "sidecar" ? $0.sidecarReady : $0.preservationReady) }; guard !eligible.isEmpty else { return }; working = true; Task { defer { working = false }; do { let job = try await session.client.freezeMoviePackage(packageKind, videoPaths: eligible.map(\.videoPath)); status = "Frozen job \(job.id) created for \(eligible.count) selected movie(s)."; await session.refresh() } catch { status = error.localizedDescription } } }
+    private func freezeSelected() { guard let audit = session.movieAudit else { return }; let eligible = audit.items.filter { selectedPaths.contains($0.videoPath) && (packageKind == "sidecar" ? $0.sidecarReady : $0.preservationReady) }; guard !eligible.isEmpty else { return }; working = true; Task { defer { working = false }; do { let job = try await session.client.freezeMoviePackage(packageKind, videoPaths: eligible.map(\.videoPath)); status = "Frozen job \(job.id) created for \(eligible.count) selected movie(s)."; await session.refresh() } catch { status = error.localizedDescription } } }
     private func filteredAuditItems(from audit: CompanionMovieAuditReport) -> [CompanionMovieAuditItem] { switch auditFilter { case "needsFolder": audit.items.filter(\.preservationReady); case "embedded": audit.items.filter(\.sidecarReady); case "incomplete": audit.items.filter { $0.state != "complete" }; default: audit.items } }
 }
 

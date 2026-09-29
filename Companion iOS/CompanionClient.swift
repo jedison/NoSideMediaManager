@@ -24,6 +24,9 @@ struct CompanionClient {
     @Published var port = UserDefaults.standard.integer(forKey: "companionPort") == 0 ? 8347 : UserDefaults.standard.integer(forKey: "companionPort")
     @Published var token = UserDefaults.standard.string(forKey: "companionToken") ?? ""
     @Published var server: CompanionServerInfo?; @Published var jobs = [CompanionJob](); @Published var status = "Pair with microMM on the old MBA."; @Published var isLoading = false
+    @Published var movieAudit: CompanionMovieAuditReport?
+    @Published var movieAuditStatus = "Run an audit on the old MBA."
+    @Published var isMovieAuditLoading = false
     var client: CompanionClient {
         CompanionClient(
             host: host.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -39,4 +42,19 @@ struct CompanionClient {
         UserDefaults.standard.set(token, forKey: "companionToken")
     }
     func refresh() async { isLoading = true; defer { isLoading = false }; do { server = try await client.health(); jobs = try await client.jobs(); status = "Connected · \(jobs.count) frozen jobs" } catch { status = error.localizedDescription } }
+    func startMovieAudit() {
+        guard !isMovieAuditLoading else { return }
+        let remote = client
+        isMovieAuditLoading = true; movieAuditStatus = "Auditing the Movie library on the old MBA… You can leave this screen."
+        Task { [weak self] in
+            do {
+                let report = try await remote.movieAudit()
+                self?.movieAudit = report
+                self?.movieAuditStatus = "Movie audit complete."
+            } catch {
+                self?.movieAuditStatus = error.localizedDescription
+            }
+            self?.isMovieAuditLoading = false
+        }
+    }
 }
