@@ -192,6 +192,14 @@ editions/extras, generate the related health report:
 swift run noside-media movie-health "/Volumes/Movies/Movies" > ~/Desktop/movie-health.json
 ```
 
+Movie audits automatically ignore ancillary clips beneath standard iTunes
+Extras `.ite` folders such as `motion/`, `images/`, and `videos/`; a possible
+top-level movie file in a `.ite` package is still audited. For other recurring
+exclusions, create a plain-text `.noside-mmm-ignore` file at the movie-library
+root. Put one relative file or directory path on each line; blank lines and
+`#` comments are ignored. The file is read-only configuration—MMM never
+creates or edits it.
+
 For an `embeddedMetadataNeedsSidecars` item, freeze sidecars from its existing
 container title/date/cover art—without TMDB or a rename:
 

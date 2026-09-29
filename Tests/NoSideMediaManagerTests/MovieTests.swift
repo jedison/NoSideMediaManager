@@ -214,6 +214,14 @@ import Testing
     #expect(MovieLibraryAudit.multiPartBase(for: URL(fileURLWithPath: "/Movies/CD Collection")) == nil)
 }
 
+@Test func movieAuditIgnoresNestedITunesExtrasButKeepsTopLevelFeature() {
+    let root = URL(fileURLWithPath: "/Movies")
+    #expect(MovieLibraryAudit.isIgnored(URL(fileURLWithPath: "/Movies/Truth.ite/videos/trailer.m4v"), libraryRoot: root))
+    #expect(MovieLibraryAudit.isIgnored(URL(fileURLWithPath: "/Movies/Ruby.ite/images/videos/loop.m4v"), libraryRoot: root))
+    #expect(!MovieLibraryAudit.isIgnored(URL(fileURLWithPath: "/Movies/Truth.ite/Truth.m4v"), libraryRoot: root))
+    #expect(MovieLibraryAudit.isIgnored(URL(fileURLWithPath: "/Movies/Bonus/clip.m4v"), libraryRoot: root, customRules: ["Bonus"]))
+}
+
 @Test func selectedEmbeddedMoviesFreezeAsOneSidecarPackage() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let first = root.appendingPathComponent("one.mp4"); let second = root.appendingPathComponent("two.mkv"); let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

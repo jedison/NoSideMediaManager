@@ -12,11 +12,39 @@ public struct MovieAuditItem: Codable, Sendable, Equatable {
     public var isPreservationReady: Bool { state == .complete && nfoIsValid == true && tmdbID != nil && folderState == .needsNormalization }
 }
 public struct MovieLibraryHealthReport: Codable, Sendable, Equatable {
-    public let items: [MovieAuditItem]; public let duplicateTMDBIDs: [String: [String]]; public let invalidNFOs: [String]
+    public let items: [MovieAuditItem]; public let duplicateTMDBIDs: [String: [String]]; public let invalidNFOs: [String]; public let ignoredVideoFiles: [String]
     public var summary: [String: Int] { Dictionary(grouping: items, by: { $0.state.rawValue }).mapValues(\.count) }
     public var folderSummary: [String: Int] { Dictionary(grouping: items, by: { $0.folderState.rawValue }).mapValues(\.count) }
 }
 public enum MovieLibraryAudit {
+    /// An optional plain-text, library-root `.noside-mmm-ignore` file can list
+    /// relative files or directory names, one per line. Blank lines and `#`
+    /// comments are ignored. It is deliberately local XML-adjacent state: no
+    /// database and no machine-specific paths are required.
+    static func ignoredVideoFiles(in directory: URL, fileManager: FileManager = .default) -> [URL] {
+        let rules = customIgnoreRules(in: directory, fileManager: fileManager)
+        return MediaFileInspector.videoFiles(in: directory, fileManager: fileManager)
+            .filter { isIgnored($0, libraryRoot: directory, customRules: rules) }
+    }
+
+    static func isIgnored(_ video: URL, libraryRoot: URL, customRules: Set<String> = []) -> Bool {
+        let root = libraryRoot.standardizedFileURL.path + "/"
+        let path = video.standardizedFileURL.path
+        guard path.hasPrefix(root) else { return false }
+        let relative = String(path.dropFirst(root.count))
+        let components = relative.split(separator: "/").map(String.init)
+        // iTunes Extras packages often include motion loops, trailers, menus,
+        // and other ancillary clips under a .ite subfolder. Keep a possible
+        // top-level feature file in the package, but omit descendants.
+        if let ite = components.firstIndex(where: { $0.lowercased().hasSuffix(".ite") }), ite + 2 < components.count { return true }
+        return customRules.contains { relative == $0 || relative.hasPrefix($0 + "/") }
+    }
+
+    private static func customIgnoreRules(in directory: URL, fileManager: FileManager) -> Set<String> {
+        let file = directory.appendingPathComponent(".noside-mmm-ignore")
+        guard let text = try? String(contentsOf: file) else { return [] }
+        return Set(text.split(whereSeparator: { $0.isNewline }).map(String.init).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty && !$0.hasPrefix("#") }.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "/")) })
+    }
     public static func classify(nfoExists: Bool, artworkExists: Bool, info: EmbeddedMediaInfo) -> MovieSidecarState {
         if nfoExists && artworkExists { return .complete }
         if !nfoExists && !artworkExists && (info.title != nil || info.creationDate != nil || info.hasEmbeddedArtwork) { return .embeddedMetadataNeedsSidecars }
@@ -25,7 +53,7 @@ public enum MovieLibraryAudit {
     }
     @MainActor public static func inspect(directory: URL, progress: (@MainActor @Sendable (Int, Int) -> Void)? = nil) async -> [MovieAuditItem] {
         var items = [MovieAuditItem]()
-        let videos = MediaFileInspector.videoFiles(in: directory)
+        let videos = MediaFileInspector.videoFiles(in: directory).filter { !isIgnored($0, libraryRoot: directory, customRules: customIgnoreRules(in: directory, fileManager: .default)) }
         progress?(0, videos.count)
         for (index, video) in videos.enumerated() {
             guard let info = try? await MediaFileInspector.inspect(video) else { progress?(index + 1, videos.count); continue }
@@ -55,7 +83,8 @@ public enum MovieLibraryAudit {
         let items = await inspect(directory: directory)
         let pairs = items.compactMap { item -> (String, String)? in item.tmdbID.map { (String($0), item.videoPath) } }
         let duplicates = Dictionary(grouping: pairs, by: \.0).compactMapValues { values in values.count > 1 ? values.map(\.1).sorted() : nil }
-        return MovieLibraryHealthReport(items: items, duplicateTMDBIDs: duplicates, invalidNFOs: items.filter { $0.nfoIsValid == false }.map(\.videoPath).sorted())
+        let ignored = ignoredVideoFiles(in: directory).map(\.path).sorted()
+        return MovieLibraryHealthReport(items: items, duplicateTMDBIDs: duplicates, invalidNFOs: items.filter { $0.nfoIsValid == false }.map(\.videoPath).sorted(), ignoredVideoFiles: ignored)
     }
     private static func inspectNFO(_ url: URL) -> (id: Int?, title: String?, year: String?, valid: Bool) {
         guard let document = try? XMLDocument(contentsOf: url, options: []), document.rootElement()?.name == "movie" else { return (nil, nil, nil, false) }
