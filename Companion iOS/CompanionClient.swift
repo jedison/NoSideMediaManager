@@ -4,13 +4,15 @@ enum CompanionClientError: LocalizedError { case invalidURL, server(String); var
 
 struct CompanionClient {
     let host: String; let port: Int; let token: String
-    private func request(path: String, method: String = "GET", confirm: String? = nil, body: Data? = nil) throws -> URLRequest {
+    private func request(path: String, method: String = "GET", confirm: String? = nil, body: Data? = nil, timeout: TimeInterval = 60) throws -> URLRequest {
         guard let url = URL(string: "http://\(host):\(port)\(path)") else { throw CompanionClientError.invalidURL }
-        var request = URLRequest(url: url); request.httpMethod = method; request.timeoutInterval = 60; request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization"); if let confirm { request.setValue(confirm, forHTTPHeaderField: "X-MMM-Confirm") }; if let body { request.setValue("application/json", forHTTPHeaderField: "Content-Type"); request.httpBody = body }; return request
+        var request = URLRequest(url: url); request.httpMethod = method; request.timeoutInterval = timeout; request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization"); if let confirm { request.setValue(confirm, forHTTPHeaderField: "X-MMM-Confirm") }; if let body { request.setValue("application/json", forHTTPHeaderField: "Content-Type"); request.httpBody = body }; return request
     }
     func health() async throws -> CompanionServerInfo { try await perform(try request(path: "/v1/health")) }
     func jobs() async throws -> [CompanionJob] { try await perform(try request(path: "/v1/jobs")) }
-    func movieAudit() async throws -> CompanionMovieAuditReport { try await perform(try request(path: "/v1/audit/movies")) }
+    /// Full libraries inspect embedded container metadata and can legitimately
+    /// take several minutes on the media Mac.
+    func movieAudit() async throws -> CompanionMovieAuditReport { try await perform(try request(path: "/v1/audit/movies", timeout: 600)) }
     func tvFolders() async throws -> [CompanionTVFolder] { try await perform(try request(path: "/v1/audit/tv/folders")) }
     func tvAudit(folder: String) async throws -> CompanionTVAuditReport { let folder = folder.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? folder; return try await perform(try request(path: "/v1/audit/tv?folder=\(folder)")) }
     func freezeMoviePackage(_ kind: String, videoPaths: [String]) async throws -> CompanionJob { let body = try JSONEncoder().encode(CompanionMoviePackageRequest(videoPaths: videoPaths)); return try await perform(try request(path: "/v1/audit/movies/\(kind)-package", method: "POST", body: body)) }
