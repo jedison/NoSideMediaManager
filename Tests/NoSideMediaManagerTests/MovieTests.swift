@@ -185,6 +185,12 @@ import Testing
     #expect(!alreadyNormal.isPreservationReady)
 }
 
+@Test func existingBracketedMovieEditionIsAlreadyFolderNormalized() {
+    let video = URL(fileURLWithPath: "/Movies/Pride (2014)/Pride (2014) [Pride lowres].mp4")
+    let state = MovieLibraryAudit.folderState(for: video, nfo: (id: 86829, title: "Pride", year: "2014", valid: true), sidecarState: .complete)
+    #expect(state == .normalized)
+}
+
 @Test func selectedEmbeddedMoviesFreezeAsOneSidecarPackage() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let first = root.appendingPathComponent("one.mp4"); let second = root.appendingPathComponent("two.mkv"); let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

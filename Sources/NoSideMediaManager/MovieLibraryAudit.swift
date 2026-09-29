@@ -60,12 +60,13 @@ public enum MovieLibraryAudit {
         for hint in ["director's cut", "directors cut", "extended", "remux", "3d", "commentary", "trailer", "featurette", "behind the scenes"] where lower.contains(hint) { return hint }
         return nil
     }
-    private static func folderState(for video: URL, nfo: (id: Int?, title: String?, year: String?, valid: Bool)?, sidecarState: MovieSidecarState) -> MovieFolderState {
+    static func folderState(for video: URL, nfo: (id: Int?, title: String?, year: String?, valid: Bool)?, sidecarState: MovieSidecarState) -> MovieFolderState {
         guard sidecarState == .complete, nfo?.valid == true, nfo?.id != nil,
               let title = nfo?.title, !title.isEmpty else { return .metadataIncomplete }
         let stem = MoviePlanDocument.safe(title) + (nfo?.year.flatMap { $0.isEmpty ? nil : $0 }.map { " (\($0))" } ?? "")
         let expectedVideo = stem + "." + video.pathExtension
-        return video.deletingLastPathComponent().lastPathComponent == stem && video.lastPathComponent == expectedVideo ? .normalized : .needsNormalization
+        let editionVideo = video.lastPathComponent.hasPrefix(stem + " [") && video.lastPathComponent.hasSuffix("]." + video.pathExtension)
+        return video.deletingLastPathComponent().lastPathComponent == stem && (video.lastPathComponent == expectedVideo || editionVideo) ? .normalized : .needsNormalization
     }
 }
 
