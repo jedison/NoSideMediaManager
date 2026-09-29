@@ -181,11 +181,16 @@ private struct RemoteToolsView: View {
     @State private var auditFilter = "all"
     @State private var packageKind = ""
     @State private var confirmPackage = false
+    @State private var confirmNewMovieAudit = false
     @State private var status = "These requests run on the media server and do not change media files."
     @State private var working = false
     var body: some View { List {
         Section("Movie library") {
-            Button("Audit configured movie/library root") { session.startMovieAudit() }.disabled(working || session.isMovieAuditLoading)
+            if session.movieAuditProgress?.phase == "complete" {
+                Button("Run new movie audit…") { confirmNewMovieAudit = true }.disabled(working || session.isMovieAuditLoading)
+            } else {
+                Button(session.movieAuditProgress?.phase == "running" ? "Movie audit already running" : "Audit configured movie/library root") { session.startMovieAudit() }.disabled(working || session.isMovieAuditLoading)
+            }
             if session.isMovieAuditLoading { ProgressView("Auditing on the media server…") }
             Text(session.movieAuditStatus).font(.footnote).foregroundStyle(.secondary)
             if session.movieAuditProgress?.phase != "running", let completedAt = session.lastMovieAuditCompletion {
@@ -216,7 +221,7 @@ private struct RemoteToolsView: View {
         Section("TV library") { Button("Load TV show folders") { loadTVFolders() }.disabled(working); if !tvFolders.isEmpty { Picker("Show folder", selection: $selectedTVFolder) { Text("Choose a show").tag(""); ForEach(tvFolders) { Text($0.name).tag($0.name) } }; Button("Audit selected TV folder") { runTVAudit() }.disabled(selectedTVFolder.isEmpty || working); Button("Search TVDB from folder") { query = selectedTVFolder; runSearch() }.disabled(selectedTVFolder.isEmpty || working); if let series = selectedTVSeries { Button("Review \(series.title) against this folder") { runTVReview(series) }.disabled(selectedTVFolder.isEmpty || working) } }; if let tvAudit { Text("\(tvAudit.folder): \(tvAudit.report.items.count) videos · \(tvAudit.report.duplicates.count) duplicate episode candidate(s) · \(tvAudit.report.unnumberedCount) unnumbered").font(.caption); ForEach(tvAudit.report.duplicates) { duplicate in Text("S\(duplicate.season)E\(duplicate.episode): \(duplicate.videoPaths.count) copies").font(.caption).foregroundStyle(.orange) } } }
         if let review = tvReview { Section("TV mapping review · \(review.seriesTitle)") { Text("\(review.mappings.count) files · \(review.unmatchedCount) need an explicit episode choice").font(.caption).foregroundStyle(review.unmatchedCount > 0 ? .orange : .secondary); ForEach(review.mappings) { mapping in VStack(alignment: .leading) { Text(URL(fileURLWithPath: mapping.videoPath).lastPathComponent).lineLimit(1); Text(mapping.proposedEpisode.map { "S\($0.season)E\($0.episode) · \($0.title)" } ?? "Needs explicit episode choice").font(.caption).foregroundStyle(mapping.proposedEpisode == nil ? .orange : .secondary) } }; Text("This is a review only. The Mac app remains the place to make explicit episode choices and freeze the TV package.").font(.footnote).foregroundStyle(.secondary) } }
         Section { Text(status).font(.footnote).foregroundStyle(.secondary) }
-    }.navigationTitle("Remote tools").task { await session.refreshMovieAuditStatus() }.confirmationDialog("Create frozen package?", isPresented: $confirmPackage, titleVisibility: .visible) { Button("Create package") { freezeSelected() } } message: { Text("This creates a reviewed package on the media server. It does not modify the media library.") } }
+    }.navigationTitle("Remote tools").task { await session.refreshMovieAuditStatus() }.confirmationDialog("Create frozen package?", isPresented: $confirmPackage, titleVisibility: .visible) { Button("Create package") { freezeSelected() } } message: { Text("This creates a reviewed package on the media server. It does not modify the media library.") }.confirmationDialog("Run a new movie audit?", isPresented: $confirmNewMovieAudit, titleVisibility: .visible) { Button("Run new audit") { session.startMovieAudit() } } message: { Text("The previous audit remains visible until the new media-server audit completes. This only reads the library.") } }
     private func runSearch() { working = true; Task { defer { working = false }; do { results = try await session.client.searchTV(query); status = "Found \(results.count) series." } catch { status = error.localizedDescription } } }
     private func loadTVFolders() { working = true; Task { defer { working = false }; do { tvFolders = try await session.client.tvFolders(); status = "Loaded \(tvFolders.count) TV show folders." } catch { status = error.localizedDescription } } }
     private func runTVAudit() { working = true; Task { defer { working = false }; do { tvAudit = try await session.client.tvAudit(folder: selectedTVFolder); status = "TV audit complete." } catch { status = error.localizedDescription } } }
