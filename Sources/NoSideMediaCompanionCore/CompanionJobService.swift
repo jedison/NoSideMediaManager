@@ -35,6 +35,16 @@ public actor CompanionJobService {
     }
     public func tvFolders() -> [CompanionTVFolder] { ((try? FileManager.default.contentsOfDirectory(at: configuration.tvLibraryRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []).filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }.map { CompanionTVFolder(name: $0.lastPathComponent) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }
     public func tvAudit(folder: String) async throws -> CompanionTVAuditReport { guard let selected = tvFolders().first(where: { $0.name == folder }) else { throw CompanionJobServiceError.tvFolderNotFound }; let report = try await TVLibraryAudit.inspect(directory: configuration.tvLibraryRoot.appendingPathComponent(selected.name, isDirectory: true)); return .init(folder: selected.name, report: report) }
+    public func reviewTV(seriesID: Int, folder: String) async throws -> CompanionTVMappingReview {
+        guard let selected = tvFolders().first(where: { $0.name == folder }) else { throw CompanionJobServiceError.tvFolderNotFound }
+        guard let credentials = configuration.tvdbCredentials else { throw CompanionJobServiceError.tvdbNotConfigured }
+        let client = TVDBClient(credentials: credentials)
+        async let localFiles = EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: configuration.tvLibraryRoot.appendingPathComponent(selected.name, isDirectory: true))
+        async let series = client.series(id: seriesID)
+        async let episodes = client.episodes(forSeriesID: seriesID)
+        let mappings = EpisodeMappingPlanner.propose(localFiles: try await localFiles, canonicalEpisodes: try await episodes)
+        return CompanionTVMappingReview(folder: selected.name, series: try await series, mappings: mappings)
+    }
     public func searchTV(query: String) async throws -> [TVSeriesSearchResult] { guard let credentials = configuration.tvdbCredentials else { throw CompanionJobServiceError.tvdbNotConfigured }; return try await TVDBClient(credentials: credentials).searchSeries(named: query) }
     public func freezePreservationPackage(videoPaths: [String]) async throws -> CompanionJob {
         let requested = Set(videoPaths); guard !requested.isEmpty else { throw CompanionJobServiceError.invalidSelection }
