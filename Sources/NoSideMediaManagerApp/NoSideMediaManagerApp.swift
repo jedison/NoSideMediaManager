@@ -26,6 +26,7 @@ struct NoSideMediaManagerApp: App {
 private final class CompanionRuntime: ObservableObject {
     static let shared = CompanionRuntime()
     @Published private(set) var server: CompanionHTTPServer?
+    private(set) var service: CompanionJobService?
     @Published private(set) var status = "Companion will start automatically when configured."
     var isRunning: Bool { server != nil }
     func startFromStoredSettings() {
@@ -41,12 +42,13 @@ private final class CompanionRuntime: ObservableObject {
             let key = TVDBCredentialStore.value(named: "TVDB_API_KEY")
             let credentials = key.map { TVDBClient.Credentials(apiKey: $0, subscriberPIN: TVDBCredentialStore.value(named: "TVDB_PIN")) }
             let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobs), libraryRoot: URL(fileURLWithPath: movies), tvLibraryRoot: URL(fileURLWithPath: tv), token: token, version: MMMAppRelease.display, tvdbCredentials: credentials)
-            let server = CompanionHTTPServer(service: CompanionJobService(configuration: config), token: token)
+            let service = CompanionJobService(configuration: config)
+            let server = CompanionHTTPServer(service: service, token: token)
             try server.start(port: number, lanVisible: defaults.object(forKey: "companion.lanVisible") as? Bool ?? true)
-            self.server = server; status = "Companion started automatically on port \(number)."
+            self.service = service; self.server = server; status = "Companion started automatically on port \(number)."
         } catch { status = error.localizedDescription }
     }
-    func stop() { server?.stop(); server = nil; status = "Companion stopped." }
+    func stop() { server?.stop(); server = nil; service = nil; status = "Companion stopped." }
 }
 
 @MainActor
@@ -265,6 +267,21 @@ private final class MovieAuditSession: ObservableObject {
 
     func auditSelectedFolder() {
         guard let folder else { status = "Set Movie library root in Settings first, or choose another folder."; return }
+        let configuredRoot = UserDefaults.standard.string(forKey: "companion.libraryRoot").map(URL.init(fileURLWithPath:))?.standardizedFileURL
+        if folder.standardizedFileURL == configuredRoot, let sharedService = CompanionRuntime.shared.service {
+            isWorking = true; reviewedFiles = 0; totalFiles = 0; status = "Joining the shared media-server audit…"
+            Task { [weak self] in
+                var snapshot = await sharedService.startMovieAudit()
+                while snapshot.phase == .running {
+                    self?.updateSharedAudit(snapshot)
+                    try? await Task.sleep(nanoseconds: 10_000_000_000)
+                    snapshot = await sharedService.movieAuditStatus()
+                }
+                self?.updateSharedAudit(snapshot)
+                self?.isWorking = false
+            }
+            return
+        }
         isWorking = true; reviewedFiles = 0; totalFiles = 0; status = "Finding video files…"
         Task { [weak self] in
             let results = await MovieLibraryAudit.inspect(directory: folder) { completed, total in
@@ -274,6 +291,12 @@ private final class MovieAuditSession: ObservableObject {
             guard let self else { return }
             self.items = results; self.status = "Audited \(results.count) videos."; self.isWorking = false
         }
+    }
+    private func updateSharedAudit(_ snapshot: CompanionMovieAuditSnapshot) {
+        reviewedFiles = snapshot.completedVideos; totalFiles = snapshot.totalVideos
+        if let report = snapshot.report { items = report.items; status = "Audited \(report.items.count) videos." }
+        else if snapshot.phase == .running { status = snapshot.totalVideos == 0 ? "Finding video files…" : "Reviewing \(snapshot.completedVideos) of \(snapshot.totalVideos) video files…" }
+        else if snapshot.phase == .failed { status = snapshot.error ?? "Shared audit failed." }
     }
 }
 

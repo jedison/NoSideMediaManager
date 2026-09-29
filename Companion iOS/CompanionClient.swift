@@ -12,7 +12,8 @@ struct CompanionClient {
     func jobs() async throws -> [CompanionJob] { try await perform(try request(path: "/v1/jobs")) }
     /// Full libraries inspect embedded container metadata and can legitimately
     /// take several minutes on the media server.
-    func movieAudit() async throws -> CompanionMovieAuditReport { try await perform(try request(path: "/v1/audit/movies", timeout: 600)) }
+    func startMovieAudit() async throws -> CompanionMovieAuditSnapshot { try await perform(try request(path: "/v1/audit/movies", method: "POST")) }
+    func movieAuditStatus() async throws -> CompanionMovieAuditSnapshot { try await perform(try request(path: "/v1/audit/movies")) }
     func tvFolders() async throws -> [CompanionTVFolder] { try await perform(try request(path: "/v1/audit/tv/folders")) }
     func tvAudit(folder: String) async throws -> CompanionTVAuditReport { let folder = folder.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? folder; return try await perform(try request(path: "/v1/audit/tv?folder=\(folder)")) }
     func freezeMoviePackage(_ kind: String, videoPaths: [String]) async throws -> CompanionJob { let body = try JSONEncoder().encode(CompanionMoviePackageRequest(videoPaths: videoPaths)); return try await perform(try request(path: "/v1/audit/movies/\(kind)-package", method: "POST", body: body)) }
@@ -27,6 +28,7 @@ struct CompanionClient {
     @Published var token = UserDefaults.standard.string(forKey: "companionToken") ?? ""
     @Published var server: CompanionServerInfo?; @Published var jobs = [CompanionJob](); @Published var status = "Pair with microMM on the media server."; @Published var isLoading = false
     @Published var movieAudit: CompanionMovieAuditReport?
+    @Published var movieAuditProgress: CompanionMovieAuditSnapshot?
     @Published var movieAuditStatus = "Run an audit on the media server."
     @Published var isMovieAuditLoading = false
     var client: CompanionClient {
@@ -43,20 +45,34 @@ struct CompanionClient {
         UserDefaults.standard.set(port, forKey: "companionPort")
         UserDefaults.standard.set(token, forKey: "companionToken")
     }
-    func refresh() async { isLoading = true; defer { isLoading = false }; do { server = try await client.health(); jobs = try await client.jobs(); status = "Connected · \(jobs.count) frozen jobs" } catch { status = error.localizedDescription } }
+    func refresh() async { isLoading = true; defer { isLoading = false }; do { server = try await client.health(); jobs = try await client.jobs(); consumeMovieAudit(try await client.movieAuditStatus()); status = "Connected · \(jobs.count) frozen jobs" } catch { status = error.localizedDescription } }
     func startMovieAudit() {
         guard !isMovieAuditLoading else { return }
         let remote = client
         isMovieAuditLoading = true; movieAuditStatus = "Auditing the Movie library on the media server… You can leave this screen."
         Task { [weak self] in
             do {
-                let report = try await remote.movieAudit()
-                self?.movieAudit = report
-                self?.movieAuditStatus = "Movie audit complete."
+                var snapshot = try await remote.startMovieAudit()
+                self?.consumeMovieAudit(snapshot)
+                while snapshot.phase == "running" {
+                    try await Task.sleep(for: .seconds(10))
+                    snapshot = try await remote.movieAuditStatus()
+                    self?.consumeMovieAudit(snapshot)
+                }
             } catch {
                 self?.movieAuditStatus = error.localizedDescription
             }
             self?.isMovieAuditLoading = false
+        }
+    }
+    private func consumeMovieAudit(_ snapshot: CompanionMovieAuditSnapshot) {
+        movieAuditProgress = snapshot
+        if let report = snapshot.report { movieAudit = report }
+        switch snapshot.phase {
+        case "running": movieAuditStatus = snapshot.totalVideos == 0 ? "Finding video files on the media server…" : "Audited \(snapshot.completedVideos) of \(snapshot.totalVideos) video files…"
+        case "complete": movieAuditStatus = "Movie audit complete."
+        case "failed": movieAuditStatus = snapshot.error ?? "Movie audit failed."
+        default: break
         }
     }
 }

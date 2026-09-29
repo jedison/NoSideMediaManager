@@ -12,5 +12,6 @@ struct CompanionTVDuplicate: Codable, Identifiable, Equatable { let season: Int;
 struct CompanionTVAuditInner: Codable, Equatable { let items: [CompanionTVEpisode]; let duplicates: [CompanionTVDuplicate]; let unnumberedCount: Int; let folderSeasonConflicts: Int }
 struct CompanionTVAuditReport: Codable, Equatable { let folder: String; let report: CompanionTVAuditInner }
 struct CompanionMovieAuditReport: Codable, Equatable { let items: [CompanionMovieAuditItem]; let totalVideos: Int; let ignoredVideos: Int?; let byState: [String: Int]; let byFolderState: [String: Int]; let invalidNFOs: Int }
+struct CompanionMovieAuditSnapshot: Codable, Equatable { let phase: String; let completedVideos: Int; let totalVideos: Int; let startedAt: Date?; let report: CompanionMovieAuditReport?; let error: String? }
 struct CompanionMoviePackageRequest: Codable { let videoPaths: [String] }
 struct TVSeriesSearchResult: Codable, Identifiable, Equatable { let tvdbID: Int; let title: String; let overview: String?; let year: String?; var id: Int { tvdbID } }

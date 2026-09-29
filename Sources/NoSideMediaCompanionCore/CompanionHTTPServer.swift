@@ -29,7 +29,8 @@ public final class CompanionHTTPServer: @unchecked Sendable {
         guard headers["authorization"] == "Bearer \(token)" else { return response(401, ["error": "Unauthorized"]) }
         if method == "GET", path == "/v1/health" { return response(200, await service.serverInfo()) }
         if method == "GET", path == "/v1/jobs" { return response(200, await service.jobs()) }
-        if method == "GET", path == "/v1/audit/movies" { return response(200, await service.movieAudit()) }
+        if method == "POST", path == "/v1/audit/movies" { return response(200, await service.startMovieAudit()) }
+        if method == "GET", path == "/v1/audit/movies" { return response(200, await service.movieAuditStatus()) }
         if method == "GET", path == "/v1/audit/tv/folders" { return response(200, await service.tvFolders()) }
         if method == "GET", path == "/v1/audit/tv" { guard let folder = components?.queryItems?.first(where: { $0.name == "folder" })?.value else { return response(400, ["error": "Choose a TV folder first."]) }; do { return response(200, try await service.tvAudit(folder: folder)) } catch { return response(400, ["error": error.localizedDescription]) } }
         if method == "POST", path == "/v1/audit/movies/preservation-package" { guard let request = try? JSONDecoder().decode(CompanionMoviePackageRequest.self, from: Data(body.utf8)) else { return response(400, ["error": "A selected video list is required."]) }; do { return response(200, try await service.freezePreservationPackage(videoPaths: request.videoPaths)) } catch { return response(400, ["error": error.localizedDescription]) } }

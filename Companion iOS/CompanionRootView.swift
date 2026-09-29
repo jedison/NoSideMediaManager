@@ -186,6 +186,17 @@ private struct RemoteToolsView: View {
             Button("Audit configured movie/library root") { session.startMovieAudit() }.disabled(working || session.isMovieAuditLoading)
             if session.isMovieAuditLoading { ProgressView("Auditing on the media server…") }
             Text(session.movieAuditStatus).font(.footnote).foregroundStyle(.secondary)
+            if let progress = session.movieAuditProgress, progress.phase == "running" {
+                ProgressView(value: Double(progress.completedVideos), total: Double(max(progress.totalVideos, 1))) {
+                    Text(progress.totalVideos == 0 ? "Finding video files…" : "\(progress.completedVideos) of \(progress.totalVideos) video files audited")
+                }
+                .progressViewStyle(.linear)
+                if let started = progress.startedAt {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text("Elapsed \(elapsedTime(since: started, now: context.date))").font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            }
             if let audit = session.movieAudit {
                 Text("\(audit.totalVideos) videos · \(audit.ignoredVideos ?? 0) ignored extras · \(audit.invalidNFOs) invalid NFOs")
                 ForEach(audit.byFolderState.sorted(by: { $0.key < $1.key }), id: \.key) { Text("\($0.key): \($0.value)") }
@@ -205,6 +216,10 @@ private struct RemoteToolsView: View {
     private func runTVAudit() { working = true; Task { defer { working = false }; do { tvAudit = try await session.client.tvAudit(folder: selectedTVFolder); status = "TV audit complete." } catch { status = error.localizedDescription } } }
     private func freezeSelected() { guard let audit = session.movieAudit else { return }; let eligible = audit.items.filter { selectedPaths.contains($0.videoPath) && (packageKind == "sidecar" ? $0.sidecarReady : $0.preservationReady) }; guard !eligible.isEmpty else { return }; working = true; Task { defer { working = false }; do { let job = try await session.client.freezeMoviePackage(packageKind, videoPaths: eligible.map(\.videoPath)); status = "Frozen job \(job.id) created for \(eligible.count) selected movie(s)."; await session.refresh() } catch { status = error.localizedDescription } } }
     private func filteredAuditItems(from audit: CompanionMovieAuditReport) -> [CompanionMovieAuditItem] { switch auditFilter { case "needsFolder": audit.items.filter(\.preservationReady); case "embedded": audit.items.filter(\.sidecarReady); case "incomplete": audit.items.filter { $0.state != "complete" }; default: audit.items } }
+    private func elapsedTime(since start: Date, now: Date) -> String {
+        let seconds = max(0, Int(now.timeIntervalSince(start)))
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
 }
 
 private struct JobDetailView: View {

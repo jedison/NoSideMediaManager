@@ -7,10 +7,32 @@ public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalid
 /// IDs from manifests under one configured directory, preventing path injection.
 public actor CompanionJobService {
     private let configuration: CompanionConfiguration
+    private var movieAuditSnapshot = CompanionMovieAuditSnapshot()
+    private var movieAuditTask: Task<Void, Never>?
     public init(configuration: CompanionConfiguration) { self.configuration = configuration }
     public func serverInfo() -> CompanionServerInfo { .init(version: configuration.version, libraryRoot: configuration.libraryRoot.path) }
     public func jobs() -> [CompanionJob] { manifests().map { CompanionJob(manifest: $0.1, state: state(for: $0.0, manifest: $0.1)) }.sorted { $0.id > $1.id } }
-    public func movieAudit() async -> CompanionMovieAuditReport { CompanionMovieAuditReport(report: await MovieLibraryAudit.health(directory: configuration.libraryRoot)) }
+    public func startMovieAudit() -> CompanionMovieAuditSnapshot {
+        if movieAuditSnapshot.phase == .running { return movieAuditSnapshot }
+        movieAuditSnapshot = .init(phase: .running, startedAt: Date())
+        let root = configuration.libraryRoot
+        movieAuditTask = Task { [weak self, root] in
+            let report = await MovieLibraryAudit.health(directory: root) { completed, total in
+                Task { await self?.updateMovieAuditProgress(completed: completed, total: total) }
+            }
+            await self?.completeMovieAudit(report: report)
+        }
+        return movieAuditSnapshot
+    }
+    public func movieAuditStatus() -> CompanionMovieAuditSnapshot { movieAuditSnapshot }
+    private func updateMovieAuditProgress(completed: Int, total: Int) {
+        guard movieAuditSnapshot.phase == .running else { return }
+        movieAuditSnapshot = .init(phase: .running, completedVideos: completed, totalVideos: total, startedAt: movieAuditSnapshot.startedAt)
+    }
+    private func completeMovieAudit(report: MovieLibraryHealthReport) {
+        movieAuditSnapshot = .init(phase: .complete, completedVideos: report.items.count, totalVideos: report.items.count, startedAt: movieAuditSnapshot.startedAt, report: .init(report: report))
+        movieAuditTask = nil
+    }
     public func tvFolders() -> [CompanionTVFolder] { ((try? FileManager.default.contentsOfDirectory(at: configuration.tvLibraryRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []).filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }.map { CompanionTVFolder(name: $0.lastPathComponent) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }
     public func tvAudit(folder: String) async throws -> CompanionTVAuditReport { guard let selected = tvFolders().first(where: { $0.name == folder }) else { throw CompanionJobServiceError.tvFolderNotFound }; let report = try await TVLibraryAudit.inspect(directory: configuration.tvLibraryRoot.appendingPathComponent(selected.name, isDirectory: true)); return .init(folder: selected.name, report: report) }
     public func searchTV(query: String) async throws -> [TVSeriesSearchResult] { guard let credentials = configuration.tvdbCredentials else { throw CompanionJobServiceError.tvdbNotConfigured }; return try await TVDBClient(credentials: credentials).searchSeries(named: query) }

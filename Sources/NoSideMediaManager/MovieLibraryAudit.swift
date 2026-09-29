@@ -79,8 +79,8 @@ public enum MovieLibraryAudit {
             ["jpg", "jpeg", "png"].contains { fileManager.fileExists(atPath: URL(fileURLWithPath: base.path + suffix).appendingPathExtension($0).path) }
         }
     }
-    @MainActor public static func health(directory: URL) async -> MovieLibraryHealthReport {
-        let items = await inspect(directory: directory)
+    @MainActor public static func health(directory: URL, progress: (@MainActor @Sendable (Int, Int) -> Void)? = nil) async -> MovieLibraryHealthReport {
+        let items = await inspect(directory: directory, progress: progress)
         let pairs = items.compactMap { item -> (String, String)? in item.tmdbID.map { (String($0), item.videoPath) } }
         let duplicates = Dictionary(grouping: pairs, by: \.0).compactMapValues { values in values.count > 1 ? values.map(\.1).sorted() : nil }
         let ignored = ignoredVideoFiles(in: directory).map(\.path).sorted()
