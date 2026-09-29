@@ -9,7 +9,13 @@ public actor CompanionJobService {
     private let configuration: CompanionConfiguration
     private var movieAuditSnapshot = CompanionMovieAuditSnapshot()
     private var movieAuditTask: Task<Void, Never>?
-    public init(configuration: CompanionConfiguration) { self.configuration = configuration }
+    public init(configuration: CompanionConfiguration) {
+        self.configuration = configuration
+        let cache = configuration.jobsRoot.appendingPathComponent(".noside-mmm-last-movie-audit.json")
+        if let data = try? Data(contentsOf: cache), let saved = try? JSONDecoder().decode(CompanionMovieAuditSnapshot.self, from: data), saved.phase == .complete {
+            movieAuditSnapshot = saved
+        }
+    }
     public func serverInfo() -> CompanionServerInfo { .init(version: configuration.version, libraryRoot: configuration.libraryRoot.path) }
     public func jobs() -> [CompanionJob] { manifests().map { CompanionJob(manifest: $0.1, state: state(for: $0.0, manifest: $0.1)) }.sorted { $0.id > $1.id } }
     public func startMovieAudit() -> CompanionMovieAuditSnapshot {
@@ -30,7 +36,9 @@ public actor CompanionJobService {
         movieAuditSnapshot = .init(phase: .running, completedVideos: completed, totalVideos: total, startedAt: movieAuditSnapshot.startedAt)
     }
     private func completeMovieAudit(report: MovieLibraryHealthReport) {
-        movieAuditSnapshot = .init(phase: .complete, completedVideos: report.items.count, totalVideos: report.items.count, startedAt: movieAuditSnapshot.startedAt, report: .init(report: report))
+        movieAuditSnapshot = .init(phase: .complete, completedVideos: report.items.count, totalVideos: report.items.count, startedAt: movieAuditSnapshot.startedAt, completedAt: Date(), report: .init(report: report))
+        let cache = configuration.jobsRoot.appendingPathComponent(".noside-mmm-last-movie-audit.json")
+        if let data = try? JSONEncoder().encode(movieAuditSnapshot) { try? data.write(to: cache, options: .atomic) }
         movieAuditTask = nil
     }
     public func tvFolders() -> [CompanionTVFolder] { ((try? FileManager.default.contentsOfDirectory(at: configuration.tvLibraryRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []).filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }.map { CompanionTVFolder(name: $0.lastPathComponent) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }

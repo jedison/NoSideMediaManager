@@ -21,8 +21,8 @@ public enum CompanionMovieAuditPhase: String, Codable, Sendable, Equatable { cas
 /// A shared, retained audit. Starting while another caller is already scanning
 /// attaches to that scan rather than inspecting every media container again.
 public struct CompanionMovieAuditSnapshot: Codable, Sendable, Equatable {
-    public let phase: CompanionMovieAuditPhase; public let completedVideos: Int; public let totalVideos: Int; public let startedAt: Date?; public let report: CompanionMovieAuditReport?; public let error: String?
-    public init(phase: CompanionMovieAuditPhase = .idle, completedVideos: Int = 0, totalVideos: Int = 0, startedAt: Date? = nil, report: CompanionMovieAuditReport? = nil, error: String? = nil) { self.phase = phase; self.completedVideos = completedVideos; self.totalVideos = totalVideos; self.startedAt = startedAt; self.report = report; self.error = error }
+    public let phase: CompanionMovieAuditPhase; public let completedVideos: Int; public let totalVideos: Int; public let startedAt: Date?; public let completedAt: Date?; public let report: CompanionMovieAuditReport?; public let error: String?
+    public init(phase: CompanionMovieAuditPhase = .idle, completedVideos: Int = 0, totalVideos: Int = 0, startedAt: Date? = nil, completedAt: Date? = nil, report: CompanionMovieAuditReport? = nil, error: String? = nil) { self.phase = phase; self.completedVideos = completedVideos; self.totalVideos = totalVideos; self.startedAt = startedAt; self.completedAt = completedAt; self.report = report; self.error = error }
 }
 public struct CompanionMoviePackageRequest: Codable, Sendable, Equatable { public let videoPaths: [String]; public init(videoPaths: [String]) { self.videoPaths = videoPaths } }
 public struct CompanionTVFolder: Codable, Sendable, Equatable, Identifiable { public let name: String; public var id: String { name }; public init(name: String) { self.name = name } }

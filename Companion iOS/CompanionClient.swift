@@ -32,6 +32,7 @@ struct CompanionClient {
     @Published var movieAuditProgress: CompanionMovieAuditSnapshot?
     @Published var movieAuditStatus = "Run an audit on the media server."
     @Published var isMovieAuditLoading = false
+    @Published var lastMovieAuditCompletion: Date?
     var client: CompanionClient {
         CompanionClient(
             host: host.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -66,14 +67,45 @@ struct CompanionClient {
             self?.isMovieAuditLoading = false
         }
     }
+    func refreshMovieAuditStatus() async {
+        do {
+            consumeMovieAudit(try await client.movieAuditStatus())
+            resumeMovieAuditProgressIfNeeded()
+        } catch {
+            movieAuditStatus = error.localizedDescription
+        }
+    }
+    private func resumeMovieAuditProgressIfNeeded() {
+        guard !isMovieAuditLoading, let initial = movieAuditProgress, initial.phase == "running" else { return }
+        let remote = client
+        isMovieAuditLoading = true
+        Task { [weak self] in
+            var snapshot = initial
+            do {
+                while snapshot.phase == "running" {
+                    try await Task.sleep(for: .seconds(10))
+                    snapshot = try await remote.movieAuditStatus()
+                    self?.consumeMovieAudit(snapshot)
+                }
+            } catch {
+                self?.movieAuditStatus = error.localizedDescription
+            }
+            self?.isMovieAuditLoading = false
+        }
+    }
     private func consumeMovieAudit(_ snapshot: CompanionMovieAuditSnapshot) {
         movieAuditProgress = snapshot
         if let report = snapshot.report { movieAudit = report }
         switch snapshot.phase {
         case "running": movieAuditStatus = snapshot.totalVideos == 0 ? "Finding video files on the media server…" : "Audited \(snapshot.completedVideos) of \(snapshot.totalVideos) video files…"
-        case "complete": movieAuditStatus = "Movie audit complete."
+        case "complete":
+            if let completedAt = snapshot.completedAt {
+                lastMovieAuditCompletion = completedAt
+                movieAuditStatus = "Last completed \(Self.auditDateFormatter.string(from: completedAt))."
+            } else { movieAuditStatus = "Movie audit complete." }
         case "failed": movieAuditStatus = snapshot.error ?? "Movie audit failed."
         default: break
         }
     }
+    private static let auditDateFormatter: DateFormatter = { let formatter = DateFormatter(); formatter.dateStyle = .medium; formatter.timeStyle = .short; return formatter }()
 }
