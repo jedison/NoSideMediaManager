@@ -12,7 +12,12 @@ scope="$1"
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 metadata=$(mktemp "${TMPDIR:-/tmp}/mmm-build-info.XXXXXX.plist")
 trap 'rm -f "$metadata"' EXIT
-"$root/scripts/generate-mmm-build-info.sh" "$metadata"
+if [ -n "${MMM_BUILD_INFO_SOURCE:-}" ]; then
+  test -f "$MMM_BUILD_INFO_SOURCE"
+  cp "$MMM_BUILD_INFO_SOURCE" "$metadata"
+else
+  "$root/scripts/generate-mmm-build-info.sh" "$metadata"
+fi
 export MMM_BUILD_INFO_SOURCE="$metadata"
 
 if [ "$scope" = "macos" ] || [ "$scope" = "both" ]; then

@@ -1,7 +1,7 @@
 import Foundation
 import NoSideMediaManager
 
-public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalidOperation, alreadyApplied, tvdbNotConfigured, invalidSelection; public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit." } } }
+public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalidOperation, alreadyApplied, tvdbNotConfigured, invalidSelection, tvFolderNotFound; public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library." } } }
 
 /// The only component allowed to invoke a frozen job script. It resolves job
 /// IDs from manifests under one configured directory, preventing path injection.
@@ -11,6 +11,8 @@ public actor CompanionJobService {
     public func serverInfo() -> CompanionServerInfo { .init(version: configuration.version, libraryRoot: configuration.libraryRoot.path) }
     public func jobs() -> [CompanionJob] { manifests().map { CompanionJob(manifest: $0.1, state: state(for: $0.0, manifest: $0.1)) }.sorted { $0.id > $1.id } }
     public func movieAudit() async -> CompanionMovieAuditReport { CompanionMovieAuditReport(report: await MovieLibraryAudit.health(directory: configuration.libraryRoot)) }
+    public func tvFolders() -> [CompanionTVFolder] { ((try? FileManager.default.contentsOfDirectory(at: configuration.tvLibraryRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []).filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }.map { CompanionTVFolder(name: $0.lastPathComponent) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }
+    public func tvAudit(folder: String) async throws -> CompanionTVAuditReport { guard let selected = tvFolders().first(where: { $0.name == folder }) else { throw CompanionJobServiceError.tvFolderNotFound }; let report = try await TVLibraryAudit.inspect(directory: configuration.tvLibraryRoot.appendingPathComponent(selected.name, isDirectory: true)); return .init(folder: selected.name, report: report) }
     public func searchTV(query: String) async throws -> [TVSeriesSearchResult] { guard let credentials = configuration.tvdbCredentials else { throw CompanionJobServiceError.tvdbNotConfigured }; return try await TVDBClient(credentials: credentials).searchSeries(named: query) }
     public func freezePreservationPackage(videoPaths: [String]) async throws -> CompanionJob {
         let requested = Set(videoPaths); guard !requested.isEmpty else { throw CompanionJobServiceError.invalidSelection }

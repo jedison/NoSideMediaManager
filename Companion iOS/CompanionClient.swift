@@ -11,6 +11,8 @@ struct CompanionClient {
     func health() async throws -> CompanionServerInfo { try await perform(try request(path: "/v1/health")) }
     func jobs() async throws -> [CompanionJob] { try await perform(try request(path: "/v1/jobs")) }
     func movieAudit() async throws -> CompanionMovieAuditReport { try await perform(try request(path: "/v1/audit/movies")) }
+    func tvFolders() async throws -> [CompanionTVFolder] { try await perform(try request(path: "/v1/audit/tv/folders")) }
+    func tvAudit(folder: String) async throws -> CompanionTVAuditReport { let folder = folder.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? folder; return try await perform(try request(path: "/v1/audit/tv?folder=\(folder)")) }
     func freezeMoviePackage(_ kind: String, videoPaths: [String]) async throws -> CompanionJob { let body = try JSONEncoder().encode(CompanionMoviePackageRequest(videoPaths: videoPaths)); return try await perform(try request(path: "/v1/audit/movies/\(kind)-package", method: "POST", body: body)) }
     func searchTV(_ query: String) async throws -> [TVSeriesSearchResult] { let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query; return try await perform(try request(path: "/v1/search/tv?query=\(encoded)")) }
     func run(_ job: CompanionJob, operation: CompanionOperation) async throws -> CompanionOperationResult { try await perform(try request(path: "/v1/jobs/\(job.id)/\(operation.rawValue)", method: "POST", confirm: operation == .apply ? job.id : nil)) }

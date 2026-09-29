@@ -6,6 +6,11 @@ struct CompanionJob: Codable, Identifiable, Equatable, Hashable { let id: String
 enum CompanionOperation: String, Codable { case dryRun = "dry-run", apply, rollback }
 struct CompanionOperationResult: Codable, Equatable { let jobID: String; let operation: CompanionOperation; let succeeded: Bool; let log: String }
 struct CompanionMovieAuditItem: Codable, Identifiable, Equatable { let videoPath: String; let nfoTitle: String?; let nfoYear: String?; let nfoIsValid: Bool?; let tmdbID: Int?; let state: String; let folderState: String; var id: String { videoPath }; var preservationReady: Bool { state == "complete" && folderState == "needsNormalization" && nfoIsValid == true && tmdbID != nil }; var sidecarReady: Bool { state == "embeddedMetadataNeedsSidecars" } }
+struct CompanionTVFolder: Codable, Identifiable, Equatable { let name: String; var id: String { name } }
+struct CompanionTVEpisode: Codable, Identifiable, Equatable { let videoPath: String; let season: Int; let episode: Int; let folderSeason: Int?; var id: String { videoPath }; var episodeLabel: String { season > 0 && episode > 0 ? "S\(season)E\(episode)" : "Unnumbered" } }
+struct CompanionTVDuplicate: Codable, Identifiable, Equatable { let season: Int; let episode: Int; let videoPaths: [String]; var id: String { "S\(season)E\(episode)" } }
+struct CompanionTVAuditInner: Codable, Equatable { let items: [CompanionTVEpisode]; let duplicates: [CompanionTVDuplicate]; let unnumberedCount: Int; let folderSeasonConflicts: Int }
+struct CompanionTVAuditReport: Codable, Equatable { let folder: String; let report: CompanionTVAuditInner }
 struct CompanionMovieAuditReport: Codable, Equatable { let items: [CompanionMovieAuditItem]; let totalVideos: Int; let byState: [String: Int]; let byFolderState: [String: Int]; let invalidNFOs: Int }
 struct CompanionMoviePackageRequest: Codable { let videoPaths: [String] }
 struct TVSeriesSearchResult: Codable, Identifiable, Equatable { let tvdbID: Int; let title: String; let overview: String?; let year: String?; var id: Int { tvdbID } }
