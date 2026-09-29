@@ -49,6 +49,16 @@ struct NoSideMediaCLI {
                 guard !plan.entries.isEmpty else { throw CLIError.unresolvedMappings }
                 try plan.write(to: URL(fileURLWithPath: arguments[2]))
                 print("Wrote preservation plan with \(plan.entries.count) complete movie(s): \(arguments[2]). Review destinationPath values before freezing it.")
+            case "movie-multipart-plan" where arguments.count >= 5:
+                let library = URL(fileURLWithPath: arguments[1])
+                let output = URL(fileURLWithPath: arguments[2])
+                let requested = Set(arguments.dropFirst(3))
+                let all = await MovieLibraryAudit.inspect(directory: library)
+                let selected = all.filter { requested.contains($0.videoPath) }
+                guard selected.count == requested.count, selected.allSatisfy(\.isMultiPartPreservationReady), MoviePlanDocument.isCompleteMultiPartSelection(selected, from: all) else { throw CLIError.unresolvedMappings }
+                let plan = MoviePlanDocument.preservationProposal(library: library, items: selected)
+                try plan.write(to: output)
+                print("Wrote Emby stacked-movie plan with \(plan.entries.count) parts: \(output.path). Review it, then freeze it with movie-preservation-bundle.")
             case "movie-normalize-plan" where arguments.count >= 3:
                 let plan = try MoviePlanDocument.read(from: URL(fileURLWithPath: arguments[1])); let source = try movieSource()
                 let ids = Set(plan.entries.compactMap(\.tmdbID)); var movies = [Int: Movie](); for id in ids { movies[id] = try await source.movie(id: id) }
@@ -138,5 +148,5 @@ struct NoSideMediaCLI {
     static func source() throws -> TVDBClient { TVDBClient(credentials: .init(apiKey: try credential("TVDB_API_KEY"), subscriberPIN: ProcessInfo.processInfo.environment["TVDB_PIN"])) }
     static func movieSource() throws -> TMDBClient { TMDBClient(apiKey: try credential("TMDB_API_KEY")) }
 }
-private enum CLIError: LocalizedError { case usage, missingCredentials, unresolvedMappings; var errorDescription: String? { switch self { case .usage: "Usage: noside-media inspect <video-or-folder> | search <title> | review <tvdb-id> <folder> [--adopt-folder-season] | plan <tvdb-id> <folder> [--adopt-folder-season] | merge-plans <show-root> <output.json> <plan.json...> | normalize-plan <plan.json> <output.json> | bundle <plan.json> <new-job-folder> [--no-artwork|--offline|--sha256] | movie-audit <folder> | movie-health <folder> | movie-embedded-bundle <library-root> <video> <new-job-folder> | movie-search <title> | movie-tvdb-search <title> | movie-plan <tmdb-id> <library-root> <video> <plan.json> | movie-normalize-plan <plan.json> <output.json> [--movie-folders] | movie-bundle <plan.json> <new-job-folder> [--no-artwork|--sha256] | movie-preservation-plan <library-root> <plan.json> | movie-preservation-bundle <plan.json> <new-job-folder> [--sha256]"; case .missingCredentials: "Set TVDB_API_KEY or TMDB_API_KEY before running provider commands."; case .unresolvedMappings: "The plan has unresolved or invalid provider IDs/destinations, or the video has no extractable title." } } }
+private enum CLIError: LocalizedError { case usage, missingCredentials, unresolvedMappings; var errorDescription: String? { switch self { case .usage: "Usage: noside-media inspect <video-or-folder> | search <title> | review <tvdb-id> <folder> [--adopt-folder-season] | plan <tvdb-id> <folder> [--adopt-folder-season] | merge-plans <show-root> <output.json> <plan.json...> | normalize-plan <plan.json> <output.json> | bundle <plan.json> <new-job-folder> [--no-artwork|--offline|--sha256] | movie-audit <folder> | movie-health <folder> | movie-embedded-bundle <library-root> <video> <new-job-folder> | movie-search <title> | movie-tvdb-search <title> | movie-plan <tmdb-id> <library-root> <video> <plan.json> | movie-normalize-plan <plan.json> <output.json> [--movie-folders] | movie-bundle <plan.json> <new-job-folder> [--no-artwork|--sha256] | movie-preservation-plan <library-root> <plan.json> | movie-multipart-plan <library-root> <plan.json> <part-video>... | movie-preservation-bundle <plan.json> <new-job-folder> [--sha256]"; case .missingCredentials: "Set TVDB_API_KEY or TMDB_API_KEY before running provider commands."; case .unresolvedMappings: "The plan has unresolved or invalid provider IDs/destinations, or not every part of a shared movie was selected." } } }
 private extension Optional { func unwrap(or error: Error) throws -> Wrapped { guard let self else { throw error }; return self } }

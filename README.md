@@ -242,6 +242,18 @@ creates one folder and Emby's stacked-file names, for example
 The shared NFO/artwork moves once into that folder. As with every package,
 dry-run first; rollback returns videos and shared sidecars to their originals.
 
+CLI example:
+
+```sh
+swift run noside-media movie-multipart-plan "/Volumes/Movies/My/Movies" \
+  ~/Desktop/until-end-plan.json \
+  "/Volumes/Movies/My/Movies/Until the End of the World CD1.mp4" \
+  "/Volumes/Movies/My/Movies/Until the End of the World CD2.mp4" \
+  "/Volumes/Movies/My/Movies/Until the End of the World CD3.mp4"
+swift run noside-media movie-preservation-bundle ~/Desktop/until-end-plan.json \
+  ~/Desktop/until-end-job
+```
+
 The Movies screen provides the same two steps as **Export preservation plan**
 and **Freeze preservation package**. The package refuses source changes or any
 destination collision before moving its first file, and `rollback.sh` reverses
