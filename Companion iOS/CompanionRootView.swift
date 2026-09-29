@@ -214,7 +214,6 @@ private struct MovieAuditView: View {
                 Text("\(audit.totalVideos) videos · \(audit.ignoredVideos ?? 0) ignored extras · \(audit.invalidNFOs) invalid NFOs")
                 ForEach(audit.byFolderState.sorted(by: { $0.key < $1.key }), id: \.key) { Text("\($0.key): \($0.value)") }
                 Picker("Show", selection: $auditFilter) { Text("All").tag("all"); Text("Needs folder normalisation").tag("needsFolder"); Text("Shared multi-part movies").tag("multipart"); Text("Embedded metadata").tag("embedded"); Text("Incomplete metadata or sidecars").tag("incomplete") }
-                Button("Select all shown (\(filteredAuditItems(from: audit).count))") { selectedPaths.formUnion(filteredAuditItems(from: audit).map(\.videoPath)) }
                 Text("\(selectedPaths.count) selected").font(.footnote).foregroundStyle(.secondary)
                 Button("Freeze selected sidecar package") { packageKind = "sidecar"; confirmPackage = true }.disabled(!audit.items.contains { selectedPaths.contains($0.videoPath) && $0.sidecarReady } || working)
                 Button("Freeze selected preservation package") { packageKind = "preservation"; confirmPackage = true }.disabled(!audit.items.contains { selectedPaths.contains($0.videoPath) && $0.preservationReady } || working)
