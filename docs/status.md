@@ -25,7 +25,7 @@
 
 ## Operating model
 
-The analysis Mac never mutates the reviewed library. Copy the package to the media Mac, run `./apply.sh --dry-run "/path/to/library-root"`, inspect the output, then apply. Keep `.noside-mmm-backups/<job-id>` until Emby is verified.
+The analysis Mac never mutates the reviewed library. Copy the package to the media server, run `./apply.sh --dry-run "/path/to/library-root"`, inspect the output, then apply. Keep `.noside-mmm-backups/<job-id>` until Emby is verified.
 
 ## Deliberate limits
 

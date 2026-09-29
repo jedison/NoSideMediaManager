@@ -119,7 +119,7 @@ struct NoSideMediaCLI {
                 let manifest = try await PortableJobBundle.create(at: URL(fileURLWithPath: arguments[2]), showRoot: library, series: metadata.series, mappings: approved, destinations: destinations, downloadArtwork: !offline && !arguments.contains("--no-artwork"), fingerprintMode: arguments.contains("--sha256") ? .sha256 : .metadata, notes: offline ? ["Offline metadata mode: canonical NFO basics were reconstructed from the reviewed plan. No fresh TVDB descriptions, air dates, ratings, or artwork are included."] : [])
                 print("Created portable job \(manifest.jobID): \(arguments[2])")
                 if offline { print("Offline package: canonical NFOs were reconstructed from the reviewed plan; no fresh TVDB artwork was downloaded.") }
-                print("Copy or ZIP it, then run ./apply.sh --dry-run \"/path/to/show-root\" on the media Mac.")
+                print("Copy or ZIP it, then run ./apply.sh --dry-run \"/path/to/show-root\" on the media server.")
             default: throw CLIError.usage
             }
         } catch {

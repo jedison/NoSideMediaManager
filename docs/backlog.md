@@ -2,7 +2,7 @@
 
 ## Next
 
-- Pair the iOS Companion with the old MBA using a real frozen job and validate
+- Pair the iOS Companion with the media server using a real frozen job and validate
   dry-run, explicit apply, rollback, and log display before broader use.
 - Move the iOS pairing token from UserDefaults to Keychain; add QR pairing and
   Bonjour discovery after the first network pilot.
@@ -14,7 +14,7 @@
 - Build the explicit local ↔ canonical ↔ consumer mapping review screen, using
   GBBO's UK/Netflix/Emby numbering as the acceptance case.
 - Run a copied-one-season GBBO acceptance pilot: scan, map, freeze a portable
-  job, dry-run and apply it on the media Mac, normal Emby scan, and verify
+  job, dry-run and apply it on the media server, normal Emby scan, and verify
   rollback before touching the library.
 - Add field-by-field NFO acceptance, rather than the current whole-file
   replacement choice.

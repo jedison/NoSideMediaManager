@@ -49,7 +49,7 @@ private struct PairingView: View {
     var body: some View {
         List {
             Section("Connect microMM") {
-                Text("Enter the old MBA address and pairing token in Settings, then connect.")
+                Text("Enter the media server address and pairing token in Settings, then connect.")
                 NavigationLink("Open Settings", destination: CompanionSettingsView())
             }
             Section("Safety") {
@@ -67,7 +67,7 @@ private struct CompanionSettingsView: View {
     var body: some View {
         Form {
             Section("microMM connection") {
-                TextField("Old MBA address", text: $session.host)
+                TextField("Media server address", text: $session.host)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 TextField("Port", text: Binding(get: { String(session.port) }, set: { session.port = Int($0) ?? session.port }))
@@ -89,7 +89,7 @@ private struct CompanionSettingsView: View {
             Section("Status") {
                 Text(session.status).foregroundStyle(.secondary)
                 if let server = session.server {
-                    LabeledContent("Old MBA microMM", value: server.version)
+                    LabeledContent("Media server microMM", value: server.version)
                 }
             }
             Section {
@@ -123,17 +123,17 @@ private struct CompanionInfoView: View {
     var body: some View {
         List {
             Section("How it works") {
-                Label("Connect this iPhone to microMM on the old MBA with its address and pairing token.", systemImage: "1.circle.fill")
+                Label("Connect this iPhone to microMM on the media server with its address and pairing token.", systemImage: "1.circle.fill")
                 Label("Audit, search, and choose items for a frozen package.", systemImage: "2.circle.fill")
                 Label("Review dry-run, apply, and rollback results from the job detail.", systemImage: "3.circle.fill")
             }
             Section("Important") {
-                Text("microMM on the phone does not directly change the media library. All library changes remain in reviewed, rollbackable packages on the old MBA.")
+                Text("microMM on the phone does not directly change the media library. All library changes remain in reviewed, rollbackable packages on the media server.")
                     .foregroundStyle(.secondary)
             }
             Section("About") {
                 LabeledContent("iPhone app", value: CompanionBuildVersion.label)
-                LabeledContent("Old MBA microMM", value: session.server?.version ?? "Not connected")
+                LabeledContent("Media server microMM", value: session.server?.version ?? "Not connected")
             }
         }
         .navigationTitle("How microMM works")
@@ -179,12 +179,12 @@ private struct RemoteToolsView: View {
     @State private var auditFilter = "all"
     @State private var packageKind = ""
     @State private var confirmPackage = false
-    @State private var status = "These requests run on the old MBA and do not change media files."
+    @State private var status = "These requests run on the media server and do not change media files."
     @State private var working = false
     var body: some View { List {
         Section("Movie library") {
             Button("Audit configured movie/library root") { session.startMovieAudit() }.disabled(working || session.isMovieAuditLoading)
-            if session.isMovieAuditLoading { ProgressView("Auditing on the old MBA…") }
+            if session.isMovieAuditLoading { ProgressView("Auditing on the media server…") }
             Text(session.movieAuditStatus).font(.footnote).foregroundStyle(.secondary)
             if let audit = session.movieAudit {
                 Text("\(audit.totalVideos) videos · \(audit.ignoredVideos ?? 0) ignored extras · \(audit.invalidNFOs) invalid NFOs")
@@ -199,7 +199,7 @@ private struct RemoteToolsView: View {
         Section("TVDB") { TextField("Search series", text: $query); Button("Search TVDB") { runSearch() }.disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || working); ForEach(results) { result in VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) } } }
         Section("TV library") { Button("Load TV show folders") { loadTVFolders() }.disabled(working); if !tvFolders.isEmpty { Picker("Show folder", selection: $selectedTVFolder) { Text("Choose a show").tag(""); ForEach(tvFolders) { Text($0.name).tag($0.name) } }; Button("Audit selected TV folder") { runTVAudit() }.disabled(selectedTVFolder.isEmpty || working); Button("Search TVDB from folder") { query = selectedTVFolder; runSearch() }.disabled(selectedTVFolder.isEmpty || working) }; if let tvAudit { Text("\(tvAudit.folder): \(tvAudit.report.items.count) videos · \(tvAudit.report.duplicates.count) duplicate episode candidate(s) · \(tvAudit.report.unnumberedCount) unnumbered").font(.caption); ForEach(tvAudit.report.duplicates) { duplicate in Text("S\(duplicate.season)E\(duplicate.episode): \(duplicate.videoPaths.count) copies").font(.caption).foregroundStyle(.orange) } } }
         Section { Text(status).font(.footnote).foregroundStyle(.secondary) }
-    }.navigationTitle("Remote tools").confirmationDialog("Create frozen package?", isPresented: $confirmPackage, titleVisibility: .visible) { Button("Create package") { freezeSelected() } } message: { Text("This creates a reviewed package on the old MBA. It does not modify the media library.") } }
+    }.navigationTitle("Remote tools").confirmationDialog("Create frozen package?", isPresented: $confirmPackage, titleVisibility: .visible) { Button("Create package") { freezeSelected() } } message: { Text("This creates a reviewed package on the media server. It does not modify the media library.") } }
     private func runSearch() { working = true; Task { defer { working = false }; do { results = try await session.client.searchTV(query); status = "Found \(results.count) series." } catch { status = error.localizedDescription } } }
     private func loadTVFolders() { working = true; Task { defer { working = false }; do { tvFolders = try await session.client.tvFolders(); status = "Loaded \(tvFolders.count) TV show folders." } catch { status = error.localizedDescription } } }
     private func runTVAudit() { working = true; Task { defer { working = false }; do { tvAudit = try await session.client.tvAudit(folder: selectedTVFolder); status = "TV audit complete." } catch { status = error.localizedDescription } } }
@@ -222,7 +222,7 @@ private struct JobDetailView: View {
             Section("Package operations") { Button("Dry run") { run(.dryRun) }.disabled(isWorking || job.state == .applied); Button("Apply", role: .destructive) { showApply = true }.disabled(isWorking || job.state == .applied); Button("Rollback") { run(.rollback) }.disabled(isWorking || job.state != .applied) }
             if let result { Section("\(result.operation.rawValue) result") { Text(result.log.isEmpty ? "No output." : result.log).font(.system(.caption, design: .monospaced)).textSelection(.enabled); Text(result.succeeded ? "Completed." : "Failed; review the log before proceeding.").foregroundStyle(result.succeeded ? Color.secondary : Color.red) } }
         }.navigationTitle(job.title)
-            .confirmationDialog("Apply this frozen job?", isPresented: $showApply, titleVisibility: .visible) { Button("Apply \(job.title)", role: .destructive) { run(.apply) } } message: { Text("This runs the exact reviewed package on the old MBA. Review its dry-run result first; rollback remains available after apply.") }
+            .confirmationDialog("Apply this frozen job?", isPresented: $showApply, titleVisibility: .visible) { Button("Apply \(job.title)", role: .destructive) { run(.apply) } } message: { Text("This runs the exact reviewed package on the media server. Review its dry-run result first; rollback remains available after apply.") }
     }
     private func run(_ operation: CompanionOperation) { isWorking = true; Task { defer { isWorking = false }; do { result = try await session.client.run(job, operation: operation) } catch { result = CompanionOperationResult(jobID: job.id, operation: operation, succeeded: false, log: error.localizedDescription) } } }
 }

@@ -6,7 +6,7 @@ The original macOS MMM SwiftUI app has a **Companion** tab. It starts/stops an
 authenticated local server and owns its jobs root, one selected library root,
 port, and pairing token. It never exposes SMB or general filesystem operations.
 
-The native iOS app lives in `Companion iOS/`. It pairs using the old MBA's
+The native iOS app lives in `Companion iOS/`. It pairs using the media server's
 Tailnet MagicDNS hostname (or, for local troubleshooting, LAN address), port,
 and token; it lists frozen jobs, displays operation logs, and can request
 dry-run, apply, or rollback. Apply requires both the bearer token and a second
@@ -35,7 +35,7 @@ directory. It does not accept filesystem paths from the phone.
 
 ## Deployment boundary
 
-The companion must run in the MMM app on the old MBA while jobs are managed.
+The companion must run in the MMM app on the media server while jobs are managed.
 The iOS project builds for iOS 18+, but installing it on a real phone requires
 the user’s Xcode signing team and connected target device. Use Tailscale for
 remote connectivity and do not expose the Companion port directly to the

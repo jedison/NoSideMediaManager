@@ -11,7 +11,7 @@ struct CompanionClient {
     func health() async throws -> CompanionServerInfo { try await perform(try request(path: "/v1/health")) }
     func jobs() async throws -> [CompanionJob] { try await perform(try request(path: "/v1/jobs")) }
     /// Full libraries inspect embedded container metadata and can legitimately
-    /// take several minutes on the media Mac.
+    /// take several minutes on the media server.
     func movieAudit() async throws -> CompanionMovieAuditReport { try await perform(try request(path: "/v1/audit/movies", timeout: 600)) }
     func tvFolders() async throws -> [CompanionTVFolder] { try await perform(try request(path: "/v1/audit/tv/folders")) }
     func tvAudit(folder: String) async throws -> CompanionTVAuditReport { let folder = folder.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? folder; return try await perform(try request(path: "/v1/audit/tv?folder=\(folder)")) }
@@ -25,9 +25,9 @@ struct CompanionClient {
     @Published var host = UserDefaults.standard.string(forKey: "companionHost") ?? ""
     @Published var port = UserDefaults.standard.integer(forKey: "companionPort") == 0 ? 8347 : UserDefaults.standard.integer(forKey: "companionPort")
     @Published var token = UserDefaults.standard.string(forKey: "companionToken") ?? ""
-    @Published var server: CompanionServerInfo?; @Published var jobs = [CompanionJob](); @Published var status = "Pair with microMM on the old MBA."; @Published var isLoading = false
+    @Published var server: CompanionServerInfo?; @Published var jobs = [CompanionJob](); @Published var status = "Pair with microMM on the media server."; @Published var isLoading = false
     @Published var movieAudit: CompanionMovieAuditReport?
-    @Published var movieAuditStatus = "Run an audit on the old MBA."
+    @Published var movieAuditStatus = "Run an audit on the media server."
     @Published var isMovieAuditLoading = false
     var client: CompanionClient {
         CompanionClient(
@@ -47,7 +47,7 @@ struct CompanionClient {
     func startMovieAudit() {
         guard !isMovieAuditLoading else { return }
         let remote = client
-        isMovieAuditLoading = true; movieAuditStatus = "Auditing the Movie library on the old MBA… You can leave this screen."
+        isMovieAuditLoading = true; movieAuditStatus = "Auditing the Movie library on the media server… You can leave this screen."
         Task { [weak self] in
             do {
                 let report = try await remote.movieAudit()
