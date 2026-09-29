@@ -57,8 +57,8 @@ private struct ContentView: View {
     @State private var nfoDifferenceCounts = [URL: Int]()
     @State private var artworkSelections = [URL: Bool]()
     @State private var destinationPaths = [URL: String]()
-    @State private var destination: URL?
-    @State private var status = "Choose the local show folder, then search TVDB from its name."
+    @State private var destination: URL? = URL(fileURLWithPath: UserDefaults.standard.string(forKey: "companion.tvLibraryRoot") ?? "/Volumes/Movies/My/TV Shows")
+    @State private var status = "The saved TV library is selected. Audit it, or choose one show folder before searching TVDB."
     @State private var isWorking = false
     @State private var tvAudit: TVLibraryAuditReport?
     @State private var tvAuditFilter = "all"
@@ -93,8 +93,8 @@ private struct ContentView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Media Manager").font(.largeTitle.weight(.semibold))
             Text("TVDB → Kodi NFO").foregroundStyle(.secondary)
-            HStack { Button("Choose TV show folder…", action: chooseTVFolder).disabled(isWorking); if let destination { Text(destination.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
-            HStack { Button("Audit TV folder", action: auditTVFolder).disabled(destination == nil || isWorking); TextField("Search TVDB (suggested from folder)", text: $query); Button("Search TVDB", action: search).disabled(query.isEmpty || destination == nil || isWorking) }
+            HStack { Button("Audit saved TV library", action: auditTVFolder).disabled(destination == nil || isWorking); Button("Choose TV show folder…", action: chooseTVFolder).disabled(isWorking); if let destination { Text(destination.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
+            HStack { TextField("Search TVDB (suggested from chosen show folder)", text: $query); Button("Search TVDB", action: search).disabled(query.isEmpty || destination == nil || isWorking) }
             if let tvAudit { tvAuditSummary(tvAudit) }
             List(results, id: \.tvdbID) { result in
                 HStack { VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) }; Spacer(); Button("Review selected folder") { if let destination { review(result, in: destination) } }.disabled(isWorking || destination == nil) }
@@ -226,7 +226,7 @@ private struct PackageOperationsView: View {
             Text("Package Operations").font(.largeTitle.weight(.semibold))
             Text("Packages are the only way microMM changes a media library. Always dry-run first.").foregroundStyle(.secondary)
             HStack { Button("Refresh packages", action: refresh).disabled(working); if let selected { Text(selected.title).lineLimit(1).foregroundStyle(.secondary) } }
-            List(jobs, selection: $selected) { job in VStack(alignment: .leading) { Text(job.title); Text("\(job.state == .applied ? "APPLIED · " : "")\(job.moves) moves · \(job.generatedFiles) generated files").font(.caption).foregroundStyle(.secondary) }.tag(job) }
+            List(jobs, selection: $selected) { job in VStack(alignment: .leading) { Text(job.title); Text("\(job.state == .applied ? "APPLIED · " : job.state == .rolledBack ? "ROLLED BACK · " : "")\(job.moves) moves · \(job.generatedFiles) generated files").font(.caption).foregroundStyle(.secondary) }.tag(job) }
             HStack { Button("Dry-run", action: { run(.dryRun) }).disabled(selected == nil || selected?.state == .applied || working); Button("Apply", role: .destructive) { confirmApply = true }.disabled(selected == nil || selected?.state == .applied || working); Button("Rollback") { run(.rollback) }.disabled(selected?.state != .applied || working) }
             if !log.isEmpty { ScrollView { Text(log).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 160) }
             Text(status).foregroundStyle(.secondary)
@@ -239,17 +239,20 @@ private struct PackageOperationsView: View {
 
 @MainActor
 private struct MovieToolsView: View {
-    @State private var folder: URL?
+    @State private var folder: URL? = {
+        guard let path = UserDefaults.standard.string(forKey: "companion.libraryRoot"), !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
+    }()
     @State private var items = [MovieAuditItem]()
     @State private var selectedPaths = Set<String>()
     @State private var auditFilter = "all"
-    @State private var status = "Choose a movie folder to audit. MMM will not modify it."
+    @State private var status = "The saved Movie library is selected. Audit it, or choose another folder. MMM will not modify it."
     @State private var isWorking = false
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Movie Manager").font(.largeTitle.weight(.semibold))
             Text("Audit first. Complete movies can be reorganised without rewriting their NFOs or artwork.").foregroundStyle(.secondary)
-            HStack { Button("Choose and audit folder…", action: chooseFolder).disabled(isWorking); if let folder { Text(folder.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
+            HStack { Button("Audit saved Movie library", action: auditCurrentFolder).disabled(folder == nil || isWorking); Button("Choose another folder…", action: chooseFolder).disabled(isWorking); if let folder { Text(folder.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
             Picker("Show", selection: $auditFilter) { Text("All").tag("all"); Text("Needs folder normalisation").tag("needsFolder"); Text("Embedded metadata").tag("embedded"); Text("Incomplete metadata or sidecars").tag("incomplete") }.pickerStyle(.menu)
             List(filteredItems, id: \.videoPath, selection: $selectedPaths) { item in
                 VStack(alignment: .leading) {
@@ -268,7 +271,8 @@ private struct MovieToolsView: View {
             Text(status).foregroundStyle(.secondary).lineLimit(2)
         }.padding(24)
     }
-    private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; guard panel.runModal() == .OK, let url = panel.url else { return }; folder = url; isWorking = true; status = "Auditing videos and sidecars…"; Task { items = await MovieLibraryAudit.inspect(directory: url); status = "Audited \(items.count) videos."; isWorking = false } }
+    private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; if let folder { panel.directoryURL = folder }; guard panel.runModal() == .OK, let url = panel.url else { return }; folder = url; auditCurrentFolder() }
+    private func auditCurrentFolder() { guard let folder else { status = "Set Movie library root in Settings first, or choose another folder."; return }; isWorking = true; status = "Auditing videos and sidecars…"; Task { items = await MovieLibraryAudit.inspect(directory: folder); status = "Audited \(items.count) videos."; isWorking = false } }
     private func selectedItems(of state: MovieSidecarState) -> [MovieAuditItem] { items.filter { selectedPaths.contains($0.videoPath) && $0.state == state } }
     private var filteredItems: [MovieAuditItem] { switch auditFilter { case "needsFolder": items.filter(\.isPreservationReady); case "embedded": items.filter { $0.state == .embeddedMetadataNeedsSidecars }; case "incomplete": items.filter { $0.state != .complete }; default: items } }
     private func folderLabel(_ state: MovieFolderState) -> String { switch state { case .normalized: "folder ready"; case .needsNormalization: "needs folder normalisation"; case .metadataIncomplete: "folder not assessed"; case .sharedMultiPart: "shared multi-part sidecars" } }

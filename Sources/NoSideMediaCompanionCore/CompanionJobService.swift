@@ -50,7 +50,18 @@ public actor CompanionJobService {
     }
     private func state(for directory: URL, manifest: PortableJobManifest) -> CompanionJobState {
         let backup = configuration.libraryRoot.appendingPathComponent(".noside-mmm-backups").appendingPathComponent(manifest.jobID)
-        if FileManager.default.fileExists(atPath: backup.path) { return .applied }
+        if FileManager.default.fileExists(atPath: backup.appendingPathComponent("rolled-back").path) { return .rolledBack }
+        if FileManager.default.fileExists(atPath: backup.path) {
+            // Legacy packages did not leave an explicit marker. If every file
+            // recorded as created has gone, their retained backup represents a
+            // completed rollback rather than an active apply.
+            let created = backup.appendingPathComponent("created-files.txt")
+            if let text = try? String(contentsOf: created) {
+                let files = text.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+                if !files.isEmpty && files.allSatisfy({ !FileManager.default.fileExists(atPath: configuration.libraryRoot.appendingPathComponent($0).path) }) { return .rolledBack }
+            }
+            return .applied
+        }
         for name in ["apply.log", "full-apply.log"] {
             let log = directory.appendingPathComponent(name)
             if let text = try? String(contentsOf: log), text.contains("Applied \(manifest.jobID).") { return .applied }

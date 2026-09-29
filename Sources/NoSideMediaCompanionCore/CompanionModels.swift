@@ -6,7 +6,7 @@ public struct CompanionServerInfo: Codable, Sendable, Equatable {
     public init(name: String = "NoSide MMM Companion", version: String, libraryRoot: String, requiresAuthentication: Bool = true) { self.name = name; self.version = version; self.libraryRoot = libraryRoot; self.requiresAuthentication = requiresAuthentication }
 }
 
-public enum CompanionJobState: String, Codable, Sendable, Equatable, Hashable { case ready, applied }
+public enum CompanionJobState: String, Codable, Sendable, Equatable, Hashable { case ready, applied, rolledBack }
 
 public struct CompanionJob: Codable, Sendable, Equatable, Hashable, Identifiable {
     public let id: String; public let title: String; public let mediaKind: String; public let provider: String; public let moves: Int; public let generatedFiles: Int; public let unavailableArtwork: Int; public let state: CompanionJobState

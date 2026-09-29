@@ -104,11 +104,27 @@ public enum MoviePreservationBundleError: LocalizedError, Equatable {
 /// media files. The builder only writes inside `bundle`; it never changes
 /// `showRoot`.
 public enum PortableJobBundle {
+    /// Returns the requested job folder unless it is already occupied.  A
+    /// reviewed package is evidence and must never be overwritten, so later
+    /// attempts become `-v2`, `-v3`, and so on.
+    public static func availableOutputURL(for requested: URL, fileManager: FileManager = .default) -> URL {
+        guard fileManager.fileExists(atPath: requested.path) else { return requested }
+        let parent = requested.deletingLastPathComponent()
+        let stem = requested.lastPathComponent
+        var revision = 2
+        while true {
+            let candidate = parent.appendingPathComponent("\(stem)-v\(revision)", isDirectory: true)
+            if !fileManager.fileExists(atPath: candidate.path) { return candidate }
+            revision += 1
+        }
+    }
+
     /// Freezes many independently reviewed movies in one all-or-nothing target
     /// transaction. Each item retains its own movie NFO/poster and TMDB ID.
     @discardableResult
-    public static func createMovies(at bundle: URL, libraryRoot: URL, items: [MovieBundleItem], downloadArtwork: Bool = true, fingerprintMode: SourceFingerprintMode = .metadata, notes: [String] = [], fileManager: FileManager = .default) async throws -> PortableJobManifest {
-        guard !items.isEmpty, !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+    public static func createMovies(at requestedBundle: URL, libraryRoot: URL, items: [MovieBundleItem], downloadArtwork: Bool = true, fingerprintMode: SourceFingerprintMode = .metadata, notes: [String] = [], fileManager: FileManager = .default) async throws -> PortableJobManifest {
+        guard !items.isEmpty else { throw MoviePreservationBundleError.emptyPlan }
+        let bundle = availableOutputURL(for: requestedBundle, fileManager: fileManager)
         let root = libraryRoot.standardizedFileURL; let jobID = "mmm-\(UUID().uuidString.lowercased())"; try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
         var moves = [PortableJobManifest.Move](); var generated = [String](); var unavailable = [String](); var locations = [String: URL]()
         for item in items {
@@ -127,8 +143,8 @@ public enum PortableJobBundle {
         try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic); return manifest
     }
     @discardableResult
-    public static func createEmbeddedMovie(at bundle: URL, libraryRoot: URL, source: URL, title: String, creationDate: String?, artwork: Data?, fileManager: FileManager = .default) throws -> PortableJobManifest {
-        guard !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+    public static func createEmbeddedMovie(at requestedBundle: URL, libraryRoot: URL, source: URL, title: String, creationDate: String?, artwork: Data?, fileManager: FileManager = .default) throws -> PortableJobManifest {
+        let bundle = availableOutputURL(for: requestedBundle, fileManager: fileManager)
         let root = libraryRoot.standardizedFileURL; let jobID = "mmm-\(UUID().uuidString.lowercased())"; let sourceRelative = try relative(source, to: root)
         try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
         let nfoPath = replacingExtension(sourceRelative, with: "nfo"); try write(NFOWriter.embeddedMovieData(title: title, creationDate: creationDate), relativePath: nfoPath, in: bundle)
@@ -142,8 +158,9 @@ public enum PortableJobBundle {
     /// Freezes sidecars extracted from multiple selected containers as one
     /// package. It only writes NFO/JPG outputs inside the package.
     @discardableResult
-    public static func createEmbeddedMovies(at bundle: URL, libraryRoot: URL, items: [EmbeddedMovieBundleItem], fileManager: FileManager = .default) throws -> PortableJobManifest {
-        guard !items.isEmpty, !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+    public static func createEmbeddedMovies(at requestedBundle: URL, libraryRoot: URL, items: [EmbeddedMovieBundleItem], fileManager: FileManager = .default) throws -> PortableJobManifest {
+        guard !items.isEmpty else { throw MoviePreservationBundleError.emptyPlan }
+        let bundle = availableOutputURL(for: requestedBundle, fileManager: fileManager)
         let root = libraryRoot.standardizedFileURL; let jobID = "mmm-\(UUID().uuidString.lowercased())"
         try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
         var generated = [String](); var sources = [String: URL]()
@@ -170,8 +187,8 @@ public enum PortableJobBundle {
     /// Creates a portable single-movie transaction. It writes only `bundle`,
     /// never the reviewed movie folder.
     @discardableResult
-    public static func createMovie(at bundle: URL, libraryRoot: URL, movie: Movie, source: URL, destination: URL, downloadArtwork: Bool = true, notes: [String] = [], fileManager: FileManager = .default) async throws -> PortableJobManifest {
-        guard !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+    public static func createMovie(at requestedBundle: URL, libraryRoot: URL, movie: Movie, source: URL, destination: URL, downloadArtwork: Bool = true, notes: [String] = [], fileManager: FileManager = .default) async throws -> PortableJobManifest {
+        let bundle = availableOutputURL(for: requestedBundle, fileManager: fileManager)
         let root = libraryRoot.standardizedFileURL; let jobID = "mmm-\(UUID().uuidString.lowercased())"
         let sourceRelative = try relative(source, to: root); let destinationRelative = try relative(destination, to: root)
         try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
@@ -196,9 +213,9 @@ public enum PortableJobBundle {
     /// this deliberately does not rewrite NFO XML or replace artwork: the
     /// reviewed sidecars are moved byte-for-byte with their video.
     @discardableResult
-    public static func createExistingMoviePreservation(at bundle: URL, plan: MoviePlanDocument, fingerprintMode: SourceFingerprintMode = .metadata, fileManager: FileManager = .default) throws -> PortableJobManifest {
+    public static func createExistingMoviePreservation(at requestedBundle: URL, plan: MoviePlanDocument, fingerprintMode: SourceFingerprintMode = .metadata, fileManager: FileManager = .default) throws -> PortableJobManifest {
         guard !plan.entries.isEmpty else { throw MoviePreservationBundleError.emptyPlan }
-        guard !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+        let bundle = availableOutputURL(for: requestedBundle, fileManager: fileManager)
         let root = URL(fileURLWithPath: plan.libraryPath).standardizedFileURL
         var sources = [String: URL](); var moves = [PortableJobManifest.Move]()
         for entry in plan.entries {
@@ -230,7 +247,7 @@ public enum PortableJobBundle {
     }
     @discardableResult
     public static func create(
-        at bundle: URL,
+        at requestedBundle: URL,
         showRoot: URL,
         series: TVSeries,
         mappings: [ApprovedEpisodeMapping],
@@ -240,7 +257,7 @@ public enum PortableJobBundle {
         notes: [String] = [],
         fileManager: FileManager = .default
     ) async throws -> PortableJobManifest {
-        guard !fileManager.fileExists(atPath: bundle.path) else { throw PortableJobBundleError.outputAlreadyExists(bundle) }
+        let bundle = availableOutputURL(for: requestedBundle, fileManager: fileManager)
         let root = showRoot.standardizedFileURL
         let jobID = "mmm-\(UUID().uuidString.lowercased())"
         let moves = try mappings.compactMap { mapping -> PortableJobManifest.Move? in
@@ -414,7 +431,7 @@ public enum PortableJobBundle {
         \(generatedPreflights)
         \(moves)
         \(installs)
-        if $DRY_RUN; then echo "Dry run complete: no media-library files changed."; else echo "Applied \(manifest.jobID). Backup: $BACKUP_ROOT"; fi
+        if $DRY_RUN; then echo "Dry run complete: no media-library files changed."; else rm -f "$BACKUP_ROOT/rolled-back"; echo "Applied \(manifest.jobID). Backup: $BACKUP_ROOT"; fi
         """
     }
 
@@ -457,7 +474,7 @@ public enum PortableJobBundle {
         \(preflights)
         \(fingerprints)
         \(moves)
-        if $DRY_RUN; then echo "Dry run complete: no media-library files changed."; else echo "Applied \(manifest.jobID). Backup marker: $BACKUP_ROOT"; fi
+        if $DRY_RUN; then echo "Dry run complete: no media-library files changed."; else rm -f "$BACKUP_ROOT/rolled-back"; echo "Applied \(manifest.jobID). Backup marker: $BACKUP_ROOT"; fi
         """
     }
 
@@ -490,7 +507,7 @@ public enum PortableJobBundle {
           while IFS= read -r sidecar; do suffix="${sidecar#"$ROOT/$srcbase"}"; run mkdir -p "$(dirname "$ROOT/$dstbase$suffix")"; run mv "$sidecar" "$ROOT/$dstbase$suffix"; done < <(sidecars "$srcbase")
         }
         \(moves)
-        if $DRY_RUN; then echo "Dry-run rollback complete: no media-library files changed."; else echo "Rollback complete for \(manifest.jobID)."; fi
+        if $DRY_RUN; then echo "Dry-run rollback complete: no media-library files changed."; else touch "$BACKUP_ROOT/rolled-back"; echo "Rollback complete for \(manifest.jobID)."; fi
         """
     }
 
@@ -515,7 +532,7 @@ public enum PortableJobBundle {
         \(reverseMoves)
         # Restore every original sidecar or destination collision saved by apply.sh.
         if $DRY_RUN; then echo "DRY-RUN: restore $BACKUP_ROOT into $ROOT"; else (cd "$BACKUP_ROOT" && find . -type f ! -name created-files.txt -exec sh -c 'root="$1"; shift; for f do d="$root/${f#./}"; mkdir -p "$(dirname "$d")"; cp -p "$f" "$d"; done' sh "$ROOT" {} +); fi
-        if $DRY_RUN; then echo "Dry-run rollback complete: no media-library files changed."; else echo "Rollback complete for \(manifest.jobID). Keep or archive $BACKUP_ROOT after verification."; fi
+        if $DRY_RUN; then echo "Dry-run rollback complete: no media-library files changed."; else touch "$BACKUP_ROOT/rolled-back"; echo "Rollback complete for \(manifest.jobID). Keep or archive $BACKUP_ROOT after verification."; fi
         """
     }
 

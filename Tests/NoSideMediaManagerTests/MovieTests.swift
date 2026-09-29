@@ -31,6 +31,23 @@ import Testing
     try runMovieScript(bundle.appendingPathComponent("apply.sh"), ["--dry-run", root.path]); #expect(FileManager.default.fileExists(atPath: source.path))
     try runMovieScript(bundle.appendingPathComponent("apply.sh"), [root.path]); #expect(FileManager.default.fileExists(atPath: destination.path)); #expect(FileManager.default.fileExists(atPath: destination.deletingPathExtension().appendingPathExtension("nfo").path)); #expect(try String(contentsOf: destination.deletingPathExtension().appendingPathExtension("nfo")).contains("<lockdata>true</lockdata>"))
     try runMovieScript(bundle.appendingPathComponent("rollback.sh"), [root.path]); #expect(FileManager.default.fileExists(atPath: source.path))
+    #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent(".noside-mmm-backups").appendingPathComponent(manifest.jobID).appendingPathComponent("rolled-back").path))
+    try runMovieScript(bundle.appendingPathComponent("apply.sh"), [root.path])
+    #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent(".noside-mmm-backups").appendingPathComponent(manifest.jobID).appendingPathComponent("rolled-back").path))
+}
+
+@Test func existingBundleOutputReceivesAnAutomaticRevision() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let source = root.appendingPathComponent("Inside.mp4")
+    let requested = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data("video".utf8).write(to: source)
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: requested); try? FileManager.default.removeItem(at: requested.deletingLastPathComponent().appendingPathComponent("\(requested.lastPathComponent)-v2")) }
+
+    _ = try PortableJobBundle.createEmbeddedMovie(at: requested, libraryRoot: root, source: source, title: "Inside", creationDate: nil, artwork: nil)
+    _ = try PortableJobBundle.createEmbeddedMovie(at: requested, libraryRoot: root, source: source, title: "Inside", creationDate: nil, artwork: nil)
+    #expect(FileManager.default.fileExists(atPath: requested.appendingPathComponent("manifest.json").path))
+    #expect(FileManager.default.fileExists(atPath: requested.deletingLastPathComponent().appendingPathComponent("\(requested.lastPathComponent)-v2/manifest.json").path))
 }
 
 @Test func batchMovieBundleFreezesEveryReviewedMovieAndFingerprint() async throws {

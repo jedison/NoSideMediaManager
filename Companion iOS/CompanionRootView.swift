@@ -160,7 +160,7 @@ private struct JobListView: View {
     }
 
     private func jobSummary(_ job: CompanionJob) -> String {
-        let applied = job.state == .applied ? "APPLIED · " : ""
+        let applied = job.state == .applied ? "APPLIED · " : job.state == .rolledBack ? "ROLLED BACK · " : ""
         return "\(applied)\(job.mediaKind.uppercased()) · \(job.provider.uppercased()) · \(job.moves) moves · \(job.generatedFiles) sidecars"
     }
 }
@@ -213,7 +213,7 @@ private struct JobDetailView: View {
     var body: some View {
         List {
             Section("Frozen job") {
-                LabeledContent("Status", value: job.state == .applied ? "Applied" : "Ready"); LabeledContent("Provider", value: job.provider.uppercased()); LabeledContent("Moves", value: String(job.moves)); LabeledContent("Generated files", value: String(job.generatedFiles))
+                LabeledContent("Status", value: job.state == .applied ? "Applied" : job.state == .rolledBack ? "Rolled back" : "Ready"); LabeledContent("Provider", value: job.provider.uppercased()); LabeledContent("Moves", value: String(job.moves)); LabeledContent("Generated files", value: String(job.generatedFiles))
                 if job.unavailableArtwork > 0 { LabeledContent("Unavailable artwork", value: String(job.unavailableArtwork)) }
             }
             Section("Package operations") { Button("Dry run") { run(.dryRun) }.disabled(isWorking || job.state == .applied); Button("Apply", role: .destructive) { showApply = true }.disabled(isWorking || job.state == .applied); Button("Rollback") { run(.rollback) }.disabled(isWorking || job.state != .applied) }
