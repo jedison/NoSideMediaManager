@@ -1,4 +1,4 @@
-# Delivery status — 2026-09-28
+# Delivery status — 2026-09-29
 
 ## Shipped
 
@@ -16,6 +16,12 @@
   Existing XML, posters, fanart, clearlogos, and subtitle sidecars are moved
   byte-for-byte rather than regenerated.
 - TVDB movie search is available as a second, read-only candidate source beside TMDB. Provider IDs are never auto-merged.
+- Shared multi-part movies named with `CD`, `Disc`, `Disk`, or `Part` numeric
+  suffixes now recognise one shared NFO/artwork set and are excluded from
+  per-part embedded-sidecar packages.
+- macOS and iPhone now present frozen packages for dry-run, confirmed apply,
+  rollback, and readable result logs. macOS Companion auto-starts from saved
+  settings when microMM opens.
 
 ## Operating model
 

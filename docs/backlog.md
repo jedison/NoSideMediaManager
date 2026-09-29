@@ -2,10 +2,6 @@
 
 ## Next
 
-- Add shared multi-part movie recognition for names such as `CD1`/`CD2`/`CD3`,
-  `Disc 1`, and `Part 1`: recognise a common NFO/artwork set as valid for all
-  parts, keep the parts together during normalization, and never generate
-  separate per-part sidecars when shared sidecars already exist.
 - Pair the iOS Companion with the old MBA using a real frozen job and validate
   dry-run, explicit apply, rollback, and log display before broader use.
 - Move the iOS pairing token from UserDefaults to Keychain; add QR pairing and
