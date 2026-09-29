@@ -205,7 +205,6 @@ private struct MovieAuditView: View {
             }
             if session.isMovieAuditLoading { ProgressView("Auditing on the media server…") }
             Text(session.movieAuditStatus).font(.footnote).foregroundStyle(.secondary)
-            if session.movieAuditProgress?.phase != "running", let completedAt = session.lastMovieAuditCompletion { Text("Last completed: \(completedAt.formatted(date: .abbreviated, time: .shortened))").font(.footnote).foregroundStyle(.secondary) }
             if let progress = session.movieAuditProgress, progress.phase == "running" {
                 ProgressView(value: Double(progress.completedVideos), total: Double(max(progress.totalVideos, 1))) { Text(progress.totalVideos == 0 ? "Finding video files…" : "\(progress.completedVideos) of \(progress.totalVideos) video files audited") }.progressViewStyle(.linear)
                 if let started = progress.startedAt { TimelineView(.periodic(from: .now, by: 1)) { context in Text("Elapsed \(elapsedTime(since: started, now: context.date))").font(.footnote).foregroundStyle(.secondary) } }
