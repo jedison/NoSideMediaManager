@@ -8,8 +8,8 @@ public enum TVDBCredentialStore {
     /// Keychain access can present UI on older Macs. Hold an unchanged value in
     /// memory for this app session so opening Settings, searching, and starting
     /// Companion do not repeatedly ask the user to authenticate.
-    private static var cache = [String: String]()
-    private static var loaded = Set<String>()
+    nonisolated(unsafe) private static var cache = [String: String]()
+    nonisolated(unsafe) private static var loaded = Set<String>()
 
     public static func value(named name: String) -> String? {
         lock.lock()
@@ -27,7 +27,14 @@ public enum TVDBCredentialStore {
             kSecMatchLimit: kSecMatchLimitOne
         ]
         var result: CFTypeRef?
-        let value = (SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess && (result as? Data).flatMap { String(data: $0, encoding: .utf8) }) ?? ""
+        let value: String
+        if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+           let data = result as? Data,
+           let decoded = String(data: data, encoding: .utf8) {
+            value = decoded
+        } else {
+            value = ""
+        }
         lock.lock(); cache[name] = value; loaded.insert(name); lock.unlock()
         return value.isEmpty ? nil : value
     }

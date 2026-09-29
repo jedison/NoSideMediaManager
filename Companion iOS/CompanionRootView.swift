@@ -144,13 +144,13 @@ private struct JobListView: View {
             Section { Text(session.status).font(.footnote).foregroundStyle(.secondary) }
             Section { NavigationLink("Remote audit & TVDB search", destination: RemoteToolsView()) }
             ForEach(session.jobs) { job in
-                NavigationLink(value: job) {
+                NavigationLink(destination: JobDetailView(job: job)) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(job.title)
                         Text(jobSummary(job)).font(.caption).foregroundStyle(.secondary)
                     }
                 }
-            }.navigationDestination(for: CompanionJob.self) { JobDetailView(job: $0) }
+            }
         }.refreshable { await session.refresh() }
             .overlay { if session.isLoading { ProgressView() } }
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { Task { await session.refresh() } } label: { Image(systemName: "arrow.clockwise") } } }
