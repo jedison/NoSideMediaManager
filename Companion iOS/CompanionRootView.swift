@@ -183,7 +183,7 @@ private struct RemoteToolsView: View {
         Section("Movie library") {
             Button("Audit configured movie/library root") { runAudit() }.disabled(working)
             if let audit {
-                Text("\(audit.totalVideos) videos · \(audit.invalidNFOs) invalid NFOs")
+                Text("\(audit.totalVideos) videos · \(audit.ignoredVideos ?? 0) ignored extras · \(audit.invalidNFOs) invalid NFOs")
                 ForEach(audit.byFolderState.sorted(by: { $0.key < $1.key }), id: \.key) { Text("\($0.key): \($0.value)") }
                 Picker("Show", selection: $auditFilter) { Text("All").tag("all"); Text("Needs folder normalisation").tag("needsFolder"); Text("Embedded metadata").tag("embedded"); Text("Incomplete metadata or sidecars").tag("incomplete") }
                 HStack { Button("Select filtered") { selectedPaths.formUnion(filteredAuditItems(from: audit).map(\.videoPath)) }; Button("Clear") { selectedPaths.removeAll() } }
