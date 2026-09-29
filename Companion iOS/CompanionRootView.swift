@@ -185,7 +185,7 @@ private struct RemoteToolsView: View {
             if let audit {
                 Text("\(audit.totalVideos) videos · \(audit.invalidNFOs) invalid NFOs")
                 ForEach(audit.byFolderState.sorted(by: { $0.key < $1.key }), id: \.key) { Text("\($0.key): \($0.value)") }
-                Picker("Show", selection: $auditFilter) { Text("All").tag("all"); Text("Needs folder normalisation").tag("needsFolder"); Text("Embedded metadata").tag("embedded"); Text("Incomplete").tag("incomplete") }
+                Picker("Show", selection: $auditFilter) { Text("All").tag("all"); Text("Needs folder normalisation").tag("needsFolder"); Text("Embedded metadata").tag("embedded"); Text("Incomplete metadata or sidecars").tag("incomplete") }
                 HStack { Button("Select filtered") { selectedPaths.formUnion(filteredAuditItems(from: audit).map(\.videoPath)) }; Button("Clear") { selectedPaths.removeAll() } }
                 Button("Freeze selected sidecar package") { packageKind = "sidecar"; confirmPackage = true }.disabled(!audit.items.contains { selectedPaths.contains($0.videoPath) && $0.sidecarReady } || working)
                 Button("Freeze selected preservation package") { packageKind = "preservation"; confirmPackage = true }.disabled(!audit.items.contains { selectedPaths.contains($0.videoPath) && $0.preservationReady } || working)
@@ -201,7 +201,7 @@ private struct RemoteToolsView: View {
     private func loadTVFolders() { working = true; Task { defer { working = false }; do { tvFolders = try await session.client.tvFolders(); status = "Loaded \(tvFolders.count) TV show folders." } catch { status = error.localizedDescription } } }
     private func runTVAudit() { working = true; Task { defer { working = false }; do { tvAudit = try await session.client.tvAudit(folder: selectedTVFolder); status = "TV audit complete." } catch { status = error.localizedDescription } } }
     private func freezeSelected() { guard let audit else { return }; let eligible = audit.items.filter { selectedPaths.contains($0.videoPath) && (packageKind == "sidecar" ? $0.sidecarReady : $0.preservationReady) }; guard !eligible.isEmpty else { return }; working = true; Task { defer { working = false }; do { let job = try await session.client.freezeMoviePackage(packageKind, videoPaths: eligible.map(\.videoPath)); status = "Frozen job \(job.id) created for \(eligible.count) selected movie(s)."; await session.refresh() } catch { status = error.localizedDescription } } }
-    private func filteredAuditItems(from audit: CompanionMovieAuditReport) -> [CompanionMovieAuditItem] { switch auditFilter { case "needsFolder": audit.items.filter(\.preservationReady); case "embedded": audit.items.filter(\.sidecarReady); case "incomplete": audit.items.filter { !$0.preservationReady && !$0.sidecarReady }; default: audit.items } }
+    private func filteredAuditItems(from audit: CompanionMovieAuditReport) -> [CompanionMovieAuditItem] { switch auditFilter { case "needsFolder": audit.items.filter(\.preservationReady); case "embedded": audit.items.filter(\.sidecarReady); case "incomplete": audit.items.filter { $0.state != "complete" }; default: audit.items } }
 }
 
 private struct JobDetailView: View {
