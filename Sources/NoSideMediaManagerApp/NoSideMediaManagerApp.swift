@@ -46,7 +46,7 @@ private final class CompanionRuntime: ObservableObject {
 
 @MainActor
 private struct ContentView: View {
-    @State private var selectedTab = (ProcessInfo.processInfo.environment["MMM_COMPANION_AUTOSTART"] == "1" || UserDefaults.standard.bool(forKey: "companion.autoStart")) ? 2 : 0
+    @State private var selectedTab = (ProcessInfo.processInfo.environment["MMM_COMPANION_AUTOSTART"] == "1" || UserDefaults.standard.bool(forKey: "companion.autoStart")) ? 3 : 0
     @State private var query = ""
     @State private var results = [TVSeriesSearchResult]()
     @State private var mappings = [EpisodeMapping]()
@@ -68,17 +68,19 @@ private struct ContentView: View {
             Picker("Section", selection: $selectedTab) {
                 Text("TV").tag(0)
                 Text("Movies").tag(1)
-                Text("Settings").tag(2)
+                Text("Packages").tag(2)
+                Text("Settings").tag(3)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 310)
+            .frame(width: 430)
             .padding(.vertical, 12)
             Divider()
             Group {
                 switch selectedTab {
                 case 0: tvScreen
                 case 1: MovieToolsView()
+                case 2: PackageOperationsView()
                 default: MMMSettingsView()
                 }
             }
@@ -209,6 +211,30 @@ private struct ConcealedSettingField: View {
             .help(isRevealed ? "Hide" : "Show")
         }
     }
+}
+
+@MainActor
+private struct PackageOperationsView: View {
+    @State private var jobs = [CompanionJob]()
+    @State private var selected: CompanionJob?
+    @State private var status = "Load frozen packages to dry-run, apply, or roll back them."
+    @State private var log = ""
+    @State private var working = false
+    @State private var confirmApply = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Package Operations").font(.largeTitle.weight(.semibold))
+            Text("Packages are the only way microMM changes a media library. Always dry-run first.").foregroundStyle(.secondary)
+            HStack { Button("Refresh packages", action: refresh).disabled(working); if let selected { Text(selected.title).lineLimit(1).foregroundStyle(.secondary) } }
+            List(jobs, selection: $selected) { job in VStack(alignment: .leading) { Text(job.title); Text("\(job.state == .applied ? "APPLIED · " : "")\(job.moves) moves · \(job.generatedFiles) generated files").font(.caption).foregroundStyle(.secondary) } }
+            HStack { Button("Dry-run", action: { run(.dryRun) }).disabled(selected == nil || selected?.state == .applied || working); Button("Apply", role: .destructive) { confirmApply = true }.disabled(selected == nil || selected?.state == .applied || working); Button("Rollback") { run(.rollback) }.disabled(selected?.state != .applied || working) }
+            if !log.isEmpty { ScrollView { Text(log).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 160) }
+            Text(status).foregroundStyle(.secondary)
+        }.padding(24).task { refresh() }.confirmationDialog("Apply this frozen package?", isPresented: $confirmApply, titleVisibility: .visible) { Button("Apply", role: .destructive) { run(.apply) } } message: { Text("This performs the reviewed package on the configured media-library root. A rollback remains available afterward.") }
+    }
+    private func service() -> CompanionJobService? { let d = UserDefaults.standard; guard let root = d.string(forKey: "companion.libraryRoot"), !root.isEmpty else { return nil }; let jobs = d.string(forKey: "companion.jobsRoot") ?? "~/NoSideMediaManagerJobs"; let token = d.string(forKey: "companion.token") ?? ""; return CompanionJobService(configuration: .init(jobsRoot: URL(fileURLWithPath: jobs), libraryRoot: URL(fileURLWithPath: root), token: token, version: MMMAppRelease.display)) }
+    private func refresh() { guard let service = service() else { status = "Set Jobs folder and Movie library root in Settings first."; return }; working = true; Task { jobs = await service.jobs(); selected = jobs.first; status = "Loaded \(jobs.count) frozen package(s)."; working = false } }
+    private func run(_ operation: CompanionOperation) { guard let selected, let service = service() else { return }; working = true; Task { do { let result = try await service.run(jobID: selected.id, operation: operation); log = result.log; status = result.succeeded ? "\(operation.rawValue) completed." : "\(operation.rawValue) failed; review the log."; jobs = await service.jobs(); self.selected = jobs.first(where: { $0.id == selected.id }) } catch { status = error.localizedDescription }; working = false } }
 }
 
 @MainActor

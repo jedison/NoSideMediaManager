@@ -6,9 +6,9 @@ public struct CompanionServerInfo: Codable, Sendable, Equatable {
     public init(name: String = "NoSide MMM Companion", version: String, libraryRoot: String, requiresAuthentication: Bool = true) { self.name = name; self.version = version; self.libraryRoot = libraryRoot; self.requiresAuthentication = requiresAuthentication }
 }
 
-public enum CompanionJobState: String, Codable, Sendable, Equatable { case ready, applied }
+public enum CompanionJobState: String, Codable, Sendable, Equatable, Hashable { case ready, applied }
 
-public struct CompanionJob: Codable, Sendable, Equatable, Identifiable {
+public struct CompanionJob: Codable, Sendable, Equatable, Hashable, Identifiable {
     public let id: String; public let title: String; public let mediaKind: String; public let provider: String; public let moves: Int; public let generatedFiles: Int; public let unavailableArtwork: Int; public let state: CompanionJobState
     public init(manifest: PortableJobManifest, state: CompanionJobState = .ready) { id = manifest.jobID; title = manifest.seriesTitle; mediaKind = manifest.mediaKind; provider = manifest.metadataProvider; moves = manifest.moves.count; generatedFiles = manifest.generatedFiles.count; unavailableArtwork = manifest.unavailableArtwork.count; self.state = state }
 }
