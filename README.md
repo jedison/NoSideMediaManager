@@ -32,24 +32,22 @@ The older standalone `noside-media` deployment is retired rather than used.
 Frozen jobs remain portable and do not need microMM installed to run their
 `apply.sh` or `rollback.sh` scripts.
 
-## Shared release identity
+## Automatic build identity
 
-`release/NoSideMediaManagerRelease.xcconfig` is the single source of truth for
-the MMM marketing version and the global build number. Before producing a
-distributable release, reserve one number for its requested scope:
+MMM follows the Upgrade and Walletize pattern. Every ordinary app build writes
+an automatic local sequence and UTC timestamp into `MMMBuildInfo.plist`; the
+app and bundled CLI display it beside the normal Apple version/build fields.
+The local counter is intentionally not committed.
+
+For an explicit coordinated release, build both apps through one command:
 
 ```sh
-./scripts/allocate-mmm-build.sh ios
-./scripts/allocate-mmm-build.sh macos
-./scripts/allocate-mmm-build.sh both
+./scripts/build-mmm-release.sh both
 ```
 
-Each command increments the shared counter exactly once and synchronises the
-derived macOS packaging files. `both` is one coordinated release: its macOS
-and iOS artifacts deliberately share one build number. Ordinary local
-development and simulator builds do not reserve a number. For example,
-starting at build 10, a requested combined release claims build 11 for both
-apps; the next separate release claims 12.
+It creates one build identity once, then embeds that exact identity in both the
+macOS app and iPhone companion. `ios` and `macos` are available when only one
+artifact is being released.
 
 Movie support uses TMDB and starts as a reviewed, one-movie-at-a-time workflow.
 

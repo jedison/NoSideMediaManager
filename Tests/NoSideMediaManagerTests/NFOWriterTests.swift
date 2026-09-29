@@ -25,14 +25,10 @@ import Testing
     #expect(text.contains("<lockdata>true</lockdata>"))
 }
 
-@Test func bundledCLIResolvesItsReleaseFromTheEnclosingApp() throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let executable = root.appendingPathComponent("microMM.app/Contents/MacOS/noside-media")
-    try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: root) }
-    let info = root.appendingPathComponent("microMM.app/Contents/Info.plist")
-    #expect(NSDictionary(dictionary: ["CFBundleShortVersionString": "9.9.9", "CFBundleVersion": "42"]).write(to: info, atomically: true))
-    #expect(MMMReleaseInfo.display(for: executable) == "9.9.9 (build 42)")
+@Test func buildInfoUsesGeneratedAutomaticSequence() {
+    let info: [String: Any] = ["CFBundleShortVersionString": "9.9.9", "CFBundleVersion": "42"]
+    let generated: [String: Any] = ["sequence": "78", "timestamp": "260929Z123456"]
+    #expect(MMMBuildInfo.display(info: info, buildInfo: generated) == "v9.9.9 (42) • build 78 • 260929Z123456")
 }
 
 @Test func importWritesSeriesAndEpisodeFiles() async throws {

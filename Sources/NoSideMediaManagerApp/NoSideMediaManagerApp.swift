@@ -4,9 +4,7 @@ import NoSideMediaManager
 import NoSideMediaCompanionCore
 
 private enum MMMAppRelease {
-    static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"
-    static let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
-    static var display: String { "\(version) (build \(build))" }
+    static let display = MMMBuildInfo.display(in: Bundle.main)
 }
 
 @main

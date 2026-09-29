@@ -105,7 +105,12 @@ private enum CompanionBuildVersion {
         let bundle = Bundle.main
         let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
         let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
-        return "Version \(version) (\(build))"
+        guard let url = bundle.url(forResource: "MMMBuildInfo", withExtension: "plist"),
+              let values = NSDictionary(contentsOf: url) as? [String: String],
+              let sequence = values["sequence"], let timestamp = values["timestamp"] else {
+            return "v\(version) (\(build))"
+        }
+        return "v\(values["version"] ?? version) (\(values["bundleBuild"] ?? build)) • build \(sequence) • \(timestamp)"
     }()
 }
 
@@ -142,13 +147,18 @@ private struct JobListView: View {
                 NavigationLink(value: job) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(job.title)
-                        Text("\(job.state == .applied ? "APPLIED · " : "")\(job.mediaKind.uppercased()) · \(job.provider.uppercased()) · \(job.moves) moves · \(job.generatedFiles) sidecars").font(.caption).foregroundStyle(.secondary)
+                        Text(jobSummary(job)).font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }.navigationDestination(for: CompanionJob.self) { JobDetailView(job: $0) }
         }.refreshable { await session.refresh() }
             .overlay { if session.isLoading { ProgressView() } }
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { Task { await session.refresh() } } label: { Image(systemName: "arrow.clockwise") } } }
+    }
+
+    private func jobSummary(_ job: CompanionJob) -> String {
+        let applied = job.state == .applied ? "APPLIED · " : ""
+        return "\(applied)\(job.mediaKind.uppercased()) · \(job.provider.uppercased()) · \(job.moves) moves · \(job.generatedFiles) sidecars"
     }
 }
 
@@ -198,7 +208,7 @@ private struct JobDetailView: View {
                 if job.unavailableArtwork > 0 { LabeledContent("Unavailable artwork", value: String(job.unavailableArtwork)) }
             }
             Section("Package operations") { Button("Dry run") { run(.dryRun) }.disabled(isWorking || job.state == .applied); Button("Apply", role: .destructive) { showApply = true }.disabled(isWorking || job.state == .applied); Button("Rollback") { run(.rollback) }.disabled(isWorking || job.state != .applied) }
-            if let result { Section("\(result.operation.rawValue) result") { Text(result.log.isEmpty ? "No output." : result.log).font(.system(.caption, design: .monospaced)).textSelection(.enabled); Text(result.succeeded ? "Completed." : "Failed; review the log before proceeding.").foregroundStyle(result.succeeded ? .secondary : .red) } }
+            if let result { Section("\(result.operation.rawValue) result") { Text(result.log.isEmpty ? "No output." : result.log).font(.system(.caption, design: .monospaced)).textSelection(.enabled); Text(result.succeeded ? "Completed." : "Failed; review the log before proceeding.").foregroundStyle(result.succeeded ? Color.secondary : Color.red) } }
         }.navigationTitle(job.title)
             .confirmationDialog("Apply this frozen job?", isPresented: $showApply, titleVisibility: .visible) { Button("Apply \(job.title)", role: .destructive) { run(.apply) } } message: { Text("This runs the exact reviewed package on the old MBA. Review its dry-run result first; rollback remains available after apply.") }
     }

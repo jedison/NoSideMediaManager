@@ -8,3 +8,5 @@ xcuserdata/
 Credentials.local.swift
 Fixtures/
 Review/
+.mmm-build-counter
+.mmm-build-counter.lock

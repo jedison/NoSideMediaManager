@@ -1,41 +1,29 @@
 import Foundation
 
-/// Resolves the release identity from the enclosing microMM app bundle.
-/// The app's Info.plist is stamped from the shared release registry during a
-/// distributable build, making the bundled CLI and macOS UI report one value.
-public enum MMMReleaseInfo {
+/// Build-local release information generated automatically during a build.
+/// This follows the Upgrade and Walletize `*BuildInfo.plist` pattern.
+public enum MMMBuildInfo {
+    public static func display(in bundle: Bundle = .main) -> String {
+        display(
+            info: bundle.infoDictionary,
+            buildInfo: bundle.url(forResource: "MMMBuildInfo", withExtension: "plist").flatMap { NSDictionary(contentsOf: $0) as? [String: Any] }
+        )
+    }
+
     public static func display(for executableURL: URL = URL(fileURLWithPath: CommandLine.arguments[0])) -> String {
-        let info = executableURL
-            .deletingLastPathComponent() // Contents/MacOS
-            .deletingLastPathComponent() // Contents
-            .appendingPathComponent("Info.plist")
-        guard let values = NSDictionary(contentsOf: info) as? [String: Any],
-              let version = values["CFBundleShortVersionString"] as? String,
-              let build = values["CFBundleVersion"] as? String else {
-            return sourceRegistryDisplay() ?? "development"
-        }
-        return "\(version) (build \(build))"
+        let contents = executableURL.deletingLastPathComponent().deletingLastPathComponent()
+        let info = NSDictionary(contentsOf: contents.appendingPathComponent("Info.plist")) as? [String: Any]
+        let buildInfo = NSDictionary(contentsOf: contents.appendingPathComponent("Resources/MMMBuildInfo.plist")) as? [String: Any]
+        return display(info: info, buildInfo: buildInfo)
     }
 
-    /// `swift run` is not inside an app bundle. During local development it
-    /// therefore reads the same checked-in registry used by iOS and packaging.
-    private static func sourceRegistryDisplay() -> String? {
-        var directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
-        while true {
-            let registry = directory.appendingPathComponent("release/NoSideMediaManagerRelease.xcconfig")
-            if let text = try? String(contentsOf: registry),
-               let version = setting("MMM_RELEASE_VERSION", in: text),
-               let build = setting("MMM_RELEASE_BUILD", in: text) {
-                return "\(version) (build \(build))"
-            }
-            let parent = directory.deletingLastPathComponent()
-            guard parent.path != directory.path else { return nil }
-            directory = parent
+    public static func display(info: [String: Any]?, buildInfo: [String: Any]?) -> String {
+        let version = buildInfo?["version"] as? String ?? info?["CFBundleShortVersionString"] as? String ?? "—"
+        let bundleBuild = buildInfo?["bundleBuild"] as? String ?? info?["CFBundleVersion"] as? String ?? "—"
+        guard let sequence = buildInfo?["sequence"] as? String,
+              let timestamp = buildInfo?["timestamp"] as? String else {
+            return "v\(version) (\(bundleBuild))"
         }
-    }
-
-    private static func setting(_ key: String, in text: String) -> String? {
-        text.split(whereSeparator: \.isNewline).first { $0.hasPrefix("\(key) = ") }
-            .map { $0.replacingOccurrences(of: "\(key) = ", with: "").trimmingCharacters(in: .whitespaces) }
+        return "v\(version) (\(bundleBuild)) • build \(sequence) • \(timestamp)"
     }
 }

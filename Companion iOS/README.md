@@ -6,10 +6,10 @@ phone can list frozen jobs, run a dry-run, request an explicit confirmed apply,
 or request rollback. It never mounts or receives unrestricted access to the
 movie volume.
 
-The iPhone companion shares microMM's release identity. This source currently
-builds as version **0.4.9**, build **10**, matching the macOS microMM app and
-its bundled CLI. Its Xcode project reads those values from the shared
-`../release/NoSideMediaManagerRelease.xcconfig` registry.
+The iPhone companion follows the Upgrade/Walletize automatic build-info
+pattern. Each build embeds a local sequence and UTC timestamp in
+`MMMBuildInfo.plist`. A coordinated `build-mmm-release.sh both` release gives
+the iPhone and macOS app the same generated identity.
 
 Open `NoSideMediaCompanion.xcodeproj` in Xcode, select your development team,
 then install it to an iPhone. The app targets iOS 16+.
