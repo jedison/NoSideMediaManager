@@ -15,6 +15,9 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
     public let seriesTVDBID: Int
     public let seriesTitle: String
     public let moves: [Move]
+    /// Existing shared NFO/artwork moved independently of a video. Used for
+    /// Emby stacked movie parts, which share one metadata/artwork set.
+    public let sidecarMoves: [Move]
     public let generatedFiles: [String]
     public let unavailableArtwork: [String]
     public let notes: [String]
@@ -24,14 +27,15 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
     /// read the media file (for example, a remote-path-only reviewed plan).
     public let sourceFingerprints: [String: String]
 
-    private enum CodingKeys: String, CodingKey { case formatVersion, jobID, seriesTVDBID, seriesTitle, moves, generatedFiles, unavailableArtwork, notes, mediaKind, metadataProvider, sourceFingerprints }
+    private enum CodingKeys: String, CodingKey { case formatVersion, jobID, seriesTVDBID, seriesTitle, moves, sidecarMoves, generatedFiles, unavailableArtwork, notes, mediaKind, metadataProvider, sourceFingerprints }
 
-    public init(jobID: String, series: TVSeries, moves: [Move], generatedFiles: [String], unavailableArtwork: [String] = [], notes: [String] = [], mediaKind: String = "tv", metadataProvider: String = "tvdb", sourceFingerprints: [String: String] = [:]) {
+    public init(jobID: String, series: TVSeries, moves: [Move], sidecarMoves: [Move] = [], generatedFiles: [String], unavailableArtwork: [String] = [], notes: [String] = [], mediaKind: String = "tv", metadataProvider: String = "tvdb", sourceFingerprints: [String: String] = [:]) {
         self.formatVersion = 1
         self.jobID = jobID
         self.seriesTVDBID = series.tvdbID
         self.seriesTitle = series.title
         self.moves = moves
+        self.sidecarMoves = sidecarMoves
         self.generatedFiles = generatedFiles
         self.unavailableArtwork = unavailableArtwork
         self.notes = notes
@@ -49,6 +53,7 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
         seriesTVDBID = try values.decodeIfPresent(Int.self, forKey: .seriesTVDBID) ?? 0
         seriesTitle = try values.decodeIfPresent(String.self, forKey: .seriesTitle) ?? "Legacy MMM job"
         moves = try values.decodeIfPresent([Move].self, forKey: .moves) ?? []
+        sidecarMoves = try values.decodeIfPresent([Move].self, forKey: .sidecarMoves) ?? []
         generatedFiles = try values.decodeIfPresent([String].self, forKey: .generatedFiles) ?? []
         unavailableArtwork = try values.decodeIfPresent([String].self, forKey: .unavailableArtwork) ?? []
         notes = try values.decodeIfPresent([String].self, forKey: .notes) ?? []
@@ -230,20 +235,53 @@ public enum PortableJobBundle {
             moves.append(.init(source: sourceRelative, destination: destinationRelative))
         }
         guard !moves.isEmpty else { throw MoviePreservationBundleError.noMoves }
-        let destinations = Dictionary(grouping: moves.map(\.destination), by: { $0 })
+        let sidecarMoves = sharedMultiPartSidecarMoves(plan: plan, root: root, fileManager: fileManager)
+        let destinations = Dictionary(grouping: (moves + sidecarMoves).map(\.destination), by: { $0 })
             .compactMap { destination, occurrences in occurrences.count > 1 ? destination : nil }
             .sorted()
         guard destinations.isEmpty else { throw MoviePreservationBundleError.destinationCollisions(destinations) }
         let jobID = "mmm-\(UUID().uuidString.lowercased())"
         try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
         let facade = TVSeries(tvdbID: 0, title: "Existing movie library")
-        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: moves, generatedFiles: [], notes: ["Existing valid NFO XML and recognised sidecars are preserved exactly; this package only reorganises them."], mediaKind: "movie", metadataProvider: "existing-nfo", sourceFingerprints: fingerprints(for: sources, mode: fingerprintMode))
+        let multipartNote = sidecarMoves.isEmpty ? [] : ["Emby stacked movie parts use -part1, -part2, etc.; shared NFO/artwork moves once into the movie folder."]
+        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: moves, sidecarMoves: sidecarMoves, generatedFiles: [], notes: ["Existing valid NFO XML and recognised sidecars are preserved exactly; this package only reorganises them."] + multipartNote, mediaKind: "movie", metadataProvider: "existing-nfo", sourceFingerprints: fingerprints(for: sources, mode: fingerprintMode))
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
         try script(preservationApplyScript(manifest), named: "apply.sh", in: bundle)
         try script(preservationRollbackScript(manifest), named: "rollback.sh", in: bundle)
         try preservationReadme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
         return manifest
+    }
+
+    /// Plans shared sidecars for Emby file-stacked movies. Each group has one
+    /// original sidecar stem (e.g. `Film.nfo`) and several video part entries.
+    /// The NFO keeps the canonical folder stem; artwork becomes Emby's standard
+    /// folder artwork names, avoiding a misleading attachment to Part 1.
+    private static func sharedMultiPartSidecarMoves(plan: MoviePlanDocument, root: URL, fileManager: FileManager) -> [PortableJobManifest.Move] {
+        let grouped = Dictionary(grouping: plan.entries.compactMap { entry -> (MoviePlanDocument.Entry, URL, URL)? in
+            guard let shared = entry.sharedSidecarBasePath,
+                  let destination = entry.destinationPath else { return nil }
+            return (entry, URL(fileURLWithPath: shared), URL(fileURLWithPath: destination))
+        }, by: { $0.1.standardizedFileURL.path })
+        var result = [PortableJobManifest.Move]()
+        let extensions = ["jpg", "jpeg", "png", "gif", "tbn"]
+        for (_, entries) in grouped {
+            guard let first = entries.first else { continue }
+            let sourceBase = first.1
+            let destinationFolder = first.2.deletingLastPathComponent()
+            let destinationStem = destinationFolder.lastPathComponent
+            let candidates: [(String, String)] = [(".nfo", "\(destinationStem).nfo")] + extensions.flatMap { ext in
+                [("-poster.\(ext)", "poster.\(ext)"), (".\(ext)", "poster.\(ext)"), ("-fanart.\(ext)", "fanart.\(ext)"), ("-clearlogo.\(ext)", "clearlogo.\(ext)"), ("-clearart.\(ext)", "clearart.\(ext)"), ("-banner.\(ext)", "banner.\(ext)"), ("-landscape.\(ext)", "landscape.\(ext)"), ("-thumb.\(ext)", "thumb.\(ext)")]
+            }
+            for (suffix, name) in candidates {
+                let source = URL(fileURLWithPath: sourceBase.path + suffix)
+                guard fileManager.fileExists(atPath: source.path),
+                      let sourceRelative = try? relative(source, to: root),
+                      let destinationRelative = try? relative(destinationFolder.appendingPathComponent(name), to: root) else { continue }
+                result.append(.init(source: sourceRelative, destination: destinationRelative))
+            }
+        }
+        return Array(Dictionary(grouping: result, by: { $0.source }).compactMap { _, values in values.first }).sorted { $0.source < $1.source }
     }
     @discardableResult
     public static func create(
@@ -437,8 +475,10 @@ public enum PortableJobBundle {
 
     private static func preservationApplyScript(_ manifest: PortableJobManifest) -> String {
         let preflights = manifest.moves.map { "preflight_move \(quote($0.source)) \(quote($0.destination))" }.joined(separator: "\n")
+        let sidecarPreflights = manifest.sidecarMoves.map { "preflight_sidecar \(quote($0.source)) \(quote($0.destination))" }.joined(separator: "\n")
         let fingerprints = manifest.sourceFingerprints.sorted { $0.key < $1.key }.map { "preflight_fingerprint \(quote($0.key)) \(quote($0.value))" }.joined(separator: "\n")
         let moves = manifest.moves.map { "move_with_sidecars \(quote($0.source)) \(quote($0.destination))" }.joined(separator: "\n")
+        let sidecarMoves = manifest.sidecarMoves.map { "move_sidecar \(quote($0.source)) \(quote($0.destination))" }.joined(separator: "\n")
         return """
         #!/usr/bin/env bash
         # Frozen NoSide Media Manager preservation job \(manifest.jobID). Generated; do not edit paths.
@@ -465,21 +505,26 @@ public enum PortableJobBundle {
           [[ ! -e "$ROOT/$dst" ]] || { echo "Destination video already exists: $dst" >&2; exit 1; }
           while IFS= read -r sidecar; do suffix="${sidecar#"$ROOT/$srcbase"}"; target="$ROOT/$dstbase$suffix"; [[ ! -e "$target" ]] || { echo "Destination sidecar already exists: ${target#"$ROOT/"}" >&2; exit 1; }; done < <(sidecars "$srcbase")
         }
+        preflight_sidecar() { [[ -f "$ROOT/$1" ]] || { echo "Missing shared sidecar: $1" >&2; exit 1; }; [[ ! -e "$ROOT/$2" ]] || { echo "Destination sidecar already exists: $2" >&2; exit 1; }; }
         move_with_sidecars() {
           local src="$1" dst="$2" srcbase="${1%.*}" dstbase="${2%.*}" sidecar suffix
           run mkdir -p "$BACKUP_ROOT" "$(dirname "$ROOT/$dst")"; run mv "$ROOT/$src" "$ROOT/$dst"
           while IFS= read -r sidecar; do suffix="${sidecar#"$ROOT/$srcbase"}"; run mkdir -p "$(dirname "$ROOT/$dstbase$suffix")"; run mv "$sidecar" "$ROOT/$dstbase$suffix"; done < <(sidecars "$srcbase")
         }
+        move_sidecar() { run mkdir -p "$BACKUP_ROOT" "$(dirname "$ROOT/$2")"; run mv "$ROOT/$1" "$ROOT/$2"; }
         # Validate every destination and every reviewed source before moving anything.
         \(preflights)
+        \(sidecarPreflights)
         \(fingerprints)
         \(moves)
+        \(sidecarMoves)
         if $DRY_RUN; then echo "Dry run complete: no media-library files changed."; else rm -f "$BACKUP_ROOT/rolled-back"; echo "Applied \(manifest.jobID). Backup marker: $BACKUP_ROOT"; fi
         """
     }
 
     private static func preservationRollbackScript(_ manifest: PortableJobManifest) -> String {
         let moves = manifest.moves.reversed().map { "rollback_with_sidecars \(quote($0.destination)) \(quote($0.source))" }.joined(separator: "\n")
+        let sidecarMoves = manifest.sidecarMoves.reversed().map { "rollback_sidecar \(quote($0.destination)) \(quote($0.source))" }.joined(separator: "\n")
         return """
         #!/usr/bin/env bash
         # Reverses NoSide Media Manager preservation job \(manifest.jobID).
@@ -506,6 +551,8 @@ public enum PortableJobBundle {
           run mkdir -p "$(dirname "$ROOT/$dst")"; run mv "$ROOT/$src" "$ROOT/$dst"
           while IFS= read -r sidecar; do suffix="${sidecar#"$ROOT/$srcbase"}"; run mkdir -p "$(dirname "$ROOT/$dstbase$suffix")"; run mv "$sidecar" "$ROOT/$dstbase$suffix"; done < <(sidecars "$srcbase")
         }
+        rollback_sidecar() { [[ -f "$ROOT/$1" ]] || { echo "Missing moved sidecar: $1" >&2; exit 1; }; [[ ! -e "$ROOT/$2" ]] || { echo "Rollback collision: $2" >&2; exit 1; }; run mkdir -p "$(dirname "$ROOT/$2")"; run mv "$ROOT/$1" "$ROOT/$2"; }
+        \(sidecarMoves)
         \(moves)
         if $DRY_RUN; then echo "Dry-run rollback complete: no media-library files changed."; else touch "$BACKUP_ROOT/rolled-back"; echo "Rollback complete for \(manifest.jobID)."; fi
         """

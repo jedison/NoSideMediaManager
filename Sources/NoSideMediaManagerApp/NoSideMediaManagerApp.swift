@@ -336,6 +336,7 @@ private struct MovieToolsView: View {
                 Spacer()
                 Button("Freeze sidecar package…", action: createEmbeddedPackage).disabled(selectedItems(of: .embeddedMetadataNeedsSidecars).isEmpty || session.isWorking)
                 Button("Freeze preservation package…", action: createSelectedPreservationPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isPreservationReady } || session.isWorking)
+                Button("Freeze multi-part package…", action: createSelectedMultiPartPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isMultiPartPreservationReady } || session.isWorking)
             }
             Text("Select any audited items. Sidecar packages accept only files with embedded metadata; preservation packages accept only complete, valid-NFO movies needing folder normalisation. Other selected items are safely ignored.").font(.caption).foregroundStyle(.secondary)
             Text(session.status).foregroundStyle(.secondary).lineLimit(2)
@@ -375,5 +376,15 @@ private struct MovieToolsView: View {
         guard output.runModal() == .OK, let parent = output.url else { return }
         session.isWorking = true; session.status = "Freezing preservation package for \(plan.entries.count) selected movie(s)…"
         Task { do { let job = parent.appendingPathComponent("NoSide-MMM-Movie-Preservation-Selected-job"); let manifest = try PortableJobBundle.createExistingMoviePreservation(at: job, plan: plan); session.status = "Job \(manifest.jobID) created for \(plan.entries.count) selected movie(s). Dry-run it on the media server." } catch { session.status = error.localizedDescription }; session.isWorking = false }
+    }
+    private func createSelectedMultiPartPackage() {
+        guard let folder = session.folder else { return }
+        let selected = session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isMultiPartPreservationReady }
+        guard MoviePlanDocument.isCompleteMultiPartSelection(selected, from: session.items) else { session.status = "Select every part of each shared multi-part movie before freezing it."; return }
+        let plan = MoviePlanDocument.preservationProposal(library: folder, items: selected)
+        let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.directoryURL = configuredJobsFolder(); output.message = "Choose where to create the portable multi-part movie package (saved Jobs folder is preselected)"
+        guard output.runModal() == .OK, let parent = output.url else { return }
+        session.isWorking = true; session.status = "Freezing multi-part package for \(selected.count) movie parts…"
+        Task { do { let job = parent.appendingPathComponent("NoSide-MMM-Multipart-Selected-job"); let manifest = try PortableJobBundle.createExistingMoviePreservation(at: job, plan: plan); session.status = "Job \(manifest.jobID) created for \(selected.count) Emby-stacked movie parts. Dry-run it on the media server." } catch { session.status = error.localizedDescription }; session.isWorking = false }
     }
 }

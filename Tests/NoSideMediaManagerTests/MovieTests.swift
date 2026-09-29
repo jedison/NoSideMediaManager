@@ -126,6 +126,35 @@ import Testing
     #expect(nfoContents.sorted() == ["low-resolution nfo", "primary nfo"])
 }
 
+@Test func multipartPreservationStacksEmbyPartsAndMovesSharedSidecarsOnce() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let videos = (1...3).map { root.appendingPathComponent("Until the End of the World CD\($0).mp4") }
+    for video in videos { try Data("video \(video.lastPathComponent)".utf8).write(to: video) }
+    let shared = root.appendingPathComponent("Until the End of the World")
+    let originals = [".nfo": "rich nfo", "-poster.jpg": "poster", "-fanart.jpg": "fanart", "-clearlogo.png": "logo"]
+    for (suffix, contents) in originals { try Data(contents.utf8).write(to: URL(fileURLWithPath: shared.path + suffix)) }
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+    let items = videos.map { video in MovieAuditItem(videoPath: video.path, nfoExists: true, artworkExists: true, embeddedTitle: nil, embeddedCreationDate: nil, hasEmbeddedArtwork: false, tmdbID: 10341, nfoTitle: "Until the End of the World", nfoYear: "1991", nfoIsValid: true, editionHint: nil, state: .complete, folderState: .sharedMultiPart) }
+    let plan = MoviePlanDocument.preservationProposal(library: root, items: items)
+    let folder = root.appendingPathComponent("Until the End of the World (1991)")
+    #expect(plan.entries.map(\.destinationPath) == (1...3).map { folder.appendingPathComponent("Until the End of the World (1991)-part\($0).mp4").path })
+    #expect(plan.entries.allSatisfy { $0.sharedSidecarBasePath == shared.path })
+    let manifest = try PortableJobBundle.createExistingMoviePreservation(at: bundle, plan: plan)
+    #expect(manifest.moves.count == 3); #expect(manifest.sidecarMoves.count == 4)
+    try runMovieScript(bundle.appendingPathComponent("apply.sh"), ["--dry-run", root.path])
+    try runMovieScript(bundle.appendingPathComponent("apply.sh"), [root.path])
+    for number in 1...3 { #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("Until the End of the World (1991)-part\(number).mp4").path)) }
+    #expect(try String(contentsOf: folder.appendingPathComponent("Until the End of the World (1991).nfo")) == "rich nfo")
+    #expect(try String(contentsOf: folder.appendingPathComponent("poster.jpg")) == "poster")
+    #expect(try String(contentsOf: folder.appendingPathComponent("fanart.jpg")) == "fanart")
+    #expect(try String(contentsOf: folder.appendingPathComponent("clearlogo.png")) == "logo")
+    try runMovieScript(bundle.appendingPathComponent("rollback.sh"), [root.path])
+    for video in videos { #expect(FileManager.default.fileExists(atPath: video.path)) }
+    for (suffix, contents) in originals { #expect(try String(contentsOf: URL(fileURLWithPath: shared.path + suffix)) == contents) }
+}
+
 @Test func moviePreservationBundleDecodesMovieOnlyJSONWithoutTVMappingValidation() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let source = root.appendingPathComponent("20,000 Days on Earth (1080p HD).mp4")

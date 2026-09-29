@@ -1,7 +1,13 @@
 import Foundation
 
 public struct MoviePlanDocument: Codable, Sendable, Equatable {
-    public struct Entry: Codable, Sendable, Equatable { public var sourcePath: String; public var tmdbID: Int?; public var destinationPath: String?; public var downloadArtwork: Bool; public init(sourcePath: String, tmdbID: Int?, destinationPath: String? = nil, downloadArtwork: Bool = true) { self.sourcePath = sourcePath; self.tmdbID = tmdbID; self.destinationPath = destinationPath; self.downloadArtwork = downloadArtwork } }
+    public struct Entry: Codable, Sendable, Equatable {
+        public var sourcePath: String; public var tmdbID: Int?; public var destinationPath: String?; public var downloadArtwork: Bool
+        /// Shared NFO/artwork stem for a CD/Disc/Part set.  Kept optional so
+        /// existing editable preservation JSON remains compatible.
+        public var sharedSidecarBasePath: String?
+        public init(sourcePath: String, tmdbID: Int?, destinationPath: String? = nil, downloadArtwork: Bool = true, sharedSidecarBasePath: String? = nil) { self.sourcePath = sourcePath; self.tmdbID = tmdbID; self.destinationPath = destinationPath; self.downloadArtwork = downloadArtwork; self.sharedSidecarBasePath = sharedSidecarBasePath }
+    }
     public let formatVersion: Int; public let libraryPath: String; public var entries: [Entry]
     public init(libraryPath: String, entries: [Entry]) { self.formatVersion = 1; self.libraryPath = libraryPath; self.entries = entries }
     /// Creates a folder-normalisation proposal from existing, valid movie NFO
@@ -12,6 +18,7 @@ public struct MoviePlanDocument: Codable, Sendable, Equatable {
             guard item.state == .complete, item.nfoIsValid == true,
                   let title = item.nfoTitle, !title.isEmpty,
                   let tmdbID = item.tmdbID else { return nil }
+            guard item.folderState != .sharedMultiPart else { return nil }
             let source = URL(fileURLWithPath: item.videoPath)
             let stem = safe(title) + (item.nfoYear.flatMap { $0.isEmpty ? nil : $0 }.map { " (\($0))" } ?? "")
             _ = tmdbID
@@ -43,7 +50,46 @@ public struct MoviePlanDocument: Codable, Sendable, Equatable {
                 entries.append(Entry(sourcePath: candidate.source.path, tmdbID: candidate.item.tmdbID, destinationPath: destination.path, downloadArtwork: false))
             }
         }
-        return MoviePlanDocument(libraryPath: library.path, entries: entries)
+        // A CD/Disc/Part set shares one NFO and artwork set.  Its parts are
+        // deliberately named independently, while those shared sidecars are
+        // moved exactly once by the preservation bundle.
+        let multipart = items.compactMap { item -> (MovieAuditItem, URL, URL, Int, String)? in
+            guard item.isMultiPartPreservationReady,
+                  let title = item.nfoTitle, !title.isEmpty,
+                  let info = MovieLibraryAudit.multiPartInfo(for: URL(fileURLWithPath: item.videoPath).deletingPathExtension()) else { return nil }
+            let stem = safe(title) + (item.nfoYear.flatMap { $0.isEmpty ? nil : $0 }.map { " (\($0))" } ?? "")
+            return (item, URL(fileURLWithPath: item.videoPath), info.base, info.part, stem)
+        }
+        for (_, group) in Dictionary(grouping: multipart, by: { "\($0.0.tmdbID!)|\($0.2.standardizedFileURL.path.lowercased())" }).sorted(by: { $0.key < $1.key }) {
+            guard let first = group.first else { continue }
+            for candidate in group.sorted(by: { $0.3 < $1.3 }) {
+                let folder = library.appendingPathComponent(candidate.4, isDirectory: true)
+                // Emby's documented split-movie stacking marker is `-part#`.
+                let destination = folder.appendingPathComponent("\(candidate.4)-part\(candidate.3)").appendingPathExtension(candidate.1.pathExtension)
+                entries.append(Entry(sourcePath: candidate.1.path, tmdbID: candidate.0.tmdbID, destinationPath: destination.path, downloadArtwork: false, sharedSidecarBasePath: first.2.path))
+            }
+        }
+        return MoviePlanDocument(libraryPath: library.path, entries: entries.sorted { $0.sourcePath.localizedStandardCompare($1.sourcePath) == .orderedAscending })
+    }
+    /// Multipart packages are only safe when every detected part of each
+    /// selected movie is included. Otherwise applying a package could split a
+    /// film into different folders, so callers must reject partial groups.
+    public static func isCompleteMultiPartSelection(_ selected: [MovieAuditItem], from allItems: [MovieAuditItem]) -> Bool {
+        let requested = Set(selected.map(\.videoPath))
+        let groupKeys = Set(selected.compactMap { item -> String? in
+            guard item.isMultiPartPreservationReady else { return nil }
+            return MovieLibraryAudit.multiPartInfo(for: URL(fileURLWithPath: item.videoPath).deletingPathExtension())?.base.standardizedFileURL.path
+        })
+        guard !groupKeys.isEmpty else { return false }
+        for key in groupKeys {
+            let members = allItems.filter { item in
+                guard item.isMultiPartPreservationReady,
+                      let base = MovieLibraryAudit.multiPartInfo(for: URL(fileURLWithPath: item.videoPath).deletingPathExtension())?.base.standardizedFileURL.path else { return false }
+                return base == key
+            }
+            guard !members.isEmpty, members.allSatisfy({ requested.contains($0.videoPath) }) else { return false }
+        }
+        return selected.allSatisfy { !$0.isMultiPartPreservationReady || requested.contains($0.videoPath) }
     }
     /// Keeps existing folders by default. `oneFolderPerMovie` is an explicit,
     /// opt-in library-layout normalisation: movie, NFO, poster and subtitle

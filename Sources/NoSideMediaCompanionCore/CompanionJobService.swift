@@ -1,7 +1,7 @@
 import Foundation
 import NoSideMediaManager
 
-public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalidOperation, alreadyApplied, tvdbNotConfigured, invalidSelection, completedMovieAuditRequired, tvFolderNotFound, unextractableTitles([String]); public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .completedMovieAuditRequired: "Complete a Movie audit before freezing a package."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library."; case .unextractableTitles(let names): "MMM could no longer extract a title from these selected video file(s): \(names.joined(separator: ", ")). Re-audit them, or use the TMDB review workflow." } } }
+public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalidOperation, alreadyApplied, tvdbNotConfigured, invalidSelection, incompleteMultiPartSelection, completedMovieAuditRequired, tvFolderNotFound, unextractableTitles([String]); public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .incompleteMultiPartSelection: "Select every part of each shared multi-part movie before freezing it."; case .completedMovieAuditRequired: "Complete a Movie audit before freezing a package."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library."; case .unextractableTitles(let names): "MMM could no longer extract a title from these selected video file(s): \(names.joined(separator: ", ")). Re-audit them, or use the TMDB review workflow." } } }
 
 /// The only component allowed to invoke a frozen job script. It resolves job
 /// IDs from manifests under one configured directory, preventing path injection.
@@ -61,6 +61,15 @@ public actor CompanionJobService {
         let bundle = configuration.jobsRoot.appendingPathComponent("NoSide-MMM-Preservation-\(UUID().uuidString.lowercased())-job", isDirectory: true)
         let manifest = try PortableJobBundle.createExistingMoviePreservation(at: bundle, plan: MoviePlanDocument.preservationProposal(library: configuration.libraryRoot, items: selected))
         return CompanionJob(manifest: manifest)
+    }
+    public func freezeMultiPartPackage(videoPaths: [String]) throws -> CompanionJob {
+        let requested = Set(videoPaths); guard !requested.isEmpty else { throw CompanionJobServiceError.invalidSelection }
+        let all = try completedMovieAuditItems()
+        let selected = all.filter { requested.contains($0.videoPath) }
+        guard selected.count == requested.count, selected.allSatisfy(\.isMultiPartPreservationReady) else { throw CompanionJobServiceError.invalidSelection }
+        guard MoviePlanDocument.isCompleteMultiPartSelection(selected, from: all) else { throw CompanionJobServiceError.incompleteMultiPartSelection }
+        let bundle = configuration.jobsRoot.appendingPathComponent("NoSide-MMM-Multipart-\(UUID().uuidString.lowercased())-job", isDirectory: true)
+        return CompanionJob(manifest: try PortableJobBundle.createExistingMoviePreservation(at: bundle, plan: MoviePlanDocument.preservationProposal(library: configuration.libraryRoot, items: selected)))
     }
     public func freezeSidecarPackage(videoPaths: [String]) async throws -> CompanionJob {
         let requested = Set(videoPaths); guard !requested.isEmpty else { throw CompanionJobServiceError.invalidSelection }

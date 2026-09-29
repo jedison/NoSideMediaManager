@@ -232,6 +232,16 @@ cd ~/Desktop/movie-preservation-job
 ./apply.sh "/Volumes/Movies/My/Movies"
 ```
 
+### Shared multi-part movies
+
+When complete files share one valid movie NFO/artwork set and are named with
+`CD1`, `Disc 2`, or `Part 3`, MMM recognises them as one movie rather than
+separate copies. Select **every** part and freeze a multi-part package. It
+creates one folder and Emby's stacked-file names, for example
+`Film (1991)-part1.mp4`, `Film (1991)-part2.mp4`, and `Film (1991)-part3.mp4`.
+The shared NFO/artwork moves once into that folder. As with every package,
+dry-run first; rollback returns videos and shared sidecars to their originals.
+
 The Movies screen provides the same two steps as **Export preservation plan**
 and **Freeze preservation package**. The package refuses source changes or any
 destination collision before moving its first file, and `rollback.sh` reverses

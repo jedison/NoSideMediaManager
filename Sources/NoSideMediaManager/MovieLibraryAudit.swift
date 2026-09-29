@@ -10,6 +10,7 @@ public struct MovieAuditItem: Codable, Sendable, Equatable {
         self.videoPath = videoPath; self.nfoExists = nfoExists; self.artworkExists = artworkExists; self.embeddedTitle = embeddedTitle; self.embeddedCreationDate = embeddedCreationDate; self.hasEmbeddedArtwork = hasEmbeddedArtwork; self.tmdbID = tmdbID; self.nfoTitle = nfoTitle; self.nfoYear = nfoYear; self.nfoIsValid = nfoIsValid; self.editionHint = editionHint; self.state = state; self.folderState = folderState
     }
     public var isPreservationReady: Bool { state == .complete && nfoIsValid == true && tmdbID != nil && folderState == .needsNormalization }
+    public var isMultiPartPreservationReady: Bool { state == .complete && nfoIsValid == true && tmdbID != nil && folderState == .sharedMultiPart }
 }
 public struct MovieLibraryHealthReport: Codable, Sendable, Equatable {
     public let items: [MovieAuditItem]; public let duplicateTMDBIDs: [String: [String]]; public let invalidNFOs: [String]; public let ignoredVideoFiles: [String]
@@ -108,14 +109,19 @@ public enum MovieLibraryAudit {
     }
     /// Returns the base shared by conventional multipart file names, only when
     /// a real suffix is present: `Film CD1`, `Film Disc 2`, `Film Part 3`.
-    static func multiPartBase(for base: URL) -> URL? {
+    static func multiPartInfo(for base: URL) -> (base: URL, part: Int)? {
         let pattern = #"(?i)\s+(?:cd|disc|disk|part)\s*\d+$"#
         let range = NSRange(base.lastPathComponent.startIndex..., in: base.lastPathComponent)
         guard let match = try? NSRegularExpression(pattern: pattern).firstMatch(in: base.lastPathComponent, range: range),
-              let swiftRange = Range(match.range, in: base.lastPathComponent) else { return nil }
+              let swiftRange = Range(match.range, in: base.lastPathComponent),
+              let numberRange = Range(match.range(at: 0), in: base.lastPathComponent) else { return nil }
         let shared = String(base.lastPathComponent[..<swiftRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-        return shared.isEmpty ? nil : base.deletingLastPathComponent().appendingPathComponent(shared)
+        let suffix = String(base.lastPathComponent[numberRange])
+        let number = suffix.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+        guard !shared.isEmpty, let part = Int(number), part > 0 else { return nil }
+        return (base.deletingLastPathComponent().appendingPathComponent(shared), part)
     }
+    static func multiPartBase(for base: URL) -> URL? { multiPartInfo(for: base)?.base }
 }
 
 public struct EmbeddedMovieMetadata: Sendable {
