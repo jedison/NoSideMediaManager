@@ -81,7 +81,10 @@ private struct CompanionSettingsView: View {
                     session.save()
                     Task { await session.refresh() }
                 }
-                .disabled(session.host.isEmpty || session.token.isEmpty || session.isLoading)
+                // A stalled or in-flight network refresh must not trap the
+                // user behind a disabled Connect button. They can retry using
+                // the saved values; refresh itself serialises its state.
+                .disabled(session.host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             Section("Status") {
                 Text(session.status).foregroundStyle(.secondary)
