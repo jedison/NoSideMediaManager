@@ -144,12 +144,12 @@ private struct JobListView: View {
     @EnvironmentObject private var session: CompanionSession
     var body: some View {
         List {
-            Section { Text(session.status).font(.footnote).foregroundStyle(.secondary) }
+            Section { NavigationLink("Remote audit & TVDB search", destination: RemoteToolsView()) }
             Section {
+                Text(session.status).font(.footnote).foregroundStyle(.secondary)
                 Button { Task { await session.refresh() } } label: { Label("Refresh jobs", systemImage: "arrow.clockwise") }
                     .disabled(session.isLoading)
             }
-            Section { NavigationLink("Remote audit & TVDB search", destination: RemoteToolsView()) }
             ForEach(session.jobs) { job in
                 NavigationLink(destination: JobDetailView(job: job)) {
                     VStack(alignment: .leading, spacing: 4) {
