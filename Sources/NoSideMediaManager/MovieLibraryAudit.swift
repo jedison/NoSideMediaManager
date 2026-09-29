@@ -23,10 +23,12 @@ public enum MovieLibraryAudit {
         if !nfoExists && !artworkExists { return .bareNeedsTMDB }
         return .incompleteSidecars
     }
-    @MainActor public static func inspect(directory: URL) async -> [MovieAuditItem] {
+    @MainActor public static func inspect(directory: URL, progress: (@MainActor @Sendable (Int, Int) -> Void)? = nil) async -> [MovieAuditItem] {
         var items = [MovieAuditItem]()
-        for video in MediaFileInspector.videoFiles(in: directory) {
-            guard let info = try? await MediaFileInspector.inspect(video) else { continue }
+        let videos = MediaFileInspector.videoFiles(in: directory)
+        progress?(0, videos.count)
+        for (index, video) in videos.enumerated() {
+            guard let info = try? await MediaFileInspector.inspect(video) else { progress?(index + 1, videos.count); continue }
             let base = video.deletingPathExtension()
             // CD/Disc/Part files may deliberately share a single movie NFO and
             // artwork. Treat that shared set as complete, never as three
@@ -38,6 +40,7 @@ public enum MovieLibraryAudit {
             let state = classify(nfoExists: nfoExists, artworkExists: image, info: info)
             let folderState: MovieFolderState = sharedBase == nil ? folderState(for: video, nfo: parsed, sidecarState: state) : (state == .complete ? .sharedMultiPart : .metadataIncomplete)
             items.append(MovieAuditItem(videoPath: video.path, nfoExists: nfoExists, artworkExists: image, embeddedTitle: info.title, embeddedCreationDate: info.creationDate, hasEmbeddedArtwork: info.hasEmbeddedArtwork, tmdbID: parsed?.id, nfoTitle: parsed?.title, nfoYear: parsed?.year, nfoIsValid: nfoExists ? parsed?.valid ?? false : nil, editionHint: editionHint(video.lastPathComponent), state: state, folderState: folderState))
+            progress?(index + 1, videos.count)
         }
         return items
     }

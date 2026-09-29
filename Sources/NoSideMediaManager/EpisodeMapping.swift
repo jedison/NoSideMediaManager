@@ -36,11 +36,14 @@ public enum EpisodeFolderScanner {
     /// with no episode number remain in the review as episode zero, which can
     /// never auto-match a TVDB episode.
     @MainActor
-    public static func scanIncludingEmbeddedMetadata(directory: URL, fileManager: FileManager = .default) async throws -> [LocalEpisodeFile] {
+    public static func scanIncludingEmbeddedMetadata(directory: URL, fileManager: FileManager = .default, progress: (@MainActor @Sendable (Int, Int) -> Void)? = nil) async throws -> [LocalEpisodeFile] {
         let direct = try scan(directory: directory, fileManager: fileManager)
         let directPaths = Set(direct.map { $0.url.standardizedFileURL.path })
         var results = direct
-        for url in MediaFileInspector.videoFiles(in: directory, fileManager: fileManager) where !directPaths.contains(url.standardizedFileURL.path) {
+        let videos = MediaFileInspector.videoFiles(in: directory, fileManager: fileManager)
+        progress?(0, videos.count)
+        for (index, url) in videos.enumerated() {
+            guard !directPaths.contains(url.standardizedFileURL.path) else { progress?(index + 1, videos.count); continue }
             let folderSeason = season(in: url.deletingLastPathComponent().lastPathComponent)
             let info = try? await MediaFileInspector.inspect(url)
             if let title = info?.title, let match = embeddedEpisode(in: title) {
@@ -48,6 +51,7 @@ public enum EpisodeFolderScanner {
             } else {
                 results.append(LocalEpisodeFile(url: url, season: folderSeason ?? 0, episode: 0, folderSeason: folderSeason, metadataTitle: info?.title))
             }
+            progress?(index + 1, videos.count)
         }
         return results.sorted { $0.url.path < $1.url.path }
     }

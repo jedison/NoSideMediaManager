@@ -62,6 +62,8 @@ private struct ContentView: View {
     @State private var isWorking = false
     @State private var tvAudit: TVLibraryAuditReport?
     @State private var tvAuditFilter = "all"
+    @State private var tvReviewedFiles = 0
+    @State private var tvTotalFiles = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -95,6 +97,7 @@ private struct ContentView: View {
             Text("TVDB → Kodi NFO").foregroundStyle(.secondary)
             HStack { Button(tvFolderIsSaved ? "Audit saved TV library" : "Audit selected TV folder", action: auditTVFolder).disabled(destination == nil || isWorking); Button("Choose another TV folder…", action: chooseTVFolder).disabled(isWorking); if let destination { Text(destination.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
             HStack { TextField("Search TVDB (suggested from chosen show folder)", text: $query); Button("Search TVDB", action: search).disabled(query.isEmpty || destination == nil || isWorking) }
+            if isWorking, tvTotalFiles > 0 { ProgressView(value: Double(tvReviewedFiles), total: Double(tvTotalFiles)) { Text("Reviewing \(tvReviewedFiles) of \(tvTotalFiles) TV video files") }.progressViewStyle(.linear) }
             if let tvAudit { tvAuditSummary(tvAudit) }
             List(results, id: \.tvdbID) { result in
                 HStack { VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) }; Spacer(); Button("Review selected folder") { if let destination { review(result, in: destination) } }.disabled(isWorking || destination == nil) }
@@ -117,7 +120,7 @@ private struct ContentView: View {
     private var tvFolderIsSaved: Bool {
         destination?.standardizedFileURL.path == (UserDefaults.standard.string(forKey: "companion.tvLibraryRoot") ?? "/Volumes/Movies/My/TV Shows")
     }
-    private func auditTVFolder() { guard let destination else { return }; isWorking = true; status = "Auditing local TV files…"; Task { do { let report = try await TVLibraryAudit.inspect(directory: destination); tvAudit = report; status = "Audited \(report.items.count) videos; \(report.duplicates.count) duplicate episode candidate(s)." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func auditTVFolder() { guard let destination else { return }; isWorking = true; tvReviewedFiles = 0; tvTotalFiles = 0; status = "Finding TV video files…"; Task { do { let report = try await TVLibraryAudit.inspect(directory: destination) { completed, total in tvReviewedFiles = completed; tvTotalFiles = total; status = "Reviewing \(completed) of \(total) TV video files…" }; tvAudit = report; status = "Audited \(report.items.count) videos; \(report.duplicates.count) duplicate episode candidate(s)." } catch { status = error.localizedDescription }; isWorking = false } }
     private func tvAuditSummary(_ audit: TVLibraryAuditReport) -> some View { VStack(alignment: .leading, spacing: 4) { Text("TV audit · \(audit.items.count) videos · \(audit.duplicates.count) duplicate episode candidate(s) · \(audit.unnumberedCount) unnumbered").font(.caption).foregroundStyle(.secondary); Picker("Show", selection: $tvAuditFilter) { Text("All").tag("all"); Text("Multiple copies").tag("duplicates"); Text("Folder season conflicts").tag("conflicts"); Text("Unnumbered").tag("unnumbered") }.pickerStyle(.menu); ScrollView { LazyVStack(alignment: .leading, spacing: 3) { ForEach(filteredTVAuditItems(audit)) { item in Text("\(item.episodeKey ?? "Unnumbered") · \(URL(fileURLWithPath: item.videoPath).lastPathComponent)").font(.caption).foregroundStyle(item.folderSeason.map { $0 != item.season } == true ? .orange : .secondary).lineLimit(1) } } }.frame(maxHeight: 120) } }
     private func filteredTVAuditItems(_ audit: TVLibraryAuditReport) -> [TVEpisodeAuditItem] {
         let duplicatePaths = Set(audit.duplicates.flatMap(\.videoPaths))
@@ -241,73 +244,94 @@ private struct PackageOperationsView: View {
 }
 
 @MainActor
-private struct MovieToolsView: View {
-    @State private var folder: URL? = {
+private final class MovieAuditSession: ObservableObject {
+    static let shared = MovieAuditSession()
+    @Published var folder: URL? = {
         guard let path = UserDefaults.standard.string(forKey: "companion.libraryRoot"), !path.isEmpty else { return nil }
         return URL(fileURLWithPath: path)
     }()
-    @State private var items = [MovieAuditItem]()
-    @State private var selectedPaths = Set<String>()
-    @State private var auditFilter = "all"
-    @State private var status = "The saved Movie library is selected. Audit it, or choose another folder. MMM will not modify it."
-    @State private var isWorking = false
+    @Published var items = [MovieAuditItem]()
+    @Published var selectedPaths = Set<String>()
+    @Published var auditFilter = "all"
+    @Published var status = "The saved Movie library is selected. Audit it, or choose another folder. MMM will not modify it."
+    @Published var isWorking = false
+    @Published var reviewedFiles = 0
+    @Published var totalFiles = 0
+
+    func auditSelectedFolder() {
+        guard let folder else { status = "Set Movie library root in Settings first, or choose another folder."; return }
+        isWorking = true; reviewedFiles = 0; totalFiles = 0; status = "Finding video files…"
+        Task { [weak self] in
+            let results = await MovieLibraryAudit.inspect(directory: folder) { completed, total in
+                self?.reviewedFiles = completed; self?.totalFiles = total
+                self?.status = total == 0 ? "No video files found." : "Reviewing \(completed) of \(total) video files…"
+            }
+            guard let self else { return }
+            self.items = results; self.status = "Audited \(results.count) videos."; self.isWorking = false
+        }
+    }
+}
+
+@MainActor
+private struct MovieToolsView: View {
+    @ObservedObject private var session = MovieAuditSession.shared
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Movie Manager").font(.largeTitle.weight(.semibold))
             Text("Audit first. Complete movies can be reorganised without rewriting their NFOs or artwork.").foregroundStyle(.secondary)
-            HStack { Button(movieFolderIsSaved ? "Audit saved Movie library" : "Audit selected Movie folder", action: auditCurrentFolder).disabled(folder == nil || isWorking); Button("Choose another folder…", action: chooseFolder).disabled(isWorking); if let folder { Text(folder.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
-            Picker("Show", selection: $auditFilter) { Text("All").tag("all"); Text("Needs folder normalisation").tag("needsFolder"); Text("Embedded metadata").tag("embedded"); Text("Incomplete metadata or sidecars").tag("incomplete") }.pickerStyle(.menu)
-            List(filteredItems, id: \.videoPath, selection: $selectedPaths) { item in
+            HStack { Button(movieFolderIsSaved ? "Audit saved Movie library" : "Audit selected Movie folder", action: { session.auditSelectedFolder() }).disabled(session.folder == nil || session.isWorking); Button("Choose another folder…", action: chooseFolder).disabled(session.isWorking); if let folder = session.folder { Text(folder.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
+            if session.isWorking { ProgressView(value: Double(session.reviewedFiles), total: Double(max(session.totalFiles, 1))) { Text(session.totalFiles == 0 ? "Finding video files…" : "Reviewing \(session.reviewedFiles) of \(session.totalFiles) video files") }.progressViewStyle(.linear) }
+            Picker("Show", selection: $session.auditFilter) { Text("All").tag("all"); Text("Needs folder normalisation").tag("needsFolder"); Text("Embedded metadata").tag("embedded"); Text("Incomplete metadata or sidecars").tag("incomplete") }.pickerStyle(.menu)
+            List(filteredItems, id: \.videoPath, selection: $session.selectedPaths) { item in
                 VStack(alignment: .leading) {
                     Text(item.nfoTitle ?? URL(fileURLWithPath: item.videoPath).lastPathComponent)
                     Text("\(item.state.rawValue) · \(folderLabel(item.folderState))\(item.editionHint.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(item.state == .bareNeedsTMDB ? .orange : .secondary)
                 }
             }
             HStack {
-                Button("Select filtered") { selectedPaths.formUnion(filteredItems.map(\.videoPath)) }.disabled(filteredItems.isEmpty)
-                Button("Clear selection") { selectedPaths.removeAll() }.disabled(selectedPaths.isEmpty)
+                Button("Select filtered") { session.selectedPaths.formUnion(filteredItems.map(\.videoPath)) }.disabled(filteredItems.isEmpty)
+                Button("Clear selection") { session.selectedPaths.removeAll() }.disabled(session.selectedPaths.isEmpty)
                 Spacer()
-                Button("Freeze sidecar package…", action: createEmbeddedPackage).disabled(selectedItems(of: .embeddedMetadataNeedsSidecars).isEmpty || isWorking)
-                Button("Freeze preservation package…", action: createSelectedPreservationPackage).disabled(!items.contains { selectedPaths.contains($0.videoPath) && $0.isPreservationReady } || isWorking)
+                Button("Freeze sidecar package…", action: createEmbeddedPackage).disabled(selectedItems(of: .embeddedMetadataNeedsSidecars).isEmpty || session.isWorking)
+                Button("Freeze preservation package…", action: createSelectedPreservationPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isPreservationReady } || session.isWorking)
             }
             Text("Select any audited items. Sidecar packages accept only files with embedded metadata; preservation packages accept only complete, valid-NFO movies needing folder normalisation. Other selected items are safely ignored.").font(.caption).foregroundStyle(.secondary)
-            Text(status).foregroundStyle(.secondary).lineLimit(2)
+            Text(session.status).foregroundStyle(.secondary).lineLimit(2)
         }.padding(24)
     }
-    private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; if let folder { panel.directoryURL = folder }; guard panel.runModal() == .OK, let url = panel.url else { return }; folder = url; status = "Folder selected. Click Audit selected Movie folder to review it." }
-    private func auditCurrentFolder() { guard let folder else { status = "Set Movie library root in Settings first, or choose another folder."; return }; isWorking = true; status = "Auditing videos and sidecars…"; Task { items = await MovieLibraryAudit.inspect(directory: folder); status = "Audited \(items.count) videos."; isWorking = false } }
+    private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; if let folder = session.folder { panel.directoryURL = folder }; guard panel.runModal() == .OK, let url = panel.url else { return }; session.folder = url; session.status = "Folder selected. Click Audit selected Movie folder to review it." }
     private var movieFolderIsSaved: Bool {
-        guard let folder, let saved = UserDefaults.standard.string(forKey: "companion.libraryRoot"), !saved.isEmpty else { return false }
+        guard let folder = session.folder, let saved = UserDefaults.standard.string(forKey: "companion.libraryRoot"), !saved.isEmpty else { return false }
         return folder.standardizedFileURL.path == URL(fileURLWithPath: saved).standardizedFileURL.path
     }
-    private func selectedItems(of state: MovieSidecarState) -> [MovieAuditItem] { items.filter { selectedPaths.contains($0.videoPath) && $0.state == state } }
-    private var filteredItems: [MovieAuditItem] { switch auditFilter { case "needsFolder": items.filter(\.isPreservationReady); case "embedded": items.filter { $0.state == .embeddedMetadataNeedsSidecars }; case "incomplete": items.filter { $0.state != .complete }; default: items } }
+    private func selectedItems(of state: MovieSidecarState) -> [MovieAuditItem] { session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == state } }
+    private var filteredItems: [MovieAuditItem] { switch session.auditFilter { case "needsFolder": session.items.filter(\.isPreservationReady); case "embedded": session.items.filter { $0.state == .embeddedMetadataNeedsSidecars }; case "incomplete": session.items.filter { $0.state != .complete }; default: session.items } }
     private func folderLabel(_ state: MovieFolderState) -> String { switch state { case .normalized: "folder ready"; case .needsNormalization: "needs folder normalisation"; case .metadataIncomplete: "folder not assessed"; case .sharedMultiPart: "shared multi-part sidecars" } }
-    private func createEmbeddedPackage() { guard let folder else { return }; let selected = selectedItems(of: .embeddedMetadataNeedsSidecars); guard !selected.isEmpty else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.message = "Choose where to create the portable sidecar package"; guard output.runModal() == .OK, let parent = output.url else { return }; isWorking = true; status = "Extracting selected embedded metadata into a portable package…"; Task { do { var approved = [EmbeddedMovieBundleItem](); var missingTitles = [String](); for item in selected { let video = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let title = metadata.title, !title.isEmpty else { missingTitles.append(video.lastPathComponent); continue }; approved.append(.init(source: video, title: title, creationDate: metadata.creationDate, artwork: metadata.artwork)) }; guard missingTitles.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "MMM could no longer extract a title from these selected video file(s): \(missingTitles.sorted().joined(separator: ", ")). Re-audit them, or use the TMDB review workflow."]) }; let job = parent.appendingPathComponent("NoSide-MMM-Embedded-Selected-job"); let manifest = try PortableJobBundle.createEmbeddedMovies(at: job, libraryRoot: folder, items: approved); status = "Job \(manifest.jobID) created for \(approved.count) selected movie(s). Dry-run it on the media Mac." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func createEmbeddedPackage() { guard let folder = session.folder else { return }; let selected = selectedItems(of: .embeddedMetadataNeedsSidecars); guard !selected.isEmpty else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.message = "Choose where to create the portable sidecar package"; guard output.runModal() == .OK, let parent = output.url else { return }; session.isWorking = true; session.status = "Extracting selected embedded metadata into a portable package…"; Task { do { var approved = [EmbeddedMovieBundleItem](); var missingTitles = [String](); for item in selected { let video = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let title = metadata.title, !title.isEmpty else { missingTitles.append(video.lastPathComponent); continue }; approved.append(.init(source: video, title: title, creationDate: metadata.creationDate, artwork: metadata.artwork)) }; guard missingTitles.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "MMM could no longer extract a title from these selected video file(s): \(missingTitles.sorted().joined(separator: ", ")). Re-audit them, or use the TMDB review workflow."]) }; let job = parent.appendingPathComponent("NoSide-MMM-Embedded-Selected-job"); let manifest = try PortableJobBundle.createEmbeddedMovies(at: job, libraryRoot: folder, items: approved); session.status = "Job \(manifest.jobID) created for \(approved.count) selected movie(s). Dry-run it on the media Mac." } catch { session.status = error.localizedDescription }; session.isWorking = false } }
     private func exportPreservationPlan() {
-        guard let folder else { return }
-        let plan = MoviePlanDocument.preservationProposal(library: folder, items: items)
-        guard !plan.entries.isEmpty else { status = "No complete movies with valid TMDB NFOs are ready to preserve."; return }
+        guard let folder = session.folder else { return }
+        let plan = MoviePlanDocument.preservationProposal(library: folder, items: session.items)
+        guard !plan.entries.isEmpty else { session.status = "No complete movies with valid TMDB NFOs are ready to preserve."; return }
         let panel = NSSavePanel(); panel.nameFieldStringValue = "mmm-movie-preservation-plan.json"; panel.message = "Save the editable preservation plan for review"
         guard panel.runModal() == .OK, let output = panel.url else { return }
-        do { try plan.write(to: output); status = "Saved a preservation plan for \(plan.entries.count) movie(s). Review destination paths, then freeze it." } catch { status = error.localizedDescription }
+        do { try plan.write(to: output); session.status = "Saved a preservation plan for \(plan.entries.count) movie(s). Review destination paths, then freeze it." } catch { session.status = error.localizedDescription }
     }
     private func createPreservationPackage() {
         let input = NSOpenPanel(); input.canChooseDirectories = false; input.canChooseFiles = true; input.allowsMultipleSelection = false; input.message = "Choose the reviewed preservation plan"
         guard input.runModal() == .OK, let planURL = input.url else { return }
         let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.message = "Choose where to create the portable preservation package"
         guard output.runModal() == .OK, let parent = output.url else { return }
-        isWorking = true; status = "Freezing preservation package…"
-        Task { do { let plan = try MoviePlanDocument.read(from: planURL); let job = parent.appendingPathComponent("NoSide-MMM-Movie-Preservation-job"); let manifest = try PortableJobBundle.createExistingMoviePreservation(at: job, plan: plan); status = "Job \(manifest.jobID) created. Copy it to the media Mac and dry-run apply.sh." } catch { status = error.localizedDescription }; isWorking = false }
+        session.isWorking = true; session.status = "Freezing preservation package…"
+        Task { do { let plan = try MoviePlanDocument.read(from: planURL); let job = parent.appendingPathComponent("NoSide-MMM-Movie-Preservation-job"); let manifest = try PortableJobBundle.createExistingMoviePreservation(at: job, plan: plan); session.status = "Job \(manifest.jobID) created. Copy it to the media Mac and dry-run apply.sh." } catch { session.status = error.localizedDescription }; session.isWorking = false }
     }
     private func createSelectedPreservationPackage() {
-        guard let folder else { return }
-        let selected = items.filter { selectedPaths.contains($0.videoPath) && $0.isPreservationReady }
+        guard let folder = session.folder else { return }
+        let selected = session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isPreservationReady }
         let plan = MoviePlanDocument.preservationProposal(library: folder, items: selected)
-        guard !plan.entries.isEmpty else { status = "Select at least one complete movie that needs folder normalisation."; return }
+        guard !plan.entries.isEmpty else { session.status = "Select at least one complete movie that needs folder normalisation."; return }
         let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.message = "Choose where to create the portable preservation package"
         guard output.runModal() == .OK, let parent = output.url else { return }
-        isWorking = true; status = "Freezing preservation package for \(plan.entries.count) selected movie(s)…"
-        Task { do { let job = parent.appendingPathComponent("NoSide-MMM-Movie-Preservation-Selected-job"); let manifest = try PortableJobBundle.createExistingMoviePreservation(at: job, plan: plan); status = "Job \(manifest.jobID) created for \(plan.entries.count) selected movie(s). Dry-run it on the media Mac." } catch { status = error.localizedDescription }; isWorking = false }
+        session.isWorking = true; session.status = "Freezing preservation package for \(plan.entries.count) selected movie(s)…"
+        Task { do { let job = parent.appendingPathComponent("NoSide-MMM-Movie-Preservation-Selected-job"); let manifest = try PortableJobBundle.createExistingMoviePreservation(at: job, plan: plan); session.status = "Job \(manifest.jobID) created for \(plan.entries.count) selected movie(s). Dry-run it on the media Mac." } catch { session.status = error.localizedDescription }; session.isWorking = false }
     }
 }

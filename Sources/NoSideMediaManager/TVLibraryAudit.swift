@@ -19,8 +19,8 @@ public struct TVLibraryAuditReport: Codable, Sendable, Equatable {
 }
 
 public enum TVLibraryAudit {
-    @MainActor public static func inspect(directory: URL) async throws -> TVLibraryAuditReport {
-        report(for: try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory))
+    @MainActor public static func inspect(directory: URL, progress: (@MainActor @Sendable (Int, Int) -> Void)? = nil) async throws -> TVLibraryAuditReport {
+        report(for: try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory, progress: progress))
     }
     public static func report(for localFiles: [LocalEpisodeFile]) -> TVLibraryAuditReport {
         let items = localFiles.map(TVEpisodeAuditItem.init)
