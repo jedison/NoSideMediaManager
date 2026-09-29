@@ -1,7 +1,7 @@
 import Foundation
 import NoSideMediaManager
 
-public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalidOperation, alreadyApplied, tvdbNotConfigured, invalidSelection, tvFolderNotFound; public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library." } } }
+public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalidOperation, alreadyApplied, tvdbNotConfigured, invalidSelection, tvFolderNotFound, unextractableTitles([String]); public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library."; case .unextractableTitles(let names): "MMM could no longer extract a title from these selected video file(s): \(names.joined(separator: ", ")). Re-audit them, or use the TMDB review workflow." } } }
 
 /// The only component allowed to invoke a frozen job script. It resolves job
 /// IDs from manifests under one configured directory, preventing path injection.
@@ -26,8 +26,9 @@ public actor CompanionJobService {
         let requested = Set(videoPaths); guard !requested.isEmpty else { throw CompanionJobServiceError.invalidSelection }
         let selected = await MovieLibraryAudit.inspect(directory: configuration.libraryRoot).filter { requested.contains($0.videoPath) }
         guard selected.count == requested.count, selected.allSatisfy({ $0.state == .embeddedMetadataNeedsSidecars }) else { throw CompanionJobServiceError.invalidSelection }
-        var extracted = [EmbeddedMovieBundleItem]()
-        for item in selected { let source = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(source); guard let title = metadata.title, !title.isEmpty else { throw CompanionJobServiceError.invalidSelection }; extracted.append(.init(source: source, title: title, creationDate: metadata.creationDate, artwork: metadata.artwork)) }
+        var extracted = [EmbeddedMovieBundleItem](); var missingTitles = [String]()
+        for item in selected { let source = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(source); guard let title = metadata.title, !title.isEmpty else { missingTitles.append(source.lastPathComponent); continue }; extracted.append(.init(source: source, title: title, creationDate: metadata.creationDate, artwork: metadata.artwork)) }
+        guard missingTitles.isEmpty else { throw CompanionJobServiceError.unextractableTitles(missingTitles.sorted()) }
         let bundle = configuration.jobsRoot.appendingPathComponent("NoSide-MMM-Sidecars-\(UUID().uuidString.lowercased())-job", isDirectory: true)
         return CompanionJob(manifest: try PortableJobBundle.createEmbeddedMovies(at: bundle, libraryRoot: configuration.libraryRoot, items: extracted))
     }
