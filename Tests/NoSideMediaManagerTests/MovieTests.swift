@@ -191,6 +191,12 @@ import Testing
     #expect(state == .normalized)
 }
 
+@Test func multipartCDUsesOneSharedSidecarBase() {
+    let base = URL(fileURLWithPath: "/Movies/Until the End of the World CD2")
+    #expect(MovieLibraryAudit.multiPartBase(for: base)?.path == "/Movies/Until the End of the World")
+    #expect(MovieLibraryAudit.multiPartBase(for: URL(fileURLWithPath: "/Movies/CD Collection")) == nil)
+}
+
 @Test func selectedEmbeddedMoviesFreezeAsOneSidecarPackage() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let first = root.appendingPathComponent("one.mp4"); let second = root.appendingPathComponent("two.mkv"); let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

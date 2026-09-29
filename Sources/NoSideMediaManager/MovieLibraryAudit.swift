@@ -3,7 +3,7 @@ import Foundation
 public enum MovieSidecarState: String, Codable, Sendable { case complete, embeddedMetadataNeedsSidecars, bareNeedsTMDB, incompleteSidecars }
 /// Layout is intentionally reported separately from metadata readiness: a film
 /// may be complete but still need its files moved into a canonical movie folder.
-public enum MovieFolderState: String, Codable, Sendable { case normalized, needsNormalization, metadataIncomplete }
+public enum MovieFolderState: String, Codable, Sendable { case normalized, needsNormalization, metadataIncomplete, sharedMultiPart }
 public struct MovieAuditItem: Codable, Sendable, Equatable {
     public let videoPath: String; public let nfoExists: Bool; public let artworkExists: Bool; public let embeddedTitle: String?; public let embeddedCreationDate: String?; public let hasEmbeddedArtwork: Bool; public let tmdbID: Int?; public let nfoTitle: String?; public let nfoYear: String?; public let nfoIsValid: Bool?; public let editionHint: String?; public let state: MovieSidecarState; public let folderState: MovieFolderState
     public init(videoPath: String, nfoExists: Bool, artworkExists: Bool, embeddedTitle: String?, embeddedCreationDate: String?, hasEmbeddedArtwork: Bool, tmdbID: Int?, nfoTitle: String?, nfoYear: String?, nfoIsValid: Bool?, editionHint: String?, state: MovieSidecarState, folderState: MovieFolderState = .metadataIncomplete) {
@@ -27,10 +27,16 @@ public enum MovieLibraryAudit {
         var items = [MovieAuditItem]()
         for video in MediaFileInspector.videoFiles(in: directory) {
             guard let info = try? await MediaFileInspector.inspect(video) else { continue }
-            let base = video.deletingPathExtension(); let nfo = base.appendingPathExtension("nfo"); let nfoExists = FileManager.default.fileExists(atPath: nfo.path); let parsed = nfoExists ? inspectNFO(nfo) : nil
-            let image = primaryArtworkExists(for: base)
+            let base = video.deletingPathExtension()
+            // CD/Disc/Part files may deliberately share a single movie NFO and
+            // artwork. Treat that shared set as complete, never as three
+            // separate embedded-metadata candidates.
+            let sharedBase = multiPartBase(for: base)
+            let sidecarBase = sharedBase ?? base
+            let nfo = sidecarBase.appendingPathExtension("nfo"); let nfoExists = FileManager.default.fileExists(atPath: nfo.path); let parsed = nfoExists ? inspectNFO(nfo) : nil
+            let image = primaryArtworkExists(for: sidecarBase)
             let state = classify(nfoExists: nfoExists, artworkExists: image, info: info)
-            let folderState = folderState(for: video, nfo: parsed, sidecarState: state)
+            let folderState: MovieFolderState = sharedBase == nil ? folderState(for: video, nfo: parsed, sidecarState: state) : (state == .complete ? .sharedMultiPart : .metadataIncomplete)
             items.append(MovieAuditItem(videoPath: video.path, nfoExists: nfoExists, artworkExists: image, embeddedTitle: info.title, embeddedCreationDate: info.creationDate, hasEmbeddedArtwork: info.hasEmbeddedArtwork, tmdbID: parsed?.id, nfoTitle: parsed?.title, nfoYear: parsed?.year, nfoIsValid: nfoExists ? parsed?.valid ?? false : nil, editionHint: editionHint(video.lastPathComponent), state: state, folderState: folderState))
         }
         return items
@@ -67,6 +73,16 @@ public enum MovieLibraryAudit {
         let expectedVideo = stem + "." + video.pathExtension
         let editionVideo = video.lastPathComponent.hasPrefix(stem + " [") && video.lastPathComponent.hasSuffix("]." + video.pathExtension)
         return video.deletingLastPathComponent().lastPathComponent == stem && (video.lastPathComponent == expectedVideo || editionVideo) ? .normalized : .needsNormalization
+    }
+    /// Returns the base shared by conventional multipart file names, only when
+    /// a real suffix is present: `Film CD1`, `Film Disc 2`, `Film Part 3`.
+    static func multiPartBase(for base: URL) -> URL? {
+        let pattern = #"(?i)\s+(?:cd|disc|disk|part)\s*\d+$"#
+        let range = NSRange(base.lastPathComponent.startIndex..., in: base.lastPathComponent)
+        guard let match = try? NSRegularExpression(pattern: pattern).firstMatch(in: base.lastPathComponent, range: range),
+              let swiftRange = Range(match.range, in: base.lastPathComponent) else { return nil }
+        let shared = String(base.lastPathComponent[..<swiftRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return shared.isEmpty ? nil : base.deletingLastPathComponent().appendingPathComponent(shared)
     }
 }
 
