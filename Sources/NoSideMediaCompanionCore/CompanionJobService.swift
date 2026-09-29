@@ -17,7 +17,7 @@ public actor CompanionJobService {
         }
     }
     public func serverInfo() -> CompanionServerInfo { .init(version: configuration.version, libraryRoot: configuration.libraryRoot.path) }
-    public func jobs() -> [CompanionJob] { manifests().map { CompanionJob(manifest: $0.1, state: state(for: $0.0, manifest: $0.1)) }.sorted { $0.id > $1.id } }
+    public func jobs() -> [CompanionJob] { manifests().map { directory, manifest in CompanionJob(manifest: manifest, state: state(for: directory, manifest: manifest), createdAt: (try? directory.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? nil) }.sorted { ($0.createdAt ?? .distantPast, $0.id) > ($1.createdAt ?? .distantPast, $1.id) } }
     public func startMovieAudit() -> CompanionMovieAuditSnapshot {
         if movieAuditSnapshot.phase == .running { return movieAuditSnapshot }
         movieAuditSnapshot = .init(phase: .running, startedAt: Date())

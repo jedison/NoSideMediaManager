@@ -2,7 +2,7 @@ import Foundation
 
 struct CompanionServerInfo: Codable, Equatable { let name: String; let version: String; let libraryRoot: String; let requiresAuthentication: Bool }
 enum CompanionJobState: String, Codable, Equatable, Hashable { case ready, applied, rolledBack }
-struct CompanionJob: Codable, Identifiable, Equatable, Hashable { let id: String; let title: String; let mediaKind: String; let provider: String; let moves: Int; let generatedFiles: Int; let unavailableArtwork: Int; let state: CompanionJobState }
+struct CompanionJob: Codable, Identifiable, Equatable, Hashable { let id: String; let title: String; let mediaKind: String; let provider: String; let moves: Int; let generatedFiles: Int; let unavailableArtwork: Int; let state: CompanionJobState; let createdAt: Date? }
 enum CompanionOperation: String, Codable { case dryRun = "dry-run", apply, rollback }
 struct CompanionOperationResult: Codable, Equatable { let jobID: String; let operation: CompanionOperation; let succeeded: Bool; let log: String }
 struct CompanionMovieAuditItem: Codable, Identifiable, Equatable { let videoPath: String; let nfoTitle: String?; let nfoYear: String?; let nfoIsValid: Bool?; let tmdbID: Int?; let state: String; let folderState: String; var id: String { videoPath }; var preservationReady: Bool { state == "complete" && folderState == "needsNormalization" && nfoIsValid == true && tmdbID != nil }; var sidecarReady: Bool { state == "embeddedMetadataNeedsSidecars" } }

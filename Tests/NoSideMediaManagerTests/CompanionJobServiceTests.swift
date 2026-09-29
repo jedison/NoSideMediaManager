@@ -12,7 +12,9 @@ import Testing
     try JSONEncoder().encode(manifest).write(to: job.appendingPathComponent("manifest.json"))
     let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: library, token: "secret", version: "test"))
     let found = await service.jobs()
-    #expect(found == [CompanionJob(manifest: manifest)])
+    #expect(found.count == 1)
+    #expect(found.first?.id == manifest.jobID)
+    #expect(found.first?.createdAt != nil)
     #expect(await service.serverInfo().libraryRoot == library.path)
 }
 

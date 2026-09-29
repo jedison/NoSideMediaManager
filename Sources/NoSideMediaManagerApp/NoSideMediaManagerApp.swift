@@ -253,7 +253,7 @@ private struct PackageOperationsView: View {
             Text("Package Operations").font(.largeTitle.weight(.semibold))
             Text("Packages are the only way microMM changes a media library. Always dry-run first.").foregroundStyle(.secondary)
             HStack { Button("Refresh packages", action: refresh).disabled(working); if let selected { Text(selected.title).lineLimit(1).foregroundStyle(.secondary) } }
-            List(jobs, selection: $selected) { job in VStack(alignment: .leading) { Text(job.title); Text("\(job.state == .applied ? "APPLIED · " : job.state == .rolledBack ? "ROLLED BACK · " : "")\(job.moves) moves · \(job.generatedFiles) generated files").font(.caption).foregroundStyle(.secondary) }.tag(job) }
+            List(jobs, selection: $selected) { job in VStack(alignment: .leading) { Text(job.title); Text("\(job.state == .applied ? "APPLIED · " : job.state == .rolledBack ? "ROLLED BACK · " : "")\(job.moves) moves · \(job.generatedFiles) generated files\(job.createdAt.map { " · \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")").font(.caption).foregroundStyle(.secondary) }.tag(job) }
             HStack { Button("Dry-run", action: { run(.dryRun) }).disabled(selected == nil || selected?.state == .applied || working); Button("Apply", role: .destructive) { confirmApply = true }.disabled(selected == nil || selected?.state == .applied || working); Button("Rollback") { run(.rollback) }.disabled(selected?.state != .applied || working) }
             if !log.isEmpty { ScrollView { Text(log).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 160) }
             Text(status).foregroundStyle(.secondary)

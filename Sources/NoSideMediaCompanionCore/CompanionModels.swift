@@ -9,8 +9,8 @@ public struct CompanionServerInfo: Codable, Sendable, Equatable {
 public enum CompanionJobState: String, Codable, Sendable, Equatable, Hashable { case ready, applied, rolledBack }
 
 public struct CompanionJob: Codable, Sendable, Equatable, Hashable, Identifiable {
-    public let id: String; public let title: String; public let mediaKind: String; public let provider: String; public let moves: Int; public let generatedFiles: Int; public let unavailableArtwork: Int; public let state: CompanionJobState
-    public init(manifest: PortableJobManifest, state: CompanionJobState = .ready) { id = manifest.jobID; title = manifest.seriesTitle; mediaKind = manifest.mediaKind; provider = manifest.metadataProvider; moves = manifest.moves.count; generatedFiles = manifest.generatedFiles.count; unavailableArtwork = manifest.unavailableArtwork.count; self.state = state }
+    public let id: String; public let title: String; public let mediaKind: String; public let provider: String; public let moves: Int; public let generatedFiles: Int; public let unavailableArtwork: Int; public let state: CompanionJobState; public let createdAt: Date?
+    public init(manifest: PortableJobManifest, state: CompanionJobState = .ready, createdAt: Date? = nil) { id = manifest.jobID; title = manifest.seriesTitle; mediaKind = manifest.mediaKind; provider = manifest.metadataProvider; moves = manifest.moves.count; generatedFiles = manifest.generatedFiles.count; unavailableArtwork = manifest.unavailableArtwork.count; self.state = state; self.createdAt = createdAt }
 }
 
 public enum CompanionOperation: String, Codable, Sendable { case dryRun = "dry-run", apply, rollback }

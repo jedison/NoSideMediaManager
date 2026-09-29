@@ -155,6 +155,7 @@ private struct JobListView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(job.title)
                         Text(jobSummary(job)).font(.caption).foregroundStyle(.secondary)
+                        if let createdAt = job.createdAt { Text(createdAt.formatted(date: .abbreviated, time: .shortened)).font(.caption2).foregroundStyle(.secondary) }
                     }
                 }
             }
