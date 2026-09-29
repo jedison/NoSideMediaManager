@@ -240,7 +240,19 @@ import Testing
 @Test func multipartCDUsesOneSharedSidecarBase() {
     let base = URL(fileURLWithPath: "/Movies/Until the End of the World CD2")
     #expect(MovieLibraryAudit.multiPartBase(for: base)?.path == "/Movies/Until the End of the World")
+    let embyBase = URL(fileURLWithPath: "/Movies/Until the End of the World (1991)/Until the End of the World (1991)-part2")
+    #expect(MovieLibraryAudit.multiPartInfo(for: embyBase)?.base.path == "/Movies/Until the End of the World (1991)/Until the End of the World (1991)")
+    #expect(MovieLibraryAudit.multiPartInfo(for: embyBase)?.part == 2)
     #expect(MovieLibraryAudit.multiPartBase(for: URL(fileURLWithPath: "/Movies/CD Collection")) == nil)
+}
+
+@Test func canonicalMovieFolderPosterCountsAsPrimaryArtwork() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let folder = root.appendingPathComponent("Film (1991)", isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data("poster".utf8).write(to: folder.appendingPathComponent("poster.jpg"))
+    #expect(MovieLibraryAudit.primaryArtworkExists(for: folder.appendingPathComponent("Film (1991)")))
 }
 
 @Test func movieAuditIgnoresNestedITunesExtrasButKeepsTopLevelFeature() {

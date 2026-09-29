@@ -9,6 +9,7 @@ public struct MovieAuditItem: Codable, Sendable, Equatable {
     public init(videoPath: String, nfoExists: Bool, artworkExists: Bool, embeddedTitle: String?, embeddedCreationDate: String?, hasEmbeddedArtwork: Bool, tmdbID: Int?, nfoTitle: String?, nfoYear: String?, nfoIsValid: Bool?, editionHint: String?, state: MovieSidecarState, folderState: MovieFolderState = .metadataIncomplete) {
         self.videoPath = videoPath; self.nfoExists = nfoExists; self.artworkExists = artworkExists; self.embeddedTitle = embeddedTitle; self.embeddedCreationDate = embeddedCreationDate; self.hasEmbeddedArtwork = hasEmbeddedArtwork; self.tmdbID = tmdbID; self.nfoTitle = nfoTitle; self.nfoYear = nfoYear; self.nfoIsValid = nfoIsValid; self.editionHint = editionHint; self.state = state; self.folderState = folderState
     }
+    public var isMultiPart: Bool { folderState == .sharedMultiPart }
     public var isPreservationReady: Bool { state == .complete && nfoIsValid == true && tmdbID != nil && folderState == .needsNormalization }
     public var isMultiPartPreservationReady: Bool { state == .complete && nfoIsValid == true && tmdbID != nil && folderState == .sharedMultiPart }
 }
@@ -67,17 +68,25 @@ public enum MovieLibraryAudit {
             let nfo = sidecarBase.appendingPathExtension("nfo"); let nfoExists = FileManager.default.fileExists(atPath: nfo.path); let parsed = nfoExists ? inspectNFO(nfo) : nil
             let image = primaryArtworkExists(for: sidecarBase)
             let state = classify(nfoExists: nfoExists, artworkExists: image, info: info)
-            let folderState: MovieFolderState = sharedBase == nil ? folderState(for: video, nfo: parsed, sidecarState: state) : (state == .complete ? .sharedMultiPart : .metadataIncomplete)
+            let folderState: MovieFolderState = sharedBase == nil ? folderState(for: video, nfo: parsed, sidecarState: state) : .sharedMultiPart
             items.append(MovieAuditItem(videoPath: video.path, nfoExists: nfoExists, artworkExists: image, embeddedTitle: info.title, embeddedCreationDate: info.creationDate, hasEmbeddedArtwork: info.hasEmbeddedArtwork, tmdbID: parsed?.id, nfoTitle: parsed?.title, nfoYear: parsed?.year, nfoIsValid: nfoExists ? parsed?.valid ?? false : nil, editionHint: editionHint(video.lastPathComponent), state: state, folderState: folderState))
             progress?(index + 1, videos.count)
         }
         return items
     }
     /// Supports both MMM's stem artwork and tinyMediaManager's conventional
-    /// `Title-poster.jpg` sidecar without treating fanart or logos as posters.
+    /// `Title-poster.jpg` sidecar. In a canonical movie folder, Emby also
+    /// recognises `poster.jpg`/`folder.jpg`; accept those only when the folder
+    /// name matches the movie stem, so a library-root poster cannot bless every
+    /// loose video as complete.
     static func primaryArtworkExists(for base: URL, fileManager: FileManager = .default) -> Bool {
-        ["", "-poster"].contains { suffix in
+        if ["", "-poster"].contains(where: { suffix in
             ["jpg", "jpeg", "png"].contains { fileManager.fileExists(atPath: URL(fileURLWithPath: base.path + suffix).appendingPathExtension($0).path) }
+        }) { return true }
+        let folder = base.deletingLastPathComponent()
+        guard folder.lastPathComponent.caseInsensitiveCompare(base.lastPathComponent) == .orderedSame else { return false }
+        return ["poster", "folder", "cover", "default", "movie"].contains { stem in
+            ["jpg", "jpeg", "png"].contains { fileManager.fileExists(atPath: folder.appendingPathComponent(stem).appendingPathExtension($0).path) }
         }
     }
     @MainActor public static func health(directory: URL, progress: (@MainActor @Sendable (Int, Int) -> Void)? = nil) async -> MovieLibraryHealthReport {
@@ -108,9 +117,10 @@ public enum MovieLibraryAudit {
         return video.deletingLastPathComponent().lastPathComponent == stem && (video.lastPathComponent == expectedVideo || editionVideo) ? .normalized : .needsNormalization
     }
     /// Returns the base shared by conventional multipart file names, only when
-    /// a real suffix is present: `Film CD1`, `Film Disc 2`, `Film Part 3`.
+    /// a real suffix is present: `Film CD1`, `Film Disc 2`, `Film Part 3`, or
+    /// Emby's canonical stacked-file form `Film-part1`.
     static func multiPartInfo(for base: URL) -> (base: URL, part: Int)? {
-        let pattern = #"(?i)\s+(?:cd|disc|disk|part)\s*\d+$"#
+        let pattern = #"(?i)(?:\s+|[-_.]+)(?:cd|disc|disk|part)\s*\d+$"#
         let range = NSRange(base.lastPathComponent.startIndex..., in: base.lastPathComponent)
         guard let match = try? NSRegularExpression(pattern: pattern).firstMatch(in: base.lastPathComponent, range: range),
               let swiftRange = Range(match.range, in: base.lastPathComponent),

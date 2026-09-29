@@ -19,7 +19,19 @@ if [ -n "${MMM_BUILD_INFO_SOURCE:-}" ]; then
   exit 0
 fi
 
-counter_file="${MMM_BUILD_COUNTER_FILE:-$root/.mmm-build-counter}"
+# Store the automatic sequence in Git's shared metadata directory.  Unlike a
+# source-root counter this is shared by the main checkout and every worktree,
+# so a coordinated iOS/macOS release cannot accidentally reuse an older number.
+if [ -n "${MMM_BUILD_COUNTER_FILE:-}" ]; then
+  counter_file="$MMM_BUILD_COUNTER_FILE"
+else
+  common_git_dir=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+  if [ -n "$common_git_dir" ]; then
+    counter_file="$common_git_dir/mmm-build-counter"
+  else
+    counter_file="$root/.mmm-build-counter"
+  fi
+fi
 lock="${counter_file}.lock"
 if ! mkdir "$lock" 2>/dev/null; then
   echo "Another MMM build is already creating build metadata." >&2
@@ -35,6 +47,18 @@ bundle_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$root/distri
 counter="$bundle_build"
 if [ -f "$counter_file" ]; then
   counter=$(tr -d '[:space:]' < "$counter_file")
+else
+  # One-time migration from original checkout-local counters.  A worktree can
+  # have its own stale counter, so take the highest valid legacy sequence.
+  for legacy_counter in "$root/.mmm-build-counter" "${common_git_dir:+$(dirname "$common_git_dir")/.mmm-build-counter}"; do
+    if [ -f "$legacy_counter" ]; then
+      legacy_value=$(tr -d '[:space:]' < "$legacy_counter")
+      case "$legacy_value" in
+        ''|*[!0-9]*) ;;
+        *) if [ "$legacy_value" -gt "$counter" ]; then counter="$legacy_value"; fi ;;
+      esac
+    fi
+  done
 fi
 case "$counter" in
   ''|*[!0-9]*) counter="$bundle_build" ;;
