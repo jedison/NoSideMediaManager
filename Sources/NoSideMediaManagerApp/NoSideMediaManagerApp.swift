@@ -41,7 +41,7 @@ private final class CompanionRuntime: ObservableObject {
         do {
             let key = TVDBCredentialStore.value(named: "TVDB_API_KEY")
             let credentials = key.map { TVDBClient.Credentials(apiKey: $0, subscriberPIN: TVDBCredentialStore.value(named: "TVDB_PIN")) }
-            let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobs), libraryRoot: URL(fileURLWithPath: movies), tvLibraryRoot: URL(fileURLWithPath: tv), token: token, version: MMMAppRelease.display, tvdbCredentials: credentials)
+            let config = CompanionConfiguration(jobsRoot: URL(fileURLWithPath: jobs), libraryRoot: URL(fileURLWithPath: movies), tvLibraryRoot: URL(fileURLWithPath: tv), token: token, version: MMMAppRelease.display, tvdbCredentials: credentials, tmdbAPIKey: TVDBCredentialStore.value(named: "TMDB_API_KEY"))
             let service = CompanionJobService(configuration: config)
             let server = CompanionHTTPServer(service: service, token: token)
             try server.start(port: number, lanVisible: defaults.object(forKey: "companion.lanVisible") as? Bool ?? true)
@@ -173,6 +173,7 @@ private struct MMMSettingsView: View {
     @ObservedObject private var runtime = CompanionRuntime.shared
     @State private var apiKey = TVDBCredentialStore.value(named: "TVDB_API_KEY") ?? ""
     @State private var pin = TVDBCredentialStore.value(named: "TVDB_PIN") ?? ""
+    @State private var tmdbAPIKey = TVDBCredentialStore.value(named: "TMDB_API_KEY") ?? ""
     @State private var jobsRoot = UserDefaults.standard.string(forKey: "companion.jobsRoot") ?? "~/NoSideMediaManagerJobs"
     @State private var libraryRoot = UserDefaults.standard.string(forKey: "companion.libraryRoot") ?? ""
     @State private var tvLibraryRoot = UserDefaults.standard.string(forKey: "companion.tvLibraryRoot") ?? "/Volumes/Movies/My/TV Shows"
@@ -182,11 +183,13 @@ private struct MMMSettingsView: View {
     @State private var status = "Settings are stored on this Mac."
     @State private var showsAPIKey = false
     @State private var showsPIN = false
+    @State private var showsTMDBKey = false
     @State private var showsToken = false
     var body: some View { VStack(alignment: .leading, spacing: 16) {
         Text("Settings").font(.largeTitle.weight(.semibold)); Text("TVDB is shared by TV work and phone-initiated searches. Keys stay in Keychain.").foregroundStyle(.secondary)
         ConcealedSettingField("TVDB API key", text: $apiKey, isRevealed: $showsAPIKey)
         ConcealedSettingField("TVDB subscriber PIN (optional)", text: $pin, isRevealed: $showsPIN)
+        ConcealedSettingField("TMDB API key", text: $tmdbAPIKey, isRevealed: $showsTMDBKey)
         TextField("Jobs folder", text: $jobsRoot); TextField("Movie library root", text: $libraryRoot); TextField("TV shows library root", text: $tvLibraryRoot)
         HStack(spacing: 8) {
             ConcealedSettingField("Pairing token", text: $token, isRevealed: $showsToken)
@@ -204,7 +207,7 @@ private struct MMMSettingsView: View {
         NSPasteboard.general.setString(token, forType: .string)
         status = "Pairing token copied."
     }
-    private func save() { do { try TVDBCredentialStore.set(apiKey, named: "TVDB_API_KEY"); try TVDBCredentialStore.set(pin, named: "TVDB_PIN"); let d = UserDefaults.standard; d.set(jobsRoot, forKey: "companion.jobsRoot"); d.set(libraryRoot, forKey: "companion.libraryRoot"); d.set(tvLibraryRoot, forKey: "companion.tvLibraryRoot"); d.set(token, forKey: "companion.token"); d.set(port, forKey: "companion.port"); d.set(lanVisible, forKey: "companion.lanVisible"); status = "Saved. Restart Companion to use changed paths, token, or port." } catch { status = error.localizedDescription } }
+    private func save() { do { try TVDBCredentialStore.set(apiKey, named: "TVDB_API_KEY"); try TVDBCredentialStore.set(pin, named: "TVDB_PIN"); try TVDBCredentialStore.set(tmdbAPIKey, named: "TMDB_API_KEY"); let d = UserDefaults.standard; d.set(jobsRoot, forKey: "companion.jobsRoot"); d.set(libraryRoot, forKey: "companion.libraryRoot"); d.set(tvLibraryRoot, forKey: "companion.tvLibraryRoot"); d.set(token, forKey: "companion.token"); d.set(port, forKey: "companion.port"); d.set(lanVisible, forKey: "companion.lanVisible"); status = "Saved. Restart Companion to use changed paths, token, or port." } catch { status = error.localizedDescription } }
     private func toggle() { if runtime.isRunning { runtime.stop(); return }; save(); runtime.startFromStoredSettings() }
 }
 

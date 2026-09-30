@@ -1,6 +1,7 @@
 import Foundation
 
 enum CompanionClientError: LocalizedError { case invalidURL, server(String); var errorDescription: String? { switch self { case .invalidURL: "Enter a valid Companion address."; case .server(let message): message } } }
+private struct TMDBPackageRequest: Codable { let videoPath: String; let tmdbID: Int }
 
 struct CompanionClient {
     let host: String; let port: Int; let token: String
@@ -18,6 +19,8 @@ struct CompanionClient {
     func tvAudit(folder: String) async throws -> CompanionTVAuditReport { let folder = folder.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? folder; return try await perform(try request(path: "/v1/audit/tv?folder=\(folder)")) }
     func reviewTV(seriesID: Int, folder: String) async throws -> CompanionTVMappingReview { let folder = folder.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? folder; return try await perform(try request(path: "/v1/review/tv?folder=\(folder)&seriesID=\(seriesID)", timeout: 600)) }
     func freezeMoviePackage(_ kind: String, videoPaths: [String]) async throws -> CompanionJob { let body = try JSONEncoder().encode(CompanionMoviePackageRequest(videoPaths: videoPaths)); return try await perform(try request(path: "/v1/audit/movies/\(kind)-package", method: "POST", body: body, timeout: 600)) }
+    func searchMovies(_ query: String) async throws -> [CompanionTMDBMovie] { let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query; return try await perform(try request(path: "/v1/search/movies?query=\(encoded)", timeout: 120)) }
+    func freezeTMDBPackage(videoPath: String, tmdbID: Int) async throws -> CompanionJob { let body = try JSONEncoder().encode(TMDBPackageRequest(videoPath: videoPath, tmdbID: tmdbID)); return try await perform(try request(path: "/v1/audit/movies/tmdb-package", method: "POST", body: body, timeout: 600)) }
     func searchTV(_ query: String) async throws -> [TVSeriesSearchResult] { let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query; return try await perform(try request(path: "/v1/search/tv?query=\(encoded)")) }
     func run(_ job: CompanionJob, operation: CompanionOperation) async throws -> CompanionOperationResult { try await perform(try request(path: "/v1/jobs/\(job.id)/\(operation.rawValue)", method: "POST", confirm: operation == .apply ? job.id : nil)) }
     private func perform<T: Decodable>(_ request: URLRequest) async throws -> T { let (data, response) = try await URLSession.shared.data(for: request); guard let http = response as? HTTPURLResponse else { throw CompanionClientError.server("No response from Companion.") }; guard (200...299).contains(http.statusCode) else { let message = (try? JSONDecoder().decode([String: String].self, from: data)["error"]) ?? "Companion request failed (HTTP \(http.statusCode))."; throw CompanionClientError.server(message) }; return try JSONDecoder().decode(T.self, from: data) }

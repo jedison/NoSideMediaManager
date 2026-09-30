@@ -226,6 +226,7 @@ private struct MovieAuditView: View {
                     Text("Needs TMDB match (\(tmdbMatchCount))").tag("tmdbMatch")
                     Text("Cannot extract title (\(unextractableCount))").tag("unextractable")
                 }
+                if tmdbMatchCount > 0 { NavigationLink("Match a movie with TMDB", destination: TMDBMatchView(items: audit.items.filter(\.requiresTMDBMatch))) }
                 Text("\(selectedPaths.count) selected").font(.footnote).foregroundStyle(.secondary)
                 Button("Freeze selected sidecar package") { packageKind = "sidecar"; confirmPackage = true }.disabled(!audit.items.contains { selectedPaths.contains($0.videoPath) && $0.sidecarReady } || working)
                 Button("Freeze selected artwork-repair package") { packageKind = "artwork-repair"; confirmPackage = true }.disabled(!audit.items.contains { selectedPaths.contains($0.videoPath) && $0.artworkRepairReady } || working)
@@ -239,6 +240,20 @@ private struct MovieAuditView: View {
     private func freezeSelected() { guard let audit = session.movieAudit else { return }; let eligible = audit.items.filter { selectedPaths.contains($0.videoPath) && (packageKind == "sidecar" ? $0.sidecarReady : packageKind == "artwork-repair" ? $0.artworkRepairReady : packageKind == "multipart" ? $0.multiPartReady : $0.preservationReady) }; guard !eligible.isEmpty else { return }; working = true; Task { defer { working = false }; do { let job = try await session.client.freezeMoviePackage(packageKind, videoPaths: eligible.map(\.videoPath)); status = "Frozen job \(job.id) created for \(eligible.count) selected movie(s)."; await session.refresh() } catch { status = error.localizedDescription; errorMessage = error.localizedDescription } } }
     private func filteredAuditItems(from audit: CompanionMovieAuditReport) -> [CompanionMovieAuditItem] { switch auditFilter { case "needsFolder": audit.items.filter(\.preservationReady); case "multipart": audit.items.filter(\.isMultiPart); case "artworkRepair": audit.items.filter(\.artworkRepairReady); case "tmdbMatch": audit.items.filter(\.requiresTMDBMatch); case "unextractable": audit.items.filter(\.cannotExtractTitle); default: audit.items } }
     private func elapsedTime(since start: Date, now: Date) -> String { let seconds = max(0, Int(now.timeIntervalSince(start))); return String(format: "%d:%02d", seconds / 60, seconds % 60) }
+}
+
+private struct TMDBMatchView: View {
+    @EnvironmentObject private var session: CompanionSession
+    let items: [CompanionMovieAuditItem]
+    @State private var target = ""
+    @State private var query = ""
+    @State private var results = [CompanionTMDBMovie]()
+    @State private var chosen: CompanionTMDBMovie?
+    @State private var status = "Choose a local movie, search TMDB, then review one match."
+    @State private var working = false
+    var body: some View { List { Section("Local movie") { Picker("Movie", selection: $target) { Text("Choose a movie").tag(""); ForEach(items) { Text(URL(fileURLWithPath: $0.videoPath).deletingPathExtension().lastPathComponent).tag($0.videoPath) } }.onChange(of: target) { _, path in if query.isEmpty { query = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent } } }; Section("TMDB search") { TextField("Movie title", text: $query); Button("Search TMDB") { search() }.disabled(target.isEmpty || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || working); ForEach(results) { result in Button { chosen = result } label: { VStack(alignment: .leading) { Text(result.title); Text("TMDB \(result.tmdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary); if let overview = result.overview { Text(overview).font(.caption).lineLimit(2).foregroundStyle(.secondary) } } } } }; if let chosen { Section("Reviewed match") { Text("\(chosen.title)\(chosen.year.map { " (\($0))" } ?? "")"); Button("Freeze this TMDB match") { freeze(chosen) }.disabled(working) } }; Section { Text(status).font(.footnote).foregroundStyle(.secondary) } }.navigationTitle("TMDB match") }
+    private func search() { working = true; Task { defer { working = false }; do { results = try await session.client.searchMovies(query); status = "Review the TMDB results, then select one." } catch { status = error.localizedDescription } } }
+    private func freeze(_ result: CompanionTMDBMovie) { guard !target.isEmpty else { return }; working = true; Task { defer { working = false }; do { let job = try await session.client.freezeTMDBPackage(videoPath: target, tmdbID: result.tmdbID); status = "Frozen job \(job.id) created. Dry-run it before apply."; await session.refresh() } catch { status = error.localizedDescription } } }
 }
 
 private struct TVToolsView: View {
