@@ -41,6 +41,12 @@ public struct EmbeddedMovieBundleItem: Sendable {
     public init(source: URL, title: String, creationDate: String?, artwork: Data?) { self.source = source; self.title = title; self.creationDate = creationDate; self.artwork = artwork }
 }
 
+/// An artwork-only repair. The existing valid NFO is deliberately left alone.
+public struct EmbeddedArtworkRepairItem: Sendable {
+    public let source: URL; public let artwork: Data
+    public init(source: URL, artwork: Data) { self.source = source; self.artwork = artwork }
+}
+
 public protocol MovieMetadataSource: Sendable {
     func searchMovies(named query: String) async throws -> [MovieSearchResult]
     func movie(id: Int) async throws -> Movie

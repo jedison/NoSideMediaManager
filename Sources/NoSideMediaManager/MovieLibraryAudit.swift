@@ -12,6 +12,8 @@ public struct MovieAuditItem: Codable, Sendable, Equatable {
     public var isMultiPart: Bool { folderState == .sharedMultiPart }
     public var isPreservationReady: Bool { state == .complete && nfoIsValid == true && tmdbID != nil && folderState == .needsNormalization }
     public var isMultiPartPreservationReady: Bool { state == .complete && nfoIsValid == true && tmdbID != nil && folderState == .sharedMultiPart }
+    public var isArtworkRepairReady: Bool { state == .incompleteSidecars && nfoIsValid == true && tmdbID != nil && hasEmbeddedArtwork }
+    public var isEmbeddedSidecarReady: Bool { state == .embeddedMetadataNeedsSidecars && !(embeddedTitle?.isEmpty ?? true) }
 }
 public struct MovieLibraryHealthReport: Codable, Sendable, Equatable {
     public let items: [MovieAuditItem]; public let duplicateTMDBIDs: [String: [String]]; public let invalidNFOs: [String]; public let ignoredVideoFiles: [String]

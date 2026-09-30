@@ -189,6 +189,30 @@ public enum PortableJobBundle {
         try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
         return manifest
     }
+    /// Freezes extracted poster artwork only. This is for a valid existing NFO
+    /// which must be preserved rather than regenerated from the container.
+    @discardableResult
+    public static func createEmbeddedArtworkRepairs(at requestedBundle: URL, libraryRoot: URL, items: [EmbeddedArtworkRepairItem], fileManager: FileManager = .default) throws -> PortableJobManifest {
+        guard !items.isEmpty else { throw MoviePreservationBundleError.emptyPlan }
+        let bundle = availableOutputURL(for: requestedBundle, fileManager: fileManager)
+        let root = libraryRoot.standardizedFileURL; let jobID = "mmm-\(UUID().uuidString.lowercased())"
+        try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
+        var generated = [String](); var sources = [String: URL]()
+        for item in items {
+            let sourceRelative = try relative(item.source, to: root); sources[sourceRelative] = item.source
+            let imagePath = replacingExtension(sourceRelative, with: "jpg")
+            let target = generatedURL(for: imagePath, in: bundle)
+            try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try item.artwork.write(to: target, options: .atomic)
+            generated.append(imagePath)
+        }
+        let facade = TVSeries(tvdbID: 0, title: "Embedded artwork repair")
+        let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: [], generatedFiles: generated.sorted(), notes: ["Poster artwork was extracted from the selected video containers. Existing valid NFO files are preserved unchanged."], mediaKind: "movie", metadataProvider: "embedded", sourceFingerprints: fingerprints(for: sources))
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
+        try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
+        return manifest
+    }
     /// Creates a portable single-movie transaction. It writes only `bundle`,
     /// never the reviewed movie folder.
     @discardableResult

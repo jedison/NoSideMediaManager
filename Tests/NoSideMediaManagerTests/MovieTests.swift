@@ -61,6 +61,24 @@ import Testing
     try runMovieScript(bundle.appendingPathComponent("apply.sh"), [root.path]); #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("One (2001).mp4").path)); #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Two (2002).mkv").path))
 }
 
+@Test func artworkRepairWritesOnlyPosterAndPreservesExistingNFO() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let source = root.appendingPathComponent("The Graduate.mp4")
+    let nfo = root.appendingPathComponent("The Graduate.nfo")
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data("video".utf8).write(to: source); try Data("existing TMDB NFO".utf8).write(to: nfo)
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+    let manifest = try PortableJobBundle.createEmbeddedArtworkRepairs(at: bundle, libraryRoot: root, items: [.init(source: source, artwork: Data("poster".utf8))])
+    #expect(manifest.generatedFiles == ["The Graduate.jpg"])
+    try runMovieScript(bundle.appendingPathComponent("apply.sh"), [root.path])
+    #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("The Graduate.jpg").path))
+    #expect(try String(contentsOf: nfo) == "existing TMDB NFO")
+    try runMovieScript(bundle.appendingPathComponent("rollback.sh"), [root.path])
+    #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("The Graduate.jpg").path))
+    #expect(try String(contentsOf: nfo) == "existing TMDB NFO")
+}
+
 @Test func movieFolderNormalizationIsExplicitAndKeepsCanonicalStem() throws {
     let plan = MoviePlanDocument(libraryPath: "/Library/Movies", entries: [.init(sourcePath: "/Library/Movies/Incoming/Matrix.mkv", tmdbID: 603)])
     let movie = Movie(tmdbID: 603, title: "The Matrix", releaseDate: "1999-03-30")

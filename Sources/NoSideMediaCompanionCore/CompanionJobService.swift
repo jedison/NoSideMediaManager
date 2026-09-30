@@ -1,7 +1,7 @@
 import Foundation
 import NoSideMediaManager
 
-public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalidOperation, alreadyApplied, tvdbNotConfigured, invalidSelection, incompleteMultiPartSelection, completedMovieAuditRequired, tvFolderNotFound, unextractableTitles([String]); public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .incompleteMultiPartSelection: "Select every part of each shared multi-part movie before freezing it."; case .completedMovieAuditRequired: "Complete a Movie audit before freezing a package."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library."; case .unextractableTitles(let names): "MMM could no longer extract a title from these selected video file(s): \(names.joined(separator: ", ")). Re-audit them, or use the TMDB review workflow." } } }
+public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalidOperation, alreadyApplied, tvdbNotConfigured, invalidSelection, incompleteMultiPartSelection, completedMovieAuditRequired, tvFolderNotFound, unextractableTitles([String]), unextractableArtwork([String]); public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .incompleteMultiPartSelection: "Select every part of each shared multi-part movie before freezing it."; case .completedMovieAuditRequired: "Complete a Movie audit before freezing a package."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library."; case .unextractableTitles(let names): "MMM could no longer extract a title from these selected video file(s): \(names.joined(separator: ", ")). Re-audit them, or use the TMDB review workflow."; case .unextractableArtwork(let names): "MMM could no longer extract poster artwork from: \(names.joined(separator: ", ")). Re-audit them before packaging." } } }
 
 /// The only component allowed to invoke a frozen job script. It resolves job
 /// IDs from manifests under one configured directory, preventing path injection.
@@ -80,6 +80,21 @@ public actor CompanionJobService {
         guard missingTitles.isEmpty else { throw CompanionJobServiceError.unextractableTitles(missingTitles.sorted()) }
         let bundle = configuration.jobsRoot.appendingPathComponent("NoSide-MMM-Sidecars-\(UUID().uuidString.lowercased())-job", isDirectory: true)
         return CompanionJob(manifest: try PortableJobBundle.createEmbeddedMovies(at: bundle, libraryRoot: configuration.libraryRoot, items: extracted))
+    }
+    public func freezeArtworkRepairPackage(videoPaths: [String]) async throws -> CompanionJob {
+        let requested = Set(videoPaths); guard !requested.isEmpty else { throw CompanionJobServiceError.invalidSelection }
+        let selected = try completedMovieAuditItems().filter { requested.contains($0.videoPath) }
+        guard selected.count == requested.count, selected.allSatisfy(\.isArtworkRepairReady) else { throw CompanionJobServiceError.invalidSelection }
+        var repairs = [EmbeddedArtworkRepairItem](); var missingArtwork = [String]()
+        for item in selected {
+            let source = URL(fileURLWithPath: item.videoPath)
+            let metadata = try await MediaFileInspector.extractMovieMetadata(source)
+            guard let artwork = metadata.artwork else { missingArtwork.append(source.lastPathComponent); continue }
+            repairs.append(.init(source: source, artwork: artwork))
+        }
+        guard missingArtwork.isEmpty else { throw CompanionJobServiceError.unextractableArtwork(missingArtwork.sorted()) }
+        let bundle = configuration.jobsRoot.appendingPathComponent("NoSide-MMM-Artwork-Repair-\(UUID().uuidString.lowercased())-job", isDirectory: true)
+        return CompanionJob(manifest: try PortableJobBundle.createEmbeddedArtworkRepairs(at: bundle, libraryRoot: configuration.libraryRoot, items: repairs))
     }
     private func completedMovieAuditItems() throws -> [MovieAuditItem] {
         guard movieAuditSnapshot.phase == .complete, let report = movieAuditSnapshot.report else { throw CompanionJobServiceError.completedMovieAuditRequired }
