@@ -7,7 +7,7 @@ struct CompanionRootView: View {
 
     var body: some View {
         NavigationStack {
-            Group { if session.server == nil { PairingView() } else { JobListView() } }
+            Group { if session.server == nil { PairingView() } else { CompanionHomeView() } }
                 .navigationTitle("microMM")
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
@@ -140,11 +140,57 @@ private struct CompanionInfoView: View {
     }
 }
 
+private struct CompanionHomeView: View {
+    @EnvironmentObject private var session: CompanionSession
+    var body: some View {
+        List {
+            Section {
+                NavigationLink(destination: MovieAuditView()) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label("Movies", systemImage: "film.stack")
+                            .font(.title3.weight(.semibold))
+                        Text(movieSubtitle).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Button { session.startMovieAudit() } label: {
+                    Label(session.movieAuditProgress?.phase == "running" ? "Movie audit already running" : session.movieAuditProgress?.phase == "complete" ? "Run new movie audit" : "Audit Movie library", systemImage: "magnifyingglass")
+                }
+                .disabled(session.isMovieAuditLoading)
+                if let progress = session.movieAuditProgress, progress.phase == "running" {
+                    ProgressView(value: Double(progress.completedVideos), total: Double(max(progress.totalVideos, 1))) {
+                        Text(progress.totalVideos == 0 ? "Finding movie files…" : "\(progress.completedVideos) of \(progress.totalVideos) movies audited")
+                    }.progressViewStyle(.linear)
+                }
+            } header: { Text("Movies") }
+            Section {
+                NavigationLink(destination: TVToolsView()) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label("TV shows", systemImage: "tv")
+                            .font(.title3.weight(.semibold))
+                        Text("Choose a show folder, search TVDB, and review mappings.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } header: { Text("TV") }
+            Section {
+                NavigationLink("Frozen packages (\(session.jobs.count))", destination: JobListView())
+                Button { Task { await session.refresh() } } label: { Label("Refresh", systemImage: "arrow.clockwise") }.disabled(session.isLoading)
+            } header: { Text("Packages") }
+            Section { Text(session.status).font(.footnote).foregroundStyle(.secondary) }
+        }
+        .navigationTitle("microMM")
+        .task { await session.refreshMovieAuditStatus() }
+    }
+    private var movieSubtitle: String {
+        guard let audit = session.movieAudit else { return "Audit the configured Movie library." }
+        let attention = audit.items.filter { $0.state != "complete" }.count
+        return "\(audit.totalVideos) videos · \(attention) need attention"
+    }
+}
+
 private struct JobListView: View {
     @EnvironmentObject private var session: CompanionSession
     var body: some View {
         List {
-            Section { NavigationLink("Remote audit & TVDB search", destination: RemoteToolsView()) }
             Section {
                 Text(session.status).font(.footnote).foregroundStyle(.secondary)
                 Button { Task { await session.refresh() } } label: { Label("Refresh jobs", systemImage: "arrow.clockwise") }
