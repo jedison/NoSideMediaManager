@@ -15,6 +15,9 @@ while the media server/iPhone deployment window is unavailable:
   `movie-ignore-list` and `movie-ignore-add`. Rules remain visible,
   line-oriented `.noside-mmm-ignore` configuration at the library root;
   traversal and hidden-file rules are rejected.
+- Companion-initiated dry-run, apply, and rollback operations are retained as
+  append-only `operation-history.json` records beside each frozen package and
+  shown in the iPhone package detail view after reconnecting.
 - Build/test verification: 51 Swift tests pass and the iPhone Release target
   compiles. No package, server configuration, or library content was changed.
 

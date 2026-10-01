@@ -40,3 +40,22 @@ import Testing
     let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: library, token: "secret", version: "test"))
     #expect(await service.jobs().first?.state == .rolledBack)
 }
+
+@Test func companionRetainsOperationHistoryBesideFrozenJob() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let jobs = root.appendingPathComponent("jobs", isDirectory: true); let library = root.appendingPathComponent("library", isDirectory: true); let job = jobs.appendingPathComponent("history", isDirectory: true)
+    try FileManager.default.createDirectory(at: job, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: library, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let manifest = PortableJobManifest(jobID: "mmm-history", series: TVSeries(tvdbID: 1, title: "Fixture"), moves: [], generatedFiles: [])
+    try JSONEncoder().encode(manifest).write(to: job.appendingPathComponent("manifest.json"))
+    let script = job.appendingPathComponent("apply.sh")
+    try "#!/bin/sh\necho dry-run fixture\n".write(to: script, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+    let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: library, token: "secret", version: "test"))
+    let result = try await service.run(jobID: manifest.jobID, operation: .dryRun)
+    #expect(result.succeeded)
+    let history = try await service.history(jobID: manifest.jobID)
+    #expect(history.count == 1)
+    #expect(history.first?.operation == .dryRun)
+    #expect(history.first?.log.contains("dry-run fixture") == true)
+}

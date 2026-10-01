@@ -11,6 +11,7 @@ struct CompanionClient {
     }
     func health() async throws -> CompanionServerInfo { try await perform(try request(path: "/v1/health")) }
     func jobs() async throws -> [CompanionJob] { try await perform(try request(path: "/v1/jobs")) }
+    func history(jobID: String) async throws -> [CompanionOperationHistoryEntry] { try await perform(try request(path: "/v1/jobs/\(jobID)/history")) }
     /// Full libraries inspect embedded container metadata and can legitimately
     /// take several minutes on the media server.
     func startMovieAudit() async throws -> CompanionMovieAuditSnapshot { try await perform(try request(path: "/v1/audit/movies", method: "POST")) }

@@ -147,7 +147,19 @@ public actor CompanionJobService {
         arguments.append(configuration.libraryRoot.path)
         let process = Process(); let output = Pipe(); process.executableURL = script; process.arguments = arguments; process.standardOutput = output; process.standardError = output
         try process.run(); process.waitUntilExit(); let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        return CompanionOperationResult(jobID: manifest.jobID, operation: operation, succeeded: process.terminationStatus == 0, log: text)
+        let result = CompanionOperationResult(jobID: manifest.jobID, operation: operation, succeeded: process.terminationStatus == 0, log: text)
+        appendHistory(.init(operation: operation, succeeded: result.succeeded, log: text), in: directory)
+        return result
+    }
+    public func history(jobID: String) throws -> [CompanionOperationHistoryEntry] {
+        guard let (directory, _) = manifests().first(where: { $0.1.jobID == jobID }) else { throw CompanionJobServiceError.jobNotFound }
+        return (try? JSONDecoder().decode([CompanionOperationHistoryEntry].self, from: Data(contentsOf: directory.appendingPathComponent("operation-history.json")))) ?? []
+    }
+    private func appendHistory(_ entry: CompanionOperationHistoryEntry, in directory: URL) {
+        let url = directory.appendingPathComponent("operation-history.json")
+        var entries = (try? JSONDecoder().decode([CompanionOperationHistoryEntry].self, from: Data(contentsOf: url))) ?? []
+        entries.append(entry)
+        if let data = try? JSONEncoder().encode(entries) { try? data.write(to: url, options: .atomic) }
     }
     private func manifests() -> [(URL, PortableJobManifest)] {
         guard let children = try? FileManager.default.contentsOfDirectory(at: configuration.jobsRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else { return [] }
