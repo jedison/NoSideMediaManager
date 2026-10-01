@@ -2,15 +2,22 @@
 
 ## Next
 
+- Deploy and smoke-test the local-only shared-TV-audit/ignore-rules release
+  when the media server and iPhone deployment window reopens. Verify that a
+  macOS request and iPhone request for the same show attach to one server audit.
 - Pair the iOS Companion with the media server using a real frozen job and validate
   dry-run, explicit apply, rollback, and log display before broader use.
 - Move the iOS pairing token from UserDefaults to Keychain; add QR pairing and
   Bonjour discovery after the first network pilot.
 - Add allowed multiple media roots/job-root mapping to the Companion server.
-- Complete the SwiftUI movie review queue: display TMDB and TVDB candidates for each bare item, require a per-file selection, and export one batch package without falling back to the CLI. The existing-NFO preservation route is now available in the UI.
+- Complete the macOS SwiftUI movie review queue: display TMDB and TVDB candidates for each bare item, require a per-file selection, and export one batch package without falling back to the CLI. The iPhone TMDB route and existing-NFO preservation route are available.
 - Add optional TMDB backdrop/fanart downloads with explicit Emby/Kodi naming choices and per-item keep/download/replace review.
 - Extend embedded movie extraction to cast, crew, genre, studio, rating, and description where a container exposes them.
 - Add a human-readable HTML health report alongside the current JSON report.
+- Add an ignore-rule editor to the macOS and iPhone UI, backed by the existing
+  visible `.noside-mmm-ignore` file and with an audit preview before save.
+- Retain structured dry-run/apply/rollback history in each package rather than
+  only showing the most recent operation result in the UI.
 - Build the explicit local ↔ canonical ↔ consumer mapping review screen, using
   GBBO's UK/Netflix/Emby numbering as the acceptance case.
 - Run a copied-one-season GBBO acceptance pilot: scan, map, freeze a portable
@@ -40,6 +47,8 @@
   retain an explicit per-series canonical-order choice.
 - Add subtitle-sidecar inspection and language-aware review beyond the current
   portable rename preservation.
+- Add optional Emby library rescan guidance/launch integration after a package
+  applies; keep it opt-in and never couple it to a mutation.
 
 ## Decisions to make
 

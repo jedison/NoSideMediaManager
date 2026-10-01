@@ -25,6 +25,18 @@ public enum MovieLibraryAudit {
     /// relative files or directory names, one per line. Blank lines and `#`
     /// comments are ignored. It is deliberately local XML-adjacent state: no
     /// database and no machine-specific paths are required.
+    public enum IgnoreRuleError: LocalizedError { case invalidRule; public var errorDescription: String? { "Ignore rules must be relative paths inside the movie library." } }
+    public static func ignoreRules(in directory: URL, fileManager: FileManager = .default) -> [String] { customIgnoreRules(in: directory, fileManager: fileManager).sorted() }
+    /// Updates only MMM's small, human-editable library configuration file.
+    /// It never moves, renames, or changes a media item.
+    public static func addIgnoreRule(_ rule: String, in directory: URL, fileManager: FileManager = .default) throws {
+        let cleaned = rule.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !cleaned.isEmpty, !cleaned.hasPrefix("."), !cleaned.split(separator: "/").contains("..") else { throw IgnoreRuleError.invalidRule }
+        var rules = customIgnoreRules(in: directory, fileManager: fileManager)
+        rules.insert(cleaned)
+        let output = "# NoSide Media Manager audit exclusions (relative to this library root)\n" + rules.sorted().joined(separator: "\n") + "\n"
+        try output.write(to: directory.appendingPathComponent(".noside-mmm-ignore"), atomically: true, encoding: .utf8)
+    }
     static func ignoredVideoFiles(in directory: URL, fileManager: FileManager = .default) -> [URL] {
         let rules = customIgnoreRules(in: directory, fileManager: fileManager)
         return MediaFileInspector.videoFiles(in: directory, fileManager: fileManager)

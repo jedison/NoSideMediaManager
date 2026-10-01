@@ -9,6 +9,8 @@ public actor CompanionJobService {
     private let configuration: CompanionConfiguration
     private var movieAuditSnapshot = CompanionMovieAuditSnapshot()
     private var movieAuditTask: Task<Void, Never>?
+    private var tvAuditSnapshots = [String: CompanionTVAuditSnapshot]()
+    private var tvAuditTasks = [String: Task<Void, Never>]()
     public init(configuration: CompanionConfiguration) {
         self.configuration = configuration
         let cache = configuration.jobsRoot.appendingPathComponent(".noside-mmm-last-movie-audit.json")
@@ -42,7 +44,39 @@ public actor CompanionJobService {
         movieAuditTask = nil
     }
     public func tvFolders() -> [CompanionTVFolder] { ((try? FileManager.default.contentsOfDirectory(at: configuration.tvLibraryRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []).filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }.map { CompanionTVFolder(name: $0.lastPathComponent) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }
-    public func tvAudit(folder: String) async throws -> CompanionTVAuditReport { guard let selected = tvFolders().first(where: { $0.name == folder }) else { throw CompanionJobServiceError.tvFolderNotFound }; let report = try await TVLibraryAudit.inspect(directory: configuration.tvLibraryRoot.appendingPathComponent(selected.name, isDirectory: true)); return .init(folder: selected.name, report: report) }
+    public func startTVAudit(folder: String) throws -> CompanionTVAuditSnapshot {
+        guard let selected = tvFolders().first(where: { $0.name == folder }) else { throw CompanionJobServiceError.tvFolderNotFound }
+        loadTVAuditIfNeeded(folder: selected.name)
+        if let snapshot = tvAuditSnapshots[selected.name], snapshot.phase == .running { return snapshot }
+        let snapshot = CompanionTVAuditSnapshot(folder: selected.name, phase: .running, startedAt: Date())
+        tvAuditSnapshots[selected.name] = snapshot
+        let directory = configuration.tvLibraryRoot.appendingPathComponent(selected.name, isDirectory: true)
+        tvAuditTasks[selected.name] = Task { [weak self, directory, folder = selected.name] in
+            do { await self?.completeTVAudit(folder: folder, report: try await TVLibraryAudit.inspect(directory: directory)) }
+            catch { await self?.failTVAudit(folder: folder, error: error.localizedDescription) }
+        }
+        return snapshot
+    }
+    public func tvAuditStatus(folder: String) throws -> CompanionTVAuditSnapshot {
+        guard tvFolders().contains(where: { $0.name == folder }) else { throw CompanionJobServiceError.tvFolderNotFound }
+        loadTVAuditIfNeeded(folder: folder)
+        return tvAuditSnapshots[folder] ?? CompanionTVAuditSnapshot(folder: folder)
+    }
+    private func completeTVAudit(folder: String, report: TVLibraryAuditReport) {
+        let snapshot = CompanionTVAuditSnapshot(folder: folder, phase: .complete, startedAt: tvAuditSnapshots[folder]?.startedAt, completedAt: Date(), report: .init(folder: folder, report: report))
+        tvAuditSnapshots[folder] = snapshot
+        if let data = try? JSONEncoder().encode(snapshot) { try? data.write(to: tvAuditCacheURL(folder), options: .atomic) }
+        tvAuditTasks[folder] = nil
+    }
+    private func failTVAudit(folder: String, error: String) { tvAuditSnapshots[folder] = .init(folder: folder, phase: .failed, startedAt: tvAuditSnapshots[folder]?.startedAt, completedAt: Date(), error: error); tvAuditTasks[folder] = nil }
+    private func tvAuditCacheURL(_ folder: String) -> URL { configuration.jobsRoot.appendingPathComponent(".noside-mmm-last-tv-audit-" + folder.utf8.map { String(format: "%02x", $0) }.joined() + ".json") }
+    private func loadTVAuditIfNeeded(folder: String) {
+        guard tvAuditSnapshots[folder] == nil,
+              let data = try? Data(contentsOf: tvAuditCacheURL(folder)),
+              let saved = try? JSONDecoder().decode(CompanionTVAuditSnapshot.self, from: data),
+              saved.phase == .complete else { return }
+        tvAuditSnapshots[folder] = saved
+    }
     public func reviewTV(seriesID: Int, folder: String) async throws -> CompanionTVMappingReview {
         guard let selected = tvFolders().first(where: { $0.name == folder }) else { throw CompanionJobServiceError.tvFolderNotFound }
         guard let credentials = configuration.tvdbCredentials else { throw CompanionJobServiceError.tvdbNotConfigured }

@@ -12,6 +12,7 @@ struct CompanionTVEpisode: Codable, Identifiable, Equatable { let videoPath: Str
 struct CompanionTVDuplicate: Codable, Identifiable, Equatable { let season: Int; let episode: Int; let videoPaths: [String]; var id: String { "S\(season)E\(episode)" } }
 struct CompanionTVAuditInner: Codable, Equatable { let items: [CompanionTVEpisode]; let duplicates: [CompanionTVDuplicate]; let unnumberedCount: Int; let folderSeasonConflicts: Int }
 struct CompanionTVAuditReport: Codable, Equatable { let folder: String; let report: CompanionTVAuditInner }
+struct CompanionTVAuditSnapshot: Codable, Equatable { let folder: String; let phase: String; let startedAt: Date?; let completedAt: Date?; let report: CompanionTVAuditReport?; let error: String? }
 struct CompanionTVEpisodeChoice: Codable, Identifiable, Equatable { let tvdbID: Int; let season: Int; let episode: Int; let title: String; var id: Int { tvdbID } }
 struct CompanionTVMappingReviewItem: Codable, Identifiable, Equatable { let videoPath: String; let localSeason: Int; let localEpisode: Int; let folderSeason: Int?; let embeddedTitle: String?; let proposedEpisode: CompanionTVEpisodeChoice?; var id: String { videoPath } }
 struct CompanionTVMappingReview: Codable, Equatable { let folder: String; let seriesTVDBID: Int; let seriesTitle: String; let mappings: [CompanionTVMappingReviewItem]; let unmatchedCount: Int }

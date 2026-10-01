@@ -281,6 +281,16 @@ import Testing
     #expect(MovieLibraryAudit.isIgnored(URL(fileURLWithPath: "/Movies/Bonus/clip.m4v"), libraryRoot: root, customRules: ["Bonus"]))
 }
 
+@Test func movieAuditIgnoreRulesStayPlainTextAndRejectTraversal() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try MovieLibraryAudit.addIgnoreRule("Truth in Motion.ite/videos", in: root)
+    #expect(MovieLibraryAudit.ignoreRules(in: root) == ["Truth in Motion.ite/videos"])
+    #expect(MovieLibraryAudit.isIgnored(root.appendingPathComponent("Truth in Motion.ite/videos/loop.m4v"), libraryRoot: root, customRules: Set(MovieLibraryAudit.ignoreRules(in: root))))
+    #expect(throws: MovieLibraryAudit.IgnoreRuleError.self) { try MovieLibraryAudit.addIgnoreRule("../everything", in: root) }
+}
+
 @Test func selectedEmbeddedMoviesFreezeAsOneSidecarPackage() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let first = root.appendingPathComponent("one.mp4"); let second = root.appendingPathComponent("two.mkv"); let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

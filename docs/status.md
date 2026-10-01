@@ -1,5 +1,23 @@
 # Delivery status — 2026-09-29
 
+## Local-only release candidate — 2026-10-01
+
+The following is built and verified locally, but deliberately not deployed
+while the media server/iPhone deployment window is unavailable:
+
+- TV folder audits are now shared Companion work. Starting the same show from
+  macOS or iPhone joins its in-flight audit rather than scanning it twice.
+  The last completed per-show result is retained by the Companion in the Jobs
+  folder and is surfaced when the folder is selected again.
+- The iPhone TV flow now shows the selected folder's active audit state and
+  last-completed time, alongside duplicate-episode candidates.
+- Movie-library ignore rules have a safe CLI workflow:
+  `movie-ignore-list` and `movie-ignore-add`. Rules remain visible,
+  line-oriented `.noside-mmm-ignore` configuration at the library root;
+  traversal and hidden-file rules are rejected.
+- Build/test verification: 51 Swift tests pass and the iPhone Release target
+  compiles. No package, server configuration, or library content was changed.
+
 ## Shipped
 
 - Integrated macOS MMM Companion server and native iOS companion project;
@@ -22,6 +40,8 @@
 - macOS and iPhone now present frozen packages for dry-run, confirmed apply,
   rollback, and readable result logs. macOS Companion auto-starts from saved
   settings when microMM opens.
+- The iPhone landing screen has direct Movie and TV entry points; frozen jobs
+  remain available as a secondary package-history view.
 
 ## Operating model
 
