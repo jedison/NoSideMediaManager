@@ -20,6 +20,11 @@ public actor CompanionJobService {
     }
     public func serverInfo() -> CompanionServerInfo { .init(version: configuration.version, libraryRoot: configuration.libraryRoot.path) }
     public func jobs() -> [CompanionJob] { manifests().map { directory, manifest in CompanionJob(manifest: manifest, state: state(for: directory, manifest: manifest), createdAt: (try? directory.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? nil) }.sorted { ($0.createdAt ?? .distantPast, $0.id) > ($1.createdAt ?? .distantPast, $1.id) } }
+    /// Resolves a manifest ID to its inspected, frozen package directory. The
+    /// UI may reveal it, but never receives a caller-supplied filesystem path.
+    public func packageDirectory(jobID: String) -> URL? {
+        manifests().first(where: { $0.1.jobID == jobID })?.0
+    }
     public func startMovieAudit() -> CompanionMovieAuditSnapshot {
         if movieAuditSnapshot.phase == .running { return movieAuditSnapshot }
         movieAuditSnapshot = .init(phase: .running, startedAt: Date())

@@ -23,6 +23,12 @@ while the media server/iPhone deployment window is unavailable:
   result for each, then freeze one folder-normalising package. It writes the
   standard locked NFO and poster where available, but never applies the
   package or changes a movie from the search view.
+- Within that batch review, each chosen movie exposes its proposed full
+  destination path and a separate TMDB poster download/replace switch before
+  it is frozen. Existing local sidecars remain move-preserved.
+- Package Operations now has text/state filters, explicit ready/applied/
+  rolled-back labels, unavailable-artwork warnings, retained operation logs,
+  and a safe reveal action for a selected frozen package.
 - macOS also exposes the current `.noside-mmm-ignore` rules and an explicit
   add-rule control. The configuration remains a human-editable text file.
 - Movie health can be exported as a standalone HTML report from macOS or with

@@ -10,14 +10,15 @@
 - Move the iOS pairing token from UserDefaults to Keychain; add QR pairing and
   Bonjour discovery after the first network pilot.
 - Add allowed multiple media roots/job-root mapping to the Companion server.
-- Add editable per-item destination and sidecar choices to the macOS batch
-  TMDB review queue; it currently creates the standard normalized layout.
+- Add a visual per-sidecar keep/move/replace review to the macOS batch TMDB
+  queue. It now supports an editable destination and a per-movie TMDB-poster
+  choice; other existing sidecars travel with their video.
 - Add optional TMDB backdrop/fanart downloads with explicit Emby/Kodi naming choices and per-item keep/download/replace review.
 - Extend embedded movie extraction to cast, crew, genre, studio, rating, and description where a container exposes them.
 - Add an ignore-rule editor to the macOS and iPhone UI, backed by the existing
   visible `.noside-mmm-ignore` file and with an audit preview before save.
-- Retain structured dry-run/apply/rollback history in each package rather than
-  only showing the most recent operation result in the UI.
+- Add export/copy controls for structured package-operation history. It is
+  already retained as append-only `operation-history.json` beside each job.
 - Build the explicit local ↔ canonical ↔ consumer mapping review screen, using
   GBBO's UK/Netflix/Emby numbering as the acceptance case.
 - Run a copied-one-season GBBO acceptance pilot: scan, map, freeze a portable
