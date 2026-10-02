@@ -354,11 +354,11 @@ private struct MovieToolsView: View {
                 Button("Freeze artwork-repair package…", action: createArtworkRepairPackage).disabled(session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isArtworkRepairReady }.isEmpty || session.isWorking)
                 Button("Freeze preservation package…", action: createSelectedPreservationPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isPreservationReady } || session.isWorking)
                 Button("Freeze multi-part package…", action: createSelectedMultiPartPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isMultiPartPreservationReady } || session.isWorking)
-                Button("Review TMDB match…") { showTMDBReview = true }.disabled(tmdbSelection == nil || session.isWorking)
+                Button("Review TMDB matches…") { showTMDBReview = true }.disabled(tmdbSelections.isEmpty || session.isWorking)
             }
             Text("Artwork repair extracts only an embedded poster and preserves the existing valid NFO. Preservation packages move only complete, valid-NFO movies. TMDB matches and unextractable containers need review first.").font(.caption).foregroundStyle(.secondary)
             Text(session.status).foregroundStyle(.secondary).lineLimit(2)
-        }.padding(24).sheet(isPresented: $showTMDBReview) { if let item = tmdbSelection, let folder = session.folder { TMDBMovieReviewSheet(item: item, libraryRoot: folder) { message in session.status = message; session.selectedPaths.remove(item.videoPath) } } }
+        }.padding(24).sheet(isPresented: $showTMDBReview) { if !tmdbSelections.isEmpty, let folder = session.folder { TMDBMovieReviewSheet(items: tmdbSelections, libraryRoot: folder) { message in session.status = message; session.selectedPaths.subtract(tmdbSelections.map(\.videoPath)) } } }
     }
     private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; if let folder = session.folder { panel.directoryURL = folder }; guard panel.runModal() == .OK, let url = panel.url else { return }; session.folder = url; session.status = "Folder selected. Click Audit selected Movie folder to review it." }
     private var movieFolderIsSaved: Bool {
@@ -367,7 +367,7 @@ private struct MovieToolsView: View {
     }
     private func selectedItems(of state: MovieSidecarState) -> [MovieAuditItem] { session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == state } }
     private var filteredItems: [MovieAuditItem] { switch session.auditFilter { case "needsFolder": session.items.filter(\.isPreservationReady); case "multipart": session.items.filter(\.isMultiPart); case "artworkRepair": session.items.filter(\.isArtworkRepairReady); case "tmdbMatch": session.items.filter { $0.state == .bareNeedsTMDB }; case "unextractable": session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }; default: session.items } }
-    private var tmdbSelection: MovieAuditItem? { let selected = session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == .bareNeedsTMDB }; return selected.count == 1 ? selected[0] : nil }
+    private var tmdbSelections: [MovieAuditItem] { session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == .bareNeedsTMDB } }
     private func addIgnoreRule() { guard let folder = session.folder else { return }; do { try MovieLibraryAudit.addIgnoreRule(ignoreRule, in: folder); session.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); session.status = "Added audit exclusion: \(ignoreRule)"; ignoreRule = "" } catch { session.status = error.localizedDescription } }
     private func exportHealthReport() { guard let folder = session.folder else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "noside-mmm-movie-health.html"; panel.message = "Save a read-only movie health report"; guard panel.runModal() == .OK, let output = panel.url else { return }; session.isWorking = true; session.status = "Creating a readable movie health report…"; Task { let report = await MovieLibraryAudit.health(directory: folder); do { try MovieLibraryAudit.htmlReport(report).write(to: output, atomically: true, encoding: .utf8); session.status = "Saved health report: \(output.lastPathComponent)" } catch { session.status = error.localizedDescription }; session.isWorking = false } }
     private func folderLabel(_ state: MovieFolderState) -> String { switch state { case .normalized: "folder ready"; case .needsNormalization: "needs folder normalisation"; case .metadataIncomplete: "folder not assessed"; case .sharedMultiPart: "shared multi-part sidecars" } }
@@ -413,24 +413,56 @@ private struct MovieToolsView: View {
 
 @MainActor
 private struct TMDBMovieReviewSheet: View {
-    let item: MovieAuditItem
+    let items: [MovieAuditItem]
     let libraryRoot: URL
     let onFrozen: (String) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var currentPath = ""
     @State private var query = ""
     @State private var results = [MovieSearchResult]()
-    @State private var selectedTMDBID: Int?
-    @State private var status = "Search TMDB, select the correct film, then freeze a portable package."
+    @State private var matches = [String: Int]()
+    @State private var status = "Review a TMDB match for every selected movie, then freeze one portable package."
     @State private var working = false
     var body: some View { VStack(alignment: .leading, spacing: 14) {
-        Text("TMDB review").font(.title2.weight(.semibold))
-        Text(URL(fileURLWithPath: item.videoPath).lastPathComponent).foregroundStyle(.secondary)
-        HStack { TextField("TMDB search", text: $query); Button("Search") { search() }.disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || working) }
-        List(results, id: \.tmdbID, selection: $selectedTMDBID) { result in VStack(alignment: .leading) { Text(result.title); Text("TMDB \(result.tmdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary); if let overview = result.overview { Text(overview).font(.caption).lineLimit(2).foregroundStyle(.secondary) } }.tag(result.tmdbID) }.frame(minHeight: 240)
-        HStack { Button("Freeze selected TMDB match") { freeze() }.buttonStyle(.borderedProminent).disabled(selectedTMDBID == nil || working); Spacer(); Button("Cancel") { dismiss() } }
+        Text("TMDB batch review").font(.title2.weight(.semibold))
+        Text("\(matches.count) of \(items.count) selected movies matched").foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(items, id: \.videoPath) { item in
+                        Button {
+                            currentPath = item.videoPath
+                            select(item.videoPath)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(URL(fileURLWithPath: item.videoPath).lastPathComponent).lineLimit(1)
+                                    Text(matches[item.videoPath].map { "TMDB \($0)" } ?? "Needs a reviewed match")
+                                        .font(.caption)
+                                        .foregroundStyle(matches[item.videoPath] == nil ? .orange : .secondary)
+                                }
+                                Spacer()
+                                if matches[item.videoPath] != nil {
+                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                                }
+                            }
+                            .padding(8)
+                            .background(currentPath == item.videoPath ? Color.accentColor.opacity(0.16) : .clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .frame(minWidth: 230)
+            VStack(alignment: .leading, spacing: 10) { if let currentItem { Text(URL(fileURLWithPath: currentItem.videoPath).lastPathComponent).font(.headline).lineLimit(1); HStack { TextField("TMDB search", text: $query); Button("Search") { search() }.disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || working) }; List(results, id: \.tmdbID) { result in Button { matches[currentPath] = result.tmdbID; status = "TMDB \(result.tmdbID) selected for \(URL(fileURLWithPath: currentPath).lastPathComponent)." } label: { VStack(alignment: .leading) { Text(result.title); Text("TMDB \(result.tmdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary); if let overview = result.overview { Text(overview).font(.caption).lineLimit(2).foregroundStyle(.secondary) } } }.buttonStyle(.plain) } } else { Text("Choose a local movie.").foregroundStyle(.secondary) } }.frame(minWidth: 340) }.frame(minHeight: 300)
+        HStack { Button("Freeze batch of \(items.count) reviewed movies") { freeze() }.buttonStyle(.borderedProminent).disabled(matches.count != items.count || working); Spacer(); Button("Cancel") { dismiss() } }
         Text(status).font(.caption).foregroundStyle(.secondary)
-    }.padding(24).frame(minWidth: 560, minHeight: 420).onAppear { query = URL(fileURLWithPath: item.videoPath).deletingPathExtension().lastPathComponent } }
+    }.padding(24).frame(minWidth: 700, minHeight: 500).onAppear { selectFirstUnmatched() }.onChange(of: currentPath) { path in select(path) } }
+    private var currentItem: MovieAuditItem? { items.first { $0.videoPath == currentPath } }
     private func tmdb() throws -> TMDBClient { guard let key = TVDBCredentialStore.value(named: "TMDB_API_KEY"), !key.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "Add the TMDB API key in Settings first."]) }; return TMDBClient(apiKey: key) }
-    private func search() { working = true; Task { defer { working = false }; do { results = try await tmdb().searchMovies(named: query); status = "Select one reviewed TMDB result." } catch { status = error.localizedDescription } } }
-    private func freeze() { guard let selectedTMDBID else { return }; working = true; Task { defer { working = false }; do { let movie = try await tmdb().movie(id: selectedTMDBID); let plan = MoviePlanDocument(libraryPath: libraryRoot.path, entries: [.init(sourcePath: item.videoPath, tmdbID: movie.tmdbID)]); guard let path = try plan.normalized(movies: [movie.tmdbID: movie], oneFolderPerMovie: true).entries.first?.destinationPath else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "MMM could not prepare a destination."]) }; let parent = configuredJobsFolder() ?? FileManager.default.temporaryDirectory; let bundle = parent.appendingPathComponent("NoSide-MMM-TMDB-\(UUID().uuidString.lowercased())-job", isDirectory: true); let manifest = try await PortableJobBundle.createMovie(at: bundle, libraryRoot: libraryRoot, movie: movie, source: URL(fileURLWithPath: item.videoPath), destination: URL(fileURLWithPath: path), notes: ["TMDB match was explicitly reviewed in the macOS app."]); onFrozen("Job \(manifest.jobID) created. Dry-run it before apply."); dismiss() } catch { status = error.localizedDescription } } }
+    private func selectFirstUnmatched() { currentPath = items.first(where: { matches[$0.videoPath] == nil })?.videoPath ?? items.first?.videoPath ?? ""; select(currentPath) }
+    private func select(_ path: String) { guard !path.isEmpty else { return }; query = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent; results = [] }
+    private func search() { working = true; Task { defer { working = false }; do { results = try await tmdb().searchMovies(named: query); status = "Choose the correct TMDB result for this movie." } catch { status = error.localizedDescription } } }
+    private func freeze() { guard matches.count == items.count else { return }; working = true; Task { defer { working = false }; do { let client = try tmdb(); var movies = [Int: Movie](); for id in Set(matches.values) { movies[id] = try await client.movie(id: id) }; let plan = MoviePlanDocument(libraryPath: libraryRoot.path, entries: items.compactMap { item in matches[item.videoPath].map { .init(sourcePath: item.videoPath, tmdbID: $0) } }); let normalized = try plan.normalized(movies: movies, oneFolderPerMovie: true); let bundleItems = try normalized.entries.map { entry -> MovieBundleItem in guard let id = entry.tmdbID, let movie = movies[id], let destination = entry.destinationPath else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "MMM could not prepare a destination."]) }; return .init(movie: movie, source: URL(fileURLWithPath: entry.sourcePath), destination: URL(fileURLWithPath: destination)) }; let parent = configuredJobsFolder() ?? FileManager.default.temporaryDirectory; let bundle = parent.appendingPathComponent("NoSide-MMM-TMDB-Batch-\(UUID().uuidString.lowercased())-job", isDirectory: true); let manifest = try await PortableJobBundle.createMovies(at: bundle, libraryRoot: libraryRoot, items: bundleItems, notes: ["TMDB matches were explicitly reviewed in the macOS app."]); onFrozen("Job \(manifest.jobID) created for \(bundleItems.count) reviewed movies. Dry-run it before apply."); dismiss() } catch { status = error.localizedDescription } } }
 }

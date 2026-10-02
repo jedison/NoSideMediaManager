@@ -10,8 +10,8 @@
 - Move the iOS pairing token from UserDefaults to Keychain; add QR pairing and
   Bonjour discovery after the first network pilot.
 - Add allowed multiple media roots/job-root mapping to the Companion server.
-- Extend the macOS explicit TMDB review route from one selected bare movie to
-  a reviewed batch queue; keep per-file confirmation and never auto-match.
+- Add editable per-item destination and sidecar choices to the macOS batch
+  TMDB review queue; it currently creates the standard normalized layout.
 - Add optional TMDB backdrop/fanart downloads with explicit Emby/Kodi naming choices and per-item keep/download/replace review.
 - Extend embedded movie extraction to cast, crew, genre, studio, rating, and description where a container exposes them.
 - Add an ignore-rule editor to the macOS and iPhone UI, backed by the existing

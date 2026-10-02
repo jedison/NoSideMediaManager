@@ -18,10 +18,11 @@ while the media server/iPhone deployment window is unavailable:
 - Companion-initiated dry-run, apply, and rollback operations are retained as
   append-only `operation-history.json` records beside each frozen package and
   shown in the iPhone package detail view after reconnecting.
-- macOS Movie Manager now provides the same explicit TMDB-match route as the
-  companion: select exactly one `bareNeedsTMDB` movie, search, choose a TMDB
-  result, and freeze a one-movie folder-normalising package. It never applies
-  the package or changes a movie from the search view.
+- macOS Movie Manager now provides a batch explicit-TMDB review route: select
+  one or more `bareNeedsTMDB` movies, search and choose the correct TMDB
+  result for each, then freeze one folder-normalising package. It writes the
+  standard locked NFO and poster where available, but never applies the
+  package or changes a movie from the search view.
 - macOS also exposes the current `.noside-mmm-ignore` rules and an explicit
   add-rule control. The configuration remains a human-editable text file.
 - Movie health can be exported as a standalone HTML report from macOS or with
