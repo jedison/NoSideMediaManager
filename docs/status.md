@@ -18,6 +18,12 @@ while the media server/iPhone deployment window is unavailable:
 - Companion-initiated dry-run, apply, and rollback operations are retained as
   append-only `operation-history.json` records beside each frozen package and
   shown in the iPhone package detail view after reconnecting.
+- macOS Movie Manager now provides the same explicit TMDB-match route as the
+  companion: select exactly one `bareNeedsTMDB` movie, search, choose a TMDB
+  result, and freeze a one-movie folder-normalising package. It never applies
+  the package or changes a movie from the search view.
+- macOS also exposes the current `.noside-mmm-ignore` rules and an explicit
+  add-rule control. The configuration remains a human-editable text file.
 - Build/test verification: 51 Swift tests pass and the iPhone Release target
   compiles. No package, server configuration, or library content was changed.
 
