@@ -24,6 +24,8 @@ while the media server/iPhone deployment window is unavailable:
   the package or changes a movie from the search view.
 - macOS also exposes the current `.noside-mmm-ignore` rules and an explicit
   add-rule control. The configuration remains a human-editable text file.
+- Movie health can be exported as a standalone HTML report from macOS or with
+  `movie-health-html`; JSON remains available for automation.
 - Build/test verification: 51 Swift tests pass and the iPhone Release target
   compiles. No package, server configuration, or library content was changed.
 

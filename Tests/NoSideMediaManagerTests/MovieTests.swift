@@ -291,6 +291,13 @@ import Testing
     #expect(throws: MovieLibraryAudit.IgnoreRuleError.self) { try MovieLibraryAudit.addIgnoreRule("../everything", in: root) }
 }
 
+@Test func movieHealthHTMLIsReadableAndEscapesPaths() {
+    let item = MovieAuditItem(videoPath: "/Movies/<Unsafe>.mp4", nfoExists: false, artworkExists: false, embeddedTitle: nil, embeddedCreationDate: nil, hasEmbeddedArtwork: false, tmdbID: nil, nfoTitle: "A < B", nfoYear: nil, nfoIsValid: nil, editionHint: nil, state: .bareNeedsTMDB)
+    let html = MovieLibraryAudit.htmlReport(.init(items: [item], duplicateTMDBIDs: [:], invalidNFOs: [], ignoredVideoFiles: []))
+    #expect(html.contains("A &lt; B"))
+    #expect(html.contains("/Movies/&lt;Unsafe&gt;.mp4"))
+}
+
 @Test func selectedEmbeddedMoviesFreezeAsOneSidecarPackage() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let first = root.appendingPathComponent("one.mp4"); let second = root.appendingPathComponent("two.mkv"); let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

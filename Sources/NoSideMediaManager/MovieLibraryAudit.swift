@@ -110,6 +110,18 @@ public enum MovieLibraryAudit {
         let ignored = ignoredVideoFiles(in: directory).map(\.path).sorted()
         return MovieLibraryHealthReport(items: items, duplicateTMDBIDs: duplicates, invalidNFOs: items.filter { $0.nfoIsValid == false }.map(\.videoPath).sorted(), ignoredVideoFiles: ignored)
     }
+    /// A portable, read-only companion to `movie-health` JSON for a person
+    /// reviewing a library outside MMM. It contains no provider calls and no
+    /// media paths beyond those already in the audit report.
+    public static func htmlReport(_ report: MovieLibraryHealthReport) -> String {
+        func escaped(_ text: String) -> String { text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;") }
+        let summary = report.summary.sorted { $0.key < $1.key }.map { "<li><strong>\(escaped($0.key))</strong>: \($0.value)</li>" }.joined()
+        let rows = report.items.sorted { $0.videoPath.localizedStandardCompare($1.videoPath) == .orderedAscending }.map { item in "<tr><td>\(escaped(item.nfoTitle ?? URL(fileURLWithPath: item.videoPath).lastPathComponent))</td><td>\(escaped(item.state.rawValue))</td><td>\(escaped(item.folderState.rawValue))</td><td><code>\(escaped(item.videoPath))</code></td></tr>" }.joined()
+        let invalid = report.invalidNFOs.map { "<li><code>\(escaped($0))</code></li>" }.joined()
+        let duplicates = report.duplicateTMDBIDs.sorted { $0.key < $1.key }.map { id, paths in "<li>TMDB \(escaped(id)): \(paths.map { "<code>\(escaped($0))</code>" }.joined(separator: ", "))</li>" }.joined()
+        let ignored = report.ignoredVideoFiles.map { "<li><code>\(escaped($0))</code></li>" }.joined()
+        return "<!doctype html><html><head><meta charset=\"utf-8\"><title>NoSide MMM movie health</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:2rem;color:#202124}table{border-collapse:collapse;width:100%}th,td{padding:.5rem;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}code{font-size:.85em}h2{margin-top:2rem}</style></head><body><h1>NoSide MMM movie health</h1><p>\(report.items.count) audited video(s); \(report.ignoredVideoFiles.count) ignored extra(s).</p><h2>Summary</h2><ul>\(summary)</ul><h2>Audited movies</h2><table><thead><tr><th>Title</th><th>Metadata</th><th>Layout</th><th>Path</th></tr></thead><tbody>\(rows)</tbody></table><h2>Invalid NFOs</h2><ul>\(invalid.isEmpty ? "<li>None</li>" : invalid)</ul><h2>Duplicate TMDB IDs</h2><ul>\(duplicates.isEmpty ? "<li>None</li>" : duplicates)</ul><h2>Ignored extras</h2><ul>\(ignored.isEmpty ? "<li>None</li>" : ignored)</ul></body></html>"
+    }
     private static func inspectNFO(_ url: URL) -> (id: Int?, title: String?, year: String?, valid: Bool) {
         guard let document = try? XMLDocument(contentsOf: url, options: []), document.rootElement()?.name == "movie" else { return (nil, nil, nil, false) }
         let identifier = (try? document.nodes(forXPath: "/movie/uniqueid[@type='tmdb']"))?.first?.stringValue.flatMap(Int.init)

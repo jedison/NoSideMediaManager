@@ -14,7 +14,6 @@
   a reviewed batch queue; keep per-file confirmation and never auto-match.
 - Add optional TMDB backdrop/fanart downloads with explicit Emby/Kodi naming choices and per-item keep/download/replace review.
 - Extend embedded movie extraction to cast, crew, genre, studio, rating, and description where a container exposes them.
-- Add a human-readable HTML health report alongside the current JSON report.
 - Add an ignore-rule editor to the macOS and iPhone UI, backed by the existing
   visible `.noside-mmm-ignore` file and with an audit preview before save.
 - Retain structured dry-run/apply/rollback history in each package rather than
