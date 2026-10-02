@@ -44,6 +44,9 @@
 - Add collection/set support and configurable movie-folder layouts.
 - Add explicit handling for editions, extras, trailers, featurettes, and
   alternate encodes rather than only flagging their likely filename hints.
+- Add an orphan-sidecar report and optional review workflow. MMM currently
+  identifies invalid NFOs and duplicate TMDB IDs, but deliberately does not
+  delete or move unassociated files.
 - Add TMDB or another provider only as an optional comparison/reference source;
   retain an explicit per-series canonical-order choice.
 - Add subtitle-sidecar inspection and language-aware review beyond the current

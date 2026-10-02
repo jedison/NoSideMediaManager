@@ -33,6 +33,9 @@ while the media server/iPhone deployment window is unavailable:
   add-rule control. The configuration remains a human-editable text file.
 - Movie health can be exported as a standalone HTML report from macOS or with
   `movie-health-html`; JSON remains available for automation.
+- macOS Movie audit now makes the health findings actionable with filters for
+  all attention items, invalid NFO XML, and every video sharing a duplicate
+  TMDB ID. Those details persist in a shared-audit result as well.
 - Build/test verification: 51 Swift tests pass and the iPhone Release target
   compiles. No package, server configuration, or library content was changed.
 

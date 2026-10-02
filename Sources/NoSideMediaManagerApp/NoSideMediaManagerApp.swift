@@ -300,6 +300,8 @@ private final class MovieAuditSession: ObservableObject {
     @Published var reviewedFiles = 0
     @Published var totalFiles = 0
     @Published var ignoreRules = [String]()
+    @Published var invalidNFOPaths = Set<String>()
+    @Published var duplicateTMDBIDs = [String: [String]]()
 
     func auditSelectedFolder() {
         guard let folder else { status = "Set Movie library root in Settings first, or choose another folder."; return }
@@ -320,17 +322,17 @@ private final class MovieAuditSession: ObservableObject {
         }
         isWorking = true; reviewedFiles = 0; totalFiles = 0; status = "Finding video files…"
         Task { [weak self] in
-            let results = await MovieLibraryAudit.inspect(directory: folder) { completed, total in
+            let report = await MovieLibraryAudit.health(directory: folder) { completed, total in
                 self?.reviewedFiles = completed; self?.totalFiles = total
                 self?.status = total == 0 ? "No video files found." : "Reviewing \(completed) of \(total) video files…"
             }
             guard let self else { return }
-            self.items = results; self.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); self.status = "Audited \(results.count) videos."; self.isWorking = false
+            self.items = report.items; self.invalidNFOPaths = Set(report.invalidNFOs); self.duplicateTMDBIDs = report.duplicateTMDBIDs; self.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); self.status = "Audited \(report.items.count) videos."; self.isWorking = false
         }
     }
     private func updateSharedAudit(_ snapshot: CompanionMovieAuditSnapshot) {
         reviewedFiles = snapshot.completedVideos; totalFiles = snapshot.totalVideos
-        if let report = snapshot.report { items = report.items; status = "Audited \(report.items.count) videos." }
+        if let report = snapshot.report { items = report.items; invalidNFOPaths = Set(report.invalidNFOPaths); duplicateTMDBIDs = report.duplicateTMDBIDs; status = "Audited \(report.items.count) videos." }
         else if snapshot.phase == .running { status = snapshot.totalVideos == 0 ? "Finding video files…" : "Reviewing \(snapshot.completedVideos) of \(snapshot.totalVideos) video files…" }
         else if snapshot.phase == .failed { status = snapshot.error ?? "Shared audit failed." }
     }
@@ -353,7 +355,7 @@ private struct MovieToolsView: View {
                 HStack { TextField("Relative folder or file to ignore", text: $ignoreRule); Button("Add exclusion") { addIgnoreRule() }.disabled(ignoreRule.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.folder == nil) }
                 Text("This changes only the visible .noside-mmm-ignore configuration file; it never changes a movie.").font(.caption2).foregroundStyle(.secondary)
             }
-            Picker("Show", selection: $session.auditFilter) { Text("All (\(session.items.count))").tag("all"); Text("Needs folder normalisation (\(session.items.filter(\.isPreservationReady).count))").tag("needsFolder"); Text("Shared multi-part movies (\(session.items.filter(\.isMultiPart).count))").tag("multipart"); Text("Needs artwork sidecar (\(session.items.filter(\.isArtworkRepairReady).count))").tag("artworkRepair"); Text("Needs TMDB match (\(session.items.filter { $0.state == .bareNeedsTMDB }.count))").tag("tmdbMatch"); Text("Cannot extract title (\(session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }.count))").tag("unextractable") }.pickerStyle(.menu)
+            Picker("Show", selection: $session.auditFilter) { Text("All (\(session.items.count))").tag("all"); Text("Needs attention (\(attentionItems.count))").tag("attention"); Text("Needs folder normalisation (\(session.items.filter(\.isPreservationReady).count))").tag("needsFolder"); Text("Shared multi-part movies (\(session.items.filter(\.isMultiPart).count))").tag("multipart"); Text("Needs artwork sidecar (\(session.items.filter(\.isArtworkRepairReady).count))").tag("artworkRepair"); Text("Needs TMDB match (\(session.items.filter { $0.state == .bareNeedsTMDB }.count))").tag("tmdbMatch"); Text("Invalid NFO XML (\(session.invalidNFOPaths.count))").tag("invalidNFO"); Text("Duplicate TMDB IDs (\(duplicateTMDBPaths.count))").tag("duplicateTMDB"); Text("Cannot extract title (\(session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }.count))").tag("unextractable") }.pickerStyle(.menu)
             List(filteredItems, id: \.videoPath, selection: $session.selectedPaths) { item in
                 VStack(alignment: .leading) {
                     Text(item.nfoTitle ?? URL(fileURLWithPath: item.videoPath).lastPathComponent)
@@ -381,7 +383,9 @@ private struct MovieToolsView: View {
         return folder.standardizedFileURL.path == URL(fileURLWithPath: saved).standardizedFileURL.path
     }
     private func selectedItems(of state: MovieSidecarState) -> [MovieAuditItem] { session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == state } }
-    private var filteredItems: [MovieAuditItem] { switch session.auditFilter { case "needsFolder": session.items.filter(\.isPreservationReady); case "multipart": session.items.filter(\.isMultiPart); case "artworkRepair": session.items.filter(\.isArtworkRepairReady); case "tmdbMatch": session.items.filter { $0.state == .bareNeedsTMDB }; case "unextractable": session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }; default: session.items } }
+    private var duplicateTMDBPaths: Set<String> { Set(session.duplicateTMDBIDs.values.flatMap { $0 }) }
+    private var attentionItems: [MovieAuditItem] { session.items.filter { $0.state != .complete || $0.folderState == .needsNormalization || session.invalidNFOPaths.contains($0.videoPath) || duplicateTMDBPaths.contains($0.videoPath) } }
+    private var filteredItems: [MovieAuditItem] { switch session.auditFilter { case "attention": attentionItems; case "needsFolder": session.items.filter(\.isPreservationReady); case "multipart": session.items.filter(\.isMultiPart); case "artworkRepair": session.items.filter(\.isArtworkRepairReady); case "tmdbMatch": session.items.filter { $0.state == .bareNeedsTMDB }; case "invalidNFO": session.items.filter { session.invalidNFOPaths.contains($0.videoPath) }; case "duplicateTMDB": session.items.filter { duplicateTMDBPaths.contains($0.videoPath) }; case "unextractable": session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }; default: session.items } }
     private var tmdbSelections: [MovieAuditItem] { session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == .bareNeedsTMDB } }
     private func addIgnoreRule() { guard let folder = session.folder else { return }; do { try MovieLibraryAudit.addIgnoreRule(ignoreRule, in: folder); session.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); session.status = "Added audit exclusion: \(ignoreRule)"; ignoreRule = "" } catch { session.status = error.localizedDescription } }
     private func exportHealthReport() { guard let folder = session.folder else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "noside-mmm-movie-health.html"; panel.message = "Save a read-only movie health report"; guard panel.runModal() == .OK, let output = panel.url else { return }; session.isWorking = true; session.status = "Creating a readable movie health report…"; Task { let report = await MovieLibraryAudit.health(directory: folder); do { try MovieLibraryAudit.htmlReport(report).write(to: output, atomically: true, encoding: .utf8); session.status = "Saved health report: \(output.lastPathComponent)" } catch { session.status = error.localizedDescription }; session.isWorking = false } }

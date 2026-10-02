@@ -20,7 +20,22 @@ public struct CompanionOperationResult: Codable, Sendable, Equatable { public le
 /// inspectable after the app has been relaunched.
 public struct CompanionOperationHistoryEntry: Codable, Sendable, Equatable, Identifiable { public let id: UUID; public let date: Date; public let operation: CompanionOperation; public let succeeded: Bool; public let log: String; public init(id: UUID = UUID(), date: Date = Date(), operation: CompanionOperation, succeeded: Bool, log: String) { self.id = id; self.date = date; self.operation = operation; self.succeeded = succeeded; self.log = log } }
 public struct CompanionMovieAuditSummary: Codable, Sendable, Equatable { public let totalVideos: Int; public let ignoredVideos: Int; public let byState: [String: Int]; public let invalidNFOs: Int; public init(report: MovieLibraryHealthReport) { totalVideos = report.items.count; ignoredVideos = report.ignoredVideoFiles.count; byState = report.summary; invalidNFOs = report.invalidNFOs.count } }
-public struct CompanionMovieAuditReport: Codable, Sendable, Equatable { public let items: [MovieAuditItem]; public let totalVideos: Int; public let ignoredVideos: Int; public let byState: [String: Int]; public let byFolderState: [String: Int]; public let invalidNFOs: Int; public init(report: MovieLibraryHealthReport) { items = report.items; totalVideos = report.items.count; ignoredVideos = report.ignoredVideoFiles.count; byState = report.summary; byFolderState = report.folderSummary; invalidNFOs = report.invalidNFOs.count } }
+public struct CompanionMovieAuditReport: Codable, Sendable, Equatable {
+    public let items: [MovieAuditItem]; public let totalVideos: Int; public let ignoredVideos: Int; public let byState: [String: Int]; public let byFolderState: [String: Int]; public let invalidNFOs: Int; public let invalidNFOPaths: [String]; public let duplicateTMDBIDs: [String: [String]]
+    public init(report: MovieLibraryHealthReport) { items = report.items; totalVideos = report.items.count; ignoredVideos = report.ignoredVideoFiles.count; byState = report.summary; byFolderState = report.folderSummary; invalidNFOs = report.invalidNFOs.count; invalidNFOPaths = report.invalidNFOs; duplicateTMDBIDs = report.duplicateTMDBIDs }
+    private enum CodingKeys: String, CodingKey { case items, totalVideos, ignoredVideos, byState, byFolderState, invalidNFOs, invalidNFOPaths, duplicateTMDBIDs }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        items = try values.decode([MovieAuditItem].self, forKey: .items)
+        totalVideos = try values.decode(Int.self, forKey: .totalVideos)
+        ignoredVideos = try values.decode(Int.self, forKey: .ignoredVideos)
+        byState = try values.decode([String: Int].self, forKey: .byState)
+        byFolderState = try values.decode([String: Int].self, forKey: .byFolderState)
+        invalidNFOs = try values.decode(Int.self, forKey: .invalidNFOs)
+        invalidNFOPaths = try values.decodeIfPresent([String].self, forKey: .invalidNFOPaths) ?? []
+        duplicateTMDBIDs = try values.decodeIfPresent([String: [String]].self, forKey: .duplicateTMDBIDs) ?? [:]
+    }
+}
 public enum CompanionMovieAuditPhase: String, Codable, Sendable, Equatable { case idle, running, complete, failed }
 /// A shared, retained audit. Starting while another caller is already scanning
 /// attaches to that scan rather than inspecting every media container again.
