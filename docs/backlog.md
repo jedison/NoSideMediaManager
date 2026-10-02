@@ -28,8 +28,9 @@
   replacement choice.
 - Add visual episode-artwork review with keep / download / replace per file.
 - Add a visual job-package preview (including generated artwork) before export.
-- Add an optional ZIP action using macOS `ditto`, while keeping the portable
-  folder as the inspected source package.
+- Add ZIP integrity verification and optional SHA-256 manifesting for exported
+  package ZIPs. macOS now exports a selected frozen folder with `ditto` while
+  retaining that folder as the inspected source package.
 - Add recorded TVDB response fixtures for series, official episode order,
   artwork URLs, pagination, and malformed API responses.
 - Add a real macOS `.xcodeproj` wrapper for the package when the product moves

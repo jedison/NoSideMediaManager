@@ -264,7 +264,7 @@ private struct PackageOperationsView: View {
                 Picker("State", selection: $packageState) { Text("All").tag("all"); Text("Ready").tag("ready"); Text("Applied").tag("applied"); Text("Rolled back").tag("rolledBack") }.pickerStyle(.menu).frame(width: 130)
             }
             List(filteredJobs, selection: $selected) { job in VStack(alignment: .leading) { Text(job.title); Text("\(job.state == .applied ? "APPLIED · " : job.state == .rolledBack ? "ROLLED BACK · " : "READY · ")\(job.mediaKind.uppercased()) · \(job.provider.uppercased()) · \(job.moves) moves · \(job.generatedFiles) generated files\(job.createdAt.map { " · \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")").font(.caption).foregroundStyle(.secondary); if job.unavailableArtwork > 0 { Text("\(job.unavailableArtwork) artwork download(s) unavailable when frozen").font(.caption2).foregroundStyle(.orange) } }.tag(job) }
-            HStack { Button("Dry-run", action: { run(.dryRun) }).disabled(selected == nil || selected?.state == .applied || working); Button("Apply", role: .destructive) { confirmApply = true }.disabled(selected == nil || selected?.state == .applied || working); Button("Rollback") { run(.rollback) }.disabled(selected?.state != .applied || working); Button("Reveal package") { revealSelectedPackage() }.disabled(selected == nil) }
+            HStack { Button("Dry-run", action: { run(.dryRun) }).disabled(selected == nil || selected?.state == .applied || working); Button("Apply", role: .destructive) { confirmApply = true }.disabled(selected == nil || selected?.state == .applied || working); Button("Rollback") { run(.rollback) }.disabled(selected?.state != .applied || working); Button("Reveal package") { revealSelectedPackage() }.disabled(selected == nil); Button("Export ZIP…") { exportSelectedPackage() }.disabled(selected == nil || working) }
             if !log.isEmpty { ScrollView { Text(log).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 160) }
             if !history.isEmpty { VStack(alignment: .leading, spacing: 6) { Text("Operation history").font(.headline); ForEach(history.reversed()) { entry in VStack(alignment: .leading, spacing: 2) { Text("\(entry.operation.rawValue) · \(entry.succeeded ? "completed" : "failed") · \(entry.date.formatted(date: .abbreviated, time: .shortened))").font(.caption); if !entry.log.isEmpty { Text(entry.log).font(.system(.caption2, design: .monospaced)).lineLimit(2).foregroundStyle(.secondary) } } } } }
             Text(status).foregroundStyle(.secondary)
@@ -283,6 +283,28 @@ private struct PackageOperationsView: View {
     private func run(_ operation: CompanionOperation) { guard let selected, let service = service() else { return }; working = true; Task { do { let result = try await service.run(jobID: selected.id, operation: operation); log = result.log; status = result.succeeded ? "\(operation.rawValue) completed." : "\(operation.rawValue) failed; review the log."; jobs = await service.jobs(); self.selected = jobs.first(where: { $0.id == selected.id }); loadHistory() } catch { status = error.localizedDescription }; working = false } }
     private func loadHistory() { guard let selected, let service = service() else { history = []; return }; Task { history = (try? await service.history(jobID: selected.id)) ?? [] } }
     private func revealSelectedPackage() { guard let selected, let service = service() else { return }; Task { if let directory = await service.packageDirectory(jobID: selected.id) { NSWorkspace.shared.activateFileViewerSelecting([directory]) } else { status = "The selected package is no longer present." } } }
+    private func exportSelectedPackage() {
+        guard let selected, let service = service() else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(selected.title.replacingOccurrences(of: "/", with: "-"))-\(selected.id).zip"
+        panel.message = "Export the frozen package as a portable ZIP"
+        guard panel.runModal() == .OK, let output = panel.url else { return }
+        working = true
+        status = "Creating a portable ZIP from the frozen package…"
+        Task {
+            defer { working = false }
+            guard let directory = await service.packageDirectory(jobID: selected.id) else { status = "The selected package is no longer present."; return }
+            do {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+                process.arguments = ["-c", "-k", "--sequesterRsrc", "--keepParent", directory.path, output.path]
+                let errors = Pipe(); process.standardError = errors
+                try process.run(); process.waitUntilExit()
+                guard process.terminationStatus == 0 else { throw NSError(domain: "NoSideMMM", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)]) }
+                status = "Exported \(output.lastPathComponent). The original folder remains the inspected source package."
+            } catch { status = error.localizedDescription }
+        }
+    }
 }
 
 @MainActor

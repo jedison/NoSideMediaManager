@@ -28,7 +28,8 @@ while the media server/iPhone deployment window is unavailable:
   it is frozen. Existing local sidecars remain move-preserved.
 - Package Operations now has text/state filters, explicit ready/applied/
   rolled-back labels, unavailable-artwork warnings, retained operation logs,
-  and a safe reveal action for a selected frozen package.
+  safe reveal action, and optional `ditto` ZIP export for a selected frozen
+  package. The folder remains the authoritative reviewed package.
 - macOS also exposes the current `.noside-mmm-ignore` rules and an explicit
   add-rule control. The configuration remains a human-editable text file.
 - Movie health can be exported as a standalone HTML report from macOS or with
