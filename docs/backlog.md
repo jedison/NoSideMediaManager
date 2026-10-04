@@ -19,8 +19,9 @@
   visible `.noside-mmm-ignore` file and with an audit preview before save.
 - Add export/copy controls for structured package-operation history. It is
   already retained as append-only `operation-history.json` beside each job.
-- Build the explicit local ↔ canonical ↔ consumer mapping review screen, using
-  GBBO's UK/Netflix/Emby numbering as the acceptance case.
+- Expand the TV local ↔ canonical ↔ consumer mapping review screen with
+  grouping, sort, and search for GBBO-scale UK/Netflix/Emby reconciliation.
+  It now blocks incomplete freezing and requires one kept duplicate candidate.
 - Run a copied-one-season GBBO acceptance pilot: scan, map, freeze a portable
   job, dry-run and apply it on the media server, normal Emby scan, and verify
   rollback before touching the library.

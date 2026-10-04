@@ -37,6 +37,11 @@ while the media server/iPhone deployment window is unavailable:
 - macOS Movie audit now makes the health findings actionable with filters for
   all attention items, invalid NFO XML, and every video sharing a duplicate
   TMDB ID. Those details persist in a shared-audit result as well.
+- TV audit now reports the filename and byte size for every local duplicate
+  candidate. Before a TV package can freeze, each discovered video must be
+  mapped or explicitly excluded; each duplicate episode group requires exactly
+  one user-selected kept file. Exclusions are retained in the frozen manifest
+  notes and never delete the excluded source.
 - Build/test verification: 51 Swift tests pass and the iPhone Release target
   compiles. No package, server configuration, or library content was changed.
 
