@@ -44,3 +44,13 @@ import Testing
     #expect(metadata.series.title == "The Great British Bake Off")
     #expect(metadata.episodes[10] == TVEpisode(tvdbID: 10, seriesTVDBID: 184871, season: 1, number: 1, title: "Cakes"))
 }
+
+@Test func reusableMappingPlanRetainsExplicitExclusionsAndReadsOlderPlans() throws {
+    let plan = MappingPlanDocument(seriesTVDBID: 184871, libraryPath: "/Library/GBBO", entries: [
+        .init(sourcePath: "/Library/GBBO/Season 01/duplicate.m4v", canonicalEpisodeID: nil, excluded: true)
+    ])
+    let restored = try JSONDecoder().decode(MappingPlanDocument.self, from: JSONEncoder().encode(plan))
+    #expect(restored.entries.first?.excluded == true)
+    let older = "{\"formatVersion\":1,\"seriesTVDBID\":184871,\"libraryPath\":\"/Library/GBBO\",\"entries\":[{\"sourcePath\":\"/Library/GBBO/Season 01/old.m4v\",\"canonicalEpisodeID\":10,\"downloadArtwork\":true}]}".data(using: .utf8)!
+    #expect(try JSONDecoder().decode(MappingPlanDocument.self, from: older).entries.first?.excluded == nil)
+}

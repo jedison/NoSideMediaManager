@@ -73,6 +73,10 @@ private struct ContentView: View {
     @State private var tvTotalFiles = 0
     @State private var excludedTVPaths = Set<URL>()
     @State private var duplicateKeepPaths = [String: URL]()
+    @State private var mappingFilter = "needsDecision"
+    @State private var canonicalEpisodeQuery = ""
+    @State private var showPackagePreview = false
+    @State private var showArtworkReview = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -193,8 +197,19 @@ private struct ContentView: View {
     private var mappingReview: some View {
         VStack(alignment: .leading) {
             Text("Mapping review").font(.headline)
-            Text("\(approved().count) included · \(excludedTVPaths.count) excluded · \(mappingIssues.count) decision(s) remaining").font(.caption).foregroundStyle(mappingIssues.isEmpty ? Color.secondary : Color.orange)
-            List(mappings) { mapping in
+            Text("\(approved().count) included · \(excludedTVPaths.count) excluded · \(mappingIssues.count) decision(s) remaining · \(nfoDifferenceCounts.values.filter { $0 > 0 }.count) NFOs differ").font(.caption).foregroundStyle(mappingIssues.isEmpty ? Color.secondary : Color.orange)
+            HStack {
+                Picker("Show", selection: $mappingFilter) {
+                    Text("Needs decision (\(unresolvedMappings.count))").tag("needsDecision")
+                    Text("Ready (\(readyMappings.count))").tag("ready")
+                    Text("NFO changes (\(nfoChangedMappings.count))").tag("nfo")
+                    Text("Season conflicts (\(seasonConflictMappings.count))").tag("conflicts")
+                    Text("Duplicates (\(duplicateMappings.count))").tag("duplicates")
+                    Text("All (\(mappings.count))").tag("all")
+                }.pickerStyle(.menu)
+                TextField("Filter TVDB episodes", text: $canonicalEpisodeQuery).frame(maxWidth: 220)
+            }
+            List(filteredMappings) { mapping in
                 let excluded = excludedTVPaths.contains(mapping.local.url)
                 VStack(alignment: .leading) {
                     HStack {
@@ -203,14 +218,75 @@ private struct ContentView: View {
                         Spacer()
                         Toggle("Include", isOn: Binding(get: { !excludedTVPaths.contains(mapping.local.url) }, set: { include in if include { excludedTVPaths.remove(mapping.local.url) } else { excludedTVPaths.insert(mapping.local.url) } })).labelsHidden()
                         Toggle("Artwork", isOn: Binding(get: { artworkSelections[mapping.local.url] ?? true }, set: { artworkSelections[mapping.local.url] = $0 })).labelsHidden().disabled(excluded)
-                        Picker("Canonical episode", selection: Binding(get: { chosenEpisodeIDs[mapping.local.url] ?? mapping.canonical?.tvdbID ?? 0 }, set: { chosenEpisodeIDs[mapping.local.url] = $0 })) { Text("Needs review").tag(0); ForEach(canonicalEpisodes, id: \.tvdbID) { episode in Text("S\(episode.season)E\(episode.number) · \(episode.title)").tag(episode.tvdbID) } }.labelsHidden().disabled(excluded)
+                        Picker("Canonical episode", selection: Binding(get: { chosenEpisodeIDs[mapping.local.url] ?? mapping.canonical?.tvdbID ?? 0 }, set: { chosenEpisodeIDs[mapping.local.url] = $0 })) { Text("Needs review").tag(0); ForEach(episodesForPicker(mapping), id: \.tvdbID) { episode in Text("S\(episode.season)E\(episode.number) · \(episode.title)").tag(episode.tvdbID) } }.labelsHidden().disabled(excluded)
+                    }
+                    if let changes = nfoChanges(for: mapping), !changes.isEmpty {
+                        Text("Existing NFO differs: " + changes.map(\.field).joined(separator: ", ") + ". The frozen package will replace it with the reviewed TVDB NFO.").font(.caption2).foregroundStyle(.orange)
                     }
                     TextField("Keep location, or enter a full destination video path", text: Binding(get: { destinationPaths[mapping.local.url] ?? mapping.local.url.path }, set: { destinationPaths[mapping.local.url] = $0 })).font(.caption).disabled(excluded)
                 }
             }.frame(minHeight: 180)
             Toggle("Enable selected TVDB episode artwork downloads", isOn: $downloadArtwork)
-            HStack { Button("Export JSON plan…", action: exportPlan).disabled(reviewedSeries == nil); Button("Generate portable job…", action: generateJob).disabled(reviewedSeries == nil || isWorking || !mappingIssues.isEmpty) }
+            HStack {
+                Button("Export reusable JSON plan…", action: exportPlan).disabled(reviewedSeries == nil)
+                Button("Load JSON plan…", action: importPlan).disabled(reviewedSeries == nil)
+                Button("Review artwork…") { showArtworkReview = true }.disabled(approved().isEmpty)
+                Button("Preview frozen package…") { showPackagePreview = true }.disabled(reviewedSeries == nil || isWorking || !mappingIssues.isEmpty)
+            }
+            if showPackagePreview { packagePreview }
+            if showArtworkReview { artworkReview }
             Text(mappingIssues.isEmpty ? "All discovered videos have an explicit disposition. This Mac creates a reviewed package only; apply.sh changes the library on the media server." : "Resolve every mapping or explicitly exclude it before freezing. Duplicate groups also require exactly one kept file.").font(.caption).foregroundStyle(mappingIssues.isEmpty ? Color.secondary : Color.orange)
+        }
+    }
+    private var unresolvedMappings: [EpisodeMapping] { mappings.filter { !excludedTVPaths.contains($0.local.url) && chosenEpisodeIDs[$0.local.url] == nil } }
+    private var readyMappings: [EpisodeMapping] { mappings.filter { !excludedTVPaths.contains($0.local.url) && chosenEpisodeIDs[$0.local.url] != nil && nfoDifferenceCounts[$0.local.url, default: 0] == 0 } }
+    private var nfoChangedMappings: [EpisodeMapping] { mappings.filter { nfoDifferenceCounts[$0.local.url, default: 0] > 0 } }
+    private var seasonConflictMappings: [EpisodeMapping] { mappings.filter { mapping in mapping.local.folderSeason.map { $0 != mapping.local.season } ?? false } }
+    private var duplicateMappings: [EpisodeMapping] {
+        guard let audit = tvAudit else { return [] }
+        let paths = Set(audit.duplicates.flatMap(\.videoPaths))
+        return mappings.filter { paths.contains($0.local.url.path) }
+    }
+    private var filteredMappings: [EpisodeMapping] {
+        switch mappingFilter {
+        case "needsDecision": return unresolvedMappings
+        case "ready": return readyMappings
+        case "nfo": return nfoChangedMappings
+        case "conflicts": return seasonConflictMappings
+        case "duplicates": return duplicateMappings
+        default: return mappings
+        }
+    }
+    private func episodesForPicker(_ mapping: EpisodeMapping) -> [TVEpisode] {
+        let query = canonicalEpisodeQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return canonicalEpisodes }
+        let chosen = chosenEpisodeIDs[mapping.local.url]
+        return canonicalEpisodes.filter { $0.tvdbID == chosen || "S\($0.season)E\($0.number) \($0.title)".localizedCaseInsensitiveContains(query) }
+    }
+    private func nfoChanges(for mapping: EpisodeMapping) -> [NFOFieldDifference]? {
+        guard let id = chosenEpisodeIDs[mapping.local.url], let episode = canonicalEpisodes.first(where: { $0.tvdbID == id }) else { return nil }
+        return try? NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: episode)
+    }
+    private var packagePreview: some View {
+        let selected = approved()
+        let moveCount = selected.filter { destinationPaths[$0.local.url] != nil && destinationPaths[$0.local.url] != $0.local.url.path }.count
+        let artworkCount = selected.filter { downloadArtwork && $0.downloadArtwork && $0.canonical.artworkURL != nil }.count
+        return GroupBox("Frozen package preview") {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(selected.count) episode(s) · \(moveCount) video rename/move(s) · \(selected.count) episode NFO(s) · \(artworkCount) TVDB JPG download(s)")
+                Text("Also generates tvshow.nfo and season.nfo files for represented folders. Existing matching sidecars move with their video; generated NFO/JPG files replace their target sidecars only when apply.sh runs.").font(.caption).foregroundStyle(.secondary)
+                if !excludedTVPaths.isEmpty { Text("\(excludedTVPaths.count) local video(s) are recorded as excluded and are not touched.").font(.caption).foregroundStyle(.secondary) }
+                HStack { Button("Choose output and freeze…", action: freezePreviewedJob).buttonStyle(.borderedProminent); Button("Close") { showPackagePreview = false } }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+    private var artworkReview: some View {
+        GroupBox("TVDB artwork review") {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Download replaces the poster sidecar only through the frozen package. Turn it off to keep any existing JPG unchanged.").font(.caption).foregroundStyle(.secondary)
+                ScrollView { LazyVStack(alignment: .leading) { ForEach(approved(), id: \.local.url) { mapping in HStack { Text(mapping.local.url.lastPathComponent).lineLimit(1); Spacer(); Text(mapping.canonical.artworkURL == nil ? "No TVDB artwork" : (artworkSelections[mapping.local.url] ?? false ? "Download TVDB JPG" : "Keep existing JPG")).font(.caption).foregroundStyle(.secondary); Toggle("Artwork", isOn: Binding(get: { artworkSelections[mapping.local.url] ?? false }, set: { artworkSelections[mapping.local.url] = $0 })).labelsHidden().disabled(mapping.canonical.artworkURL == nil) } } }.frame(maxHeight: 150) }
+                Button("Done") { showArtworkReview = false }
+            }
         }
     }
     private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
@@ -229,9 +305,11 @@ private struct ContentView: View {
     }
     private func approved() -> [ApprovedEpisodeMapping] { let index = Dictionary(uniqueKeysWithValues: canonicalEpisodes.map { ($0.tvdbID, $0) }); return mappings.compactMap { mapping in guard !excludedTVPaths.contains(mapping.local.url) else { return nil }; return chosenEpisodeIDs[mapping.local.url].flatMap { index[$0] }.map { ApprovedEpisodeMapping(local: mapping.local, canonical: $0, downloadArtwork: artworkSelections[mapping.local.url] ?? false) } } }
     private func renamePlan() throws -> MediaRenamePlan? { let moves = mappings.compactMap { mapping -> MediaRename? in let path = destinationPaths[mapping.local.url] ?? mapping.local.url.path; return path == mapping.local.url.path ? nil : MediaRename(source: mapping.local.url, destination: URL(fileURLWithPath: path)) }; return moves.isEmpty ? nil : try MediaRenamePlan(renames: moves) }
-    private func planDocument() -> MappingPlanDocument? { guard let directory = destination, let series = reviewedSeries else { return nil }; return MappingPlanDocument(seriesTVDBID: series.tvdbID, libraryPath: directory.path, entries: mappings.map { MappingPlanDocument.Entry(sourcePath: $0.local.url.path, canonicalEpisodeID: chosenEpisodeIDs[$0.local.url], destinationPath: destinationPaths[$0.local.url], downloadArtwork: artworkSelections[$0.local.url] ?? false) }) }
-    private func exportPlan() { guard let plan = planDocument() else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "noside-media-plan.json"; guard panel.runModal() == .OK, let url = panel.url else { return }; do { try plan.write(to: url); status = "Plan exported: \(url.lastPathComponent)" } catch { status = error.localizedDescription } }
-    private func generateJob() { guard let series = reviewedSeries, let directory = destination else { return }; guard mappingIssues.isEmpty else { status = "Resolve or exclude every discovered video before freezing: \(mappingIssues.first ?? "review issue")."; return }; let selected = approved(); guard !selected.isEmpty else { status = "Select at least one canonical episode."; return }; let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.allowsMultipleSelection = false; panel.directoryURL = configuredJobsFolder(); panel.message = "Choose where to create the portable job package (saved Jobs folder is preselected)"; guard panel.runModal() == .OK, let parent = panel.url else { return }; let output = parent.appendingPathComponent("NoSide-MMM-TVDB-\(series.tvdbID)-job", isDirectory: true); let paths = Dictionary(uniqueKeysWithValues: selected.map { mapping in (mapping.local.url, URL(fileURLWithPath: destinationPaths[mapping.local.url] ?? mapping.local.url.path)) }); let exclusionNotes = excludedTVPaths.sorted { $0.path < $1.path }.map { "Excluded local video after review: \($0.path)" }; isWorking = true; status = "Creating a portable job package…"; Task { do { let manifest = try await PortableJobBundle.create(at: output, showRoot: directory, series: series, mappings: selected, destinations: paths, downloadArtwork: downloadArtwork, notes: ["Every discovered local video was mapped or explicitly excluded in macOS review."] + exclusionNotes); status = "Job \(manifest.jobID) created for \(selected.count) included episode(s); \(excludedTVPaths.count) local video(s) were explicitly excluded. Dry-run it before apply." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func planDocument() -> MappingPlanDocument? { guard let directory = destination, let series = reviewedSeries else { return nil }; return MappingPlanDocument(seriesTVDBID: series.tvdbID, libraryPath: directory.path, entries: mappings.map { MappingPlanDocument.Entry(sourcePath: $0.local.url.path, canonicalEpisodeID: chosenEpisodeIDs[$0.local.url], destinationPath: destinationPaths[$0.local.url], downloadArtwork: artworkSelections[$0.local.url] ?? false, excluded: excludedTVPaths.contains($0.local.url)) }) }
+    private func exportPlan() { guard let plan = planDocument() else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "noside-media-tv-mapping.json"; panel.directoryURL = destination; guard panel.runModal() == .OK, let url = panel.url else { return }; do { try plan.write(to: url); status = "Reusable mapping plan exported: \(url.lastPathComponent)" } catch { status = error.localizedDescription } }
+    private func importPlan() { guard let series = reviewedSeries else { return }; let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.canChooseFiles = true; panel.allowsMultipleSelection = false; panel.allowedContentTypes = [.json]; guard panel.runModal() == .OK, let url = panel.url else { return }; do { let plan = try MappingPlanDocument.read(from: url); guard plan.seriesTVDBID == series.tvdbID else { status = "That plan belongs to TVDB \(plan.seriesTVDBID), not \(series.tvdbID)."; return }; let livePaths = Set(mappings.map { $0.local.url.path }); guard plan.entries.allSatisfy({ livePaths.contains($0.sourcePath) }) else { status = "That plan references video files not found in this selected folder."; return }; for entry in plan.entries { let source = URL(fileURLWithPath: entry.sourcePath); chosenEpisodeIDs[source] = entry.canonicalEpisodeID; if let target = entry.destinationPath { destinationPaths[source] = target }; artworkSelections[source] = entry.downloadArtwork; if entry.excluded == true { excludedTVPaths.insert(source) } else { excludedTVPaths.remove(source) } }; status = "Loaded reusable mapping plan. Recheck duplicate decisions and preview before freezing." } catch { status = error.localizedDescription } }
+    private func generateJob() { showPackagePreview = true }
+    private func freezePreviewedJob() { guard let series = reviewedSeries, let directory = destination else { return }; guard mappingIssues.isEmpty else { status = "Resolve or exclude every discovered video before freezing: \(mappingIssues.first ?? "review issue")."; return }; let selected = approved(); guard !selected.isEmpty else { status = "Select at least one canonical episode."; return }; let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.allowsMultipleSelection = false; panel.directoryURL = configuredJobsFolder(); panel.message = "Choose where to create the portable job package (saved Jobs folder is preselected)"; guard panel.runModal() == .OK, let parent = panel.url else { return }; let output = parent.appendingPathComponent("NoSide-MMM-TVDB-\(series.tvdbID)-job", isDirectory: true); let paths = Dictionary(uniqueKeysWithValues: selected.map { mapping in (mapping.local.url, URL(fileURLWithPath: destinationPaths[mapping.local.url] ?? mapping.local.url.path)) }); let exclusionNotes = excludedTVPaths.sorted { $0.path < $1.path }.map { "Excluded local video after review: \($0.path)" }; isWorking = true; showPackagePreview = false; status = "Creating a portable job package…"; Task { do { let manifest = try await PortableJobBundle.create(at: output, showRoot: directory, series: series, mappings: selected, destinations: paths, downloadArtwork: downloadArtwork, notes: ["Every discovered local video was mapped or explicitly excluded in macOS review."] + exclusionNotes); status = "Job \(manifest.jobID) created for \(selected.count) included episode(s); \(excludedTVPaths.count) local video(s) were explicitly excluded. Dry-run it before apply." } catch { status = error.localizedDescription }; isWorking = false } }
     private func write(_ result: TVSeriesSearchResult, into directory: URL) { isWorking = true; status = "Fetching \(result.title) and writing NFO files…"; Task { do { let files = try await NFOImportService(source: client()).importSeries(id: result.tvdbID, into: directory); status = "Wrote \(files.count) NFO files to \(directory.lastPathComponent)." } catch { status = error.localizedDescription }; isWorking = false } }
 }
 

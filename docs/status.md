@@ -45,6 +45,27 @@ while the media server/iPhone deployment window is unavailable:
 - Build/test verification: 51 Swift tests pass and the iPhone Release target
   compiles. No package, server configuration, or library content was changed.
 
+## TV review strengthening — 2026-10-06
+
+- macOS TV mapping review now filters a GBBO-scale set by unresolved decision,
+  ready mapping, NFO change, season conflict, or duplicate candidate, and has
+  a TVDB episode text filter. Existing NFO differences are shown by field
+  before the package is frozen.
+- The Mac displays a package preview before selecting an output folder: included
+  episodes, moves, generated episode/show/season NFOs, opted-in TVDB JPGs, and
+  explicit exclusions. Artwork review makes the keep-existing-JPG/download
+  choice visible per episode. No library file is changed by either review.
+- Mapping plans can now carry explicit exclusions and remain backward-readable.
+  The macOS export/load controls provide a transparent reusable JSON plan for
+  repeat regional/streaming mappings; it is still reviewed before freeze.
+- Companion TV review now includes canonical episode choices and can request a
+  TV frozen package. The server re-scans the selected configured show folder,
+  requires one explicit decision per local video, validates TVDB IDs, and
+  enforces exactly one kept candidate per duplicate group before writing the
+  package. It never accepts an arbitrary library path or performs a mutation.
+- Verification: 55 Swift tests, macOS executable build, and iOS Release build
+  pass locally. iOS remains deliberately undeployed.
+
 ## Shipped
 
 - Integrated macOS MMM Companion server and native iOS companion project;

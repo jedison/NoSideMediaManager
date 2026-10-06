@@ -16,7 +16,9 @@ struct CompanionTVAuditReport: Codable, Equatable { let folder: String; let repo
 struct CompanionTVAuditSnapshot: Codable, Equatable { let folder: String; let phase: String; let startedAt: Date?; let completedAt: Date?; let report: CompanionTVAuditReport?; let error: String? }
 struct CompanionTVEpisodeChoice: Codable, Identifiable, Equatable { let tvdbID: Int; let season: Int; let episode: Int; let title: String; var id: Int { tvdbID } }
 struct CompanionTVMappingReviewItem: Codable, Identifiable, Equatable { let videoPath: String; let localSeason: Int; let localEpisode: Int; let folderSeason: Int?; let embeddedTitle: String?; let proposedEpisode: CompanionTVEpisodeChoice?; var id: String { videoPath } }
-struct CompanionTVMappingReview: Codable, Equatable { let folder: String; let seriesTVDBID: Int; let seriesTitle: String; let mappings: [CompanionTVMappingReviewItem]; let unmatchedCount: Int }
+struct CompanionTVMappingReview: Codable, Equatable { let folder: String; let seriesTVDBID: Int; let seriesTitle: String; let mappings: [CompanionTVMappingReviewItem]; let canonicalEpisodes: [CompanionTVEpisodeChoice]; let unmatchedCount: Int }
+struct CompanionTVPackageDecision: Codable, Equatable { let videoPath: String; let canonicalEpisodeID: Int?; let destinationPath: String?; let downloadArtwork: Bool; let excluded: Bool }
+struct CompanionTVPackageRequest: Codable { let folder: String; let seriesTVDBID: Int; let decisions: [CompanionTVPackageDecision] }
 struct CompanionMovieAuditReport: Codable, Equatable { let items: [CompanionMovieAuditItem]; let totalVideos: Int; let ignoredVideos: Int?; let byState: [String: Int]; let byFolderState: [String: Int]; let invalidNFOs: Int }
 struct CompanionMovieAuditSnapshot: Codable, Equatable { let phase: String; let completedVideos: Int; let totalVideos: Int; let startedAt: Date?; let completedAt: Date?; let report: CompanionMovieAuditReport?; let error: String? }
 struct CompanionMoviePackageRequest: Codable { let videoPaths: [String] }

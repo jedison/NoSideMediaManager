@@ -1,7 +1,7 @@
 import Foundation
 import NoSideMediaManager
 
-public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalidOperation, alreadyApplied, tvdbNotConfigured, tmdbNotConfigured, invalidSelection, incompleteMultiPartSelection, completedMovieAuditRequired, tvFolderNotFound, unextractableTitles([String]), unextractableArtwork([String]); public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .tmdbNotConfigured: "Enter a TMDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .incompleteMultiPartSelection: "Select every part of each shared multi-part movie before freezing it."; case .completedMovieAuditRequired: "Complete a Movie audit before freezing a package."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library."; case .unextractableTitles(let names): "MMM could no longer extract a title from these selected video file(s): \(names.joined(separator: ", "))."; case .unextractableArtwork(let names): "MMM could no longer extract poster artwork from: \(names.joined(separator: ", "))." } } }
+public enum CompanionJobServiceError: LocalizedError { case jobNotFound, invalidOperation, alreadyApplied, tvdbNotConfigured, tmdbNotConfigured, invalidSelection, incompleteMultiPartSelection, completedMovieAuditRequired, tvFolderNotFound, incompleteTVDecisions, duplicateTVDecision, unextractableTitles([String]), unextractableArtwork([String]); public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .tmdbNotConfigured: "Enter a TMDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .incompleteMultiPartSelection: "Select every part of each shared multi-part movie before freezing it."; case .completedMovieAuditRequired: "Complete a Movie audit before freezing a package."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library."; case .incompleteTVDecisions: "Every current local TV video needs an explicit canonical episode or an explicit exclusion before packaging."; case .duplicateTVDecision: "Each duplicate TV episode group needs exactly one included file."; case .unextractableTitles(let names): "MMM could no longer extract a title from these selected video file(s): \(names.joined(separator: ", "))."; case .unextractableArtwork(let names): "MMM could no longer extract poster artwork from: \(names.joined(separator: ", "))." } } }
 
 /// The only component allowed to invoke a frozen job script. It resolves job
 /// IDs from manifests under one configured directory, preventing path injection.
@@ -89,8 +89,41 @@ public actor CompanionJobService {
         async let localFiles = EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: configuration.tvLibraryRoot.appendingPathComponent(selected.name, isDirectory: true))
         async let series = client.series(id: seriesID)
         async let episodes = client.episodes(forSeriesID: seriesID)
-        let mappings = EpisodeMappingPlanner.propose(localFiles: try await localFiles, canonicalEpisodes: try await episodes)
-        return CompanionTVMappingReview(folder: selected.name, series: try await series, mappings: mappings)
+        let canonical = try await episodes
+        let mappings = EpisodeMappingPlanner.propose(localFiles: try await localFiles, canonicalEpisodes: canonical)
+        return CompanionTVMappingReview(folder: selected.name, series: try await series, mappings: mappings, canonicalEpisodes: canonical)
+    }
+    public func freezeTVPackage(_ request: CompanionTVPackageRequest) async throws -> CompanionJob {
+        guard let selected = tvFolders().first(where: { $0.name == request.folder }) else { throw CompanionJobServiceError.tvFolderNotFound }
+        guard let credentials = configuration.tvdbCredentials else { throw CompanionJobServiceError.tvdbNotConfigured }
+        let root = configuration.tvLibraryRoot.appendingPathComponent(selected.name, isDirectory: true)
+        let localFiles = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: root)
+        let currentPaths = Set(localFiles.map { $0.url.path })
+        let byPath = Dictionary(uniqueKeysWithValues: request.decisions.map { ($0.videoPath, $0) })
+        guard byPath.count == request.decisions.count, Set(byPath.keys) == currentPaths else { throw CompanionJobServiceError.incompleteTVDecisions }
+        let source = TVDBClient(credentials: credentials)
+        async let series = source.series(id: request.seriesTVDBID)
+        let episodes = try await source.episodes(forSeriesID: request.seriesTVDBID)
+        let episodesByID = Dictionary(uniqueKeysWithValues: episodes.map { ($0.tvdbID, $0) })
+        let excluded = Set(request.decisions.filter(\.excluded).map(\.videoPath))
+        guard request.decisions.filter({ !$0.excluded }).allSatisfy({ $0.canonicalEpisodeID.flatMap { episodesByID[$0] } != nil }) else { throw CompanionJobServiceError.incompleteTVDecisions }
+        let audit = TVLibraryAudit.report(for: localFiles)
+        for duplicate in audit.duplicates {
+            let included = duplicate.videoPaths.filter { !excluded.contains($0) }
+            guard included.count == 1 else { throw CompanionJobServiceError.duplicateTVDecision }
+        }
+        let mappings = localFiles.compactMap { local -> ApprovedEpisodeMapping? in
+            guard let decision = byPath[local.url.path], !decision.excluded, let id = decision.canonicalEpisodeID, let canonical = episodesByID[id] else { return nil }
+            return ApprovedEpisodeMapping(local: local, canonical: canonical, downloadArtwork: decision.downloadArtwork)
+        }
+        guard !mappings.isEmpty else { throw CompanionJobServiceError.invalidSelection }
+        let destinations = Dictionary(uniqueKeysWithValues: mappings.map { mapping in
+            let requested = byPath[mapping.local.url.path]?.destinationPath
+            return (mapping.local.url, URL(fileURLWithPath: requested ?? mapping.local.url.path))
+        })
+        let output = configuration.jobsRoot.appendingPathComponent("NoSide-MMM-TVDB-\(request.seriesTVDBID)-phone-job", isDirectory: true)
+        let manifest = try await PortableJobBundle.create(at: output, showRoot: root, series: try await series, mappings: mappings, destinations: destinations, downloadArtwork: true, notes: ["Every discovered local video was explicitly mapped or excluded in microMM Companion."] + excluded.sorted().map { "Excluded local video after Companion review: \($0)" })
+        return CompanionJob(manifest: manifest)
     }
     public func searchTV(query: String) async throws -> [TVSeriesSearchResult] { guard let credentials = configuration.tvdbCredentials else { throw CompanionJobServiceError.tvdbNotConfigured }; return try await TVDBClient(credentials: credentials).searchSeries(named: query) }
     private func tmdb() throws -> TMDBClient { guard let key = configuration.tmdbAPIKey, !key.isEmpty else { throw CompanionJobServiceError.tmdbNotConfigured }; return TMDBClient(apiKey: key) }

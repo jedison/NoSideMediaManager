@@ -19,16 +19,14 @@
   visible `.noside-mmm-ignore` file and with an audit preview before save.
 - Add export/copy controls for structured package-operation history. It is
   already retained as append-only `operation-history.json` beside each job.
-- Expand the TV local ↔ canonical ↔ consumer mapping review screen with
-  grouping, sort, and search for GBBO-scale UK/Netflix/Emby reconciliation.
-  It now blocks incomplete freezing and requires one kept duplicate candidate.
+- Add saved sort preferences and richer canonical-episode search facets to the
+  TV local ↔ canonical ↔ consumer review. It now has safety filters, a text
+  episode filter, explicit exclusions, and required duplicate decisions.
 - Run a copied-one-season GBBO acceptance pilot: scan, map, freeze a portable
   job, dry-run and apply it on the media server, normal Emby scan, and verify
   rollback before touching the library.
-- Add field-by-field NFO acceptance, rather than the current whole-file
-  replacement choice.
-- Add visual episode-artwork review with keep / download / replace per file.
-- Add a visual job-package preview (including generated artwork) before export.
+- Add field-by-field NFO merge/acceptance, rather than the current visible
+  field-difference review and whole-file generated-NFO replacement.
 - Add ZIP integrity verification and optional SHA-256 manifesting for exported
   package ZIPs. macOS now exports a selected frozen folder with `ditto` while
   retaining that folder as the inspected source package.
@@ -41,8 +39,9 @@
 ## Later
 
 - Enrich `season.nfo` with TVDB season titles, summaries, dates, and artwork.
-- Save reusable mapping presets as transparent JSON beside a library (never as
-  authoritative media metadata), for recurring regional/streaming orders.
+- Allow named preset collections and source-relative paths in reusable TV
+  mapping JSON. The current export/load plan already records explicit
+  exclusions transparently and is safe to inspect/edit.
 - Add collection/set support and configurable movie-folder layouts.
 - Add explicit handling for editions, extras, trailers, featurettes, and
   alternate encodes rather than only flagging their likely filename hints.
