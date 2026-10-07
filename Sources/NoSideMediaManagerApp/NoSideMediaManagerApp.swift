@@ -62,6 +62,7 @@ private struct ContentView: View {
     @State private var reviewedSeries: TVSeries?
     @State private var downloadArtwork = true
     @State private var nfoDifferenceCounts = [URL: Int]()
+    @State private var nfoReplacementFields = [URL: Set<String>]()
     @State private var artworkSelections = [URL: Bool]()
     @State private var destinationPaths = [URL: String]()
     @State private var destination: URL?
@@ -77,6 +78,7 @@ private struct ContentView: View {
     @State private var canonicalEpisodeQuery = ""
     @State private var showPackagePreview = false
     @State private var showArtworkReview = false
+    @AppStorage("tv.mappingSort") private var mappingSort = "file"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -207,6 +209,7 @@ private struct ContentView: View {
                     Text("Duplicates (\(duplicateMappings.count))").tag("duplicates")
                     Text("All (\(mappings.count))").tag("all")
                 }.pickerStyle(.menu)
+                Picker("Sort", selection: $mappingSort) { Text("File name").tag("file"); Text("Local episode").tag("local"); Text("Chosen TVDB episode").tag("canonical") }.pickerStyle(.menu)
                 TextField("Filter TVDB episodes", text: $canonicalEpisodeQuery).frame(maxWidth: 220)
             }
             List(filteredMappings) { mapping in
@@ -221,7 +224,12 @@ private struct ContentView: View {
                         Picker("Canonical episode", selection: Binding(get: { chosenEpisodeIDs[mapping.local.url] ?? mapping.canonical?.tvdbID ?? 0 }, set: { chosenEpisodeIDs[mapping.local.url] = $0 })) { Text("Needs review").tag(0); ForEach(episodesForPicker(mapping), id: \.tvdbID) { episode in Text("S\(episode.season)E\(episode.number) · \(episode.title)").tag(episode.tvdbID) } }.labelsHidden().disabled(excluded)
                     }
                     if let changes = nfoChanges(for: mapping), !changes.isEmpty {
-                        Text("Existing NFO differs: " + changes.map(\.field).joined(separator: ", ") + ". The frozen package will replace it with the reviewed TVDB NFO.").font(.caption2).foregroundStyle(.orange)
+                        DisclosureGroup("Existing NFO differs: " + changes.map(\.field).joined(separator: ", ")) {
+                            Text("Choose exactly which fields TVDB replaces. Unticked fields retain their existing value in the generated, Emby-locked NFO.").font(.caption2).foregroundStyle(.secondary)
+                            ForEach(changes) { change in
+                                Toggle(change.field, isOn: Binding(get: { nfoReplacementFields[mapping.local.url, default: Set(NFORepairInspector.comparableFields)].contains(change.field) }, set: { replace in var fields = nfoReplacementFields[mapping.local.url, default: Set(NFORepairInspector.comparableFields)]; if replace { fields.insert(change.field) } else { fields.remove(change.field) }; nfoReplacementFields[mapping.local.url] = fields }))
+                            }
+                        }.font(.caption2).foregroundStyle(.orange)
                     }
                     TextField("Keep location, or enter a full destination video path", text: Binding(get: { destinationPaths[mapping.local.url] ?? mapping.local.url.path }, set: { destinationPaths[mapping.local.url] = $0 })).font(.caption).disabled(excluded)
                 }
@@ -248,13 +256,20 @@ private struct ContentView: View {
         return mappings.filter { paths.contains($0.local.url.path) }
     }
     private var filteredMappings: [EpisodeMapping] {
+        let filtered: [EpisodeMapping]
         switch mappingFilter {
-        case "needsDecision": return unresolvedMappings
-        case "ready": return readyMappings
-        case "nfo": return nfoChangedMappings
-        case "conflicts": return seasonConflictMappings
-        case "duplicates": return duplicateMappings
-        default: return mappings
+        case "needsDecision": filtered = unresolvedMappings
+        case "ready": filtered = readyMappings
+        case "nfo": filtered = nfoChangedMappings
+        case "conflicts": filtered = seasonConflictMappings
+        case "duplicates": filtered = duplicateMappings
+        default: filtered = mappings
+        }
+        let canonical = Dictionary(uniqueKeysWithValues: canonicalEpisodes.map { ($0.tvdbID, $0) })
+        switch mappingSort {
+        case "local": return filtered.sorted { ($0.local.season, $0.local.episode, $0.local.url.lastPathComponent) < ($1.local.season, $1.local.episode, $1.local.url.lastPathComponent) }
+        case "canonical": return filtered.sorted { let a = chosenEpisodeIDs[$0.local.url].flatMap { canonical[$0] }; let b = chosenEpisodeIDs[$1.local.url].flatMap { canonical[$0] }; return (a?.season ?? Int.max, a?.number ?? Int.max, $0.local.url.lastPathComponent) < (b?.season ?? Int.max, b?.number ?? Int.max, $1.local.url.lastPathComponent) }
+        default: return filtered.sorted { $0.local.url.lastPathComponent.localizedStandardCompare($1.local.url.lastPathComponent) == .orderedAscending }
         }
     }
     private func episodesForPicker(_ mapping: EpisodeMapping) -> [TVEpisode] {
@@ -289,7 +304,7 @@ private struct ContentView: View {
             }
         }
     }
-    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); nfoReplacementFields = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, Set(NFORepairInspector.comparableFields)) }); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
     private var mappingIssues: [String] {
         var issues = mappings.filter { !excludedTVPaths.contains($0.local.url) && chosenEpisodeIDs[$0.local.url] == nil }.map { "Unmapped: \($0.local.url.lastPathComponent)" }
         if let audit = tvAudit {
@@ -303,7 +318,7 @@ private struct ContentView: View {
         }
         return issues
     }
-    private func approved() -> [ApprovedEpisodeMapping] { let index = Dictionary(uniqueKeysWithValues: canonicalEpisodes.map { ($0.tvdbID, $0) }); return mappings.compactMap { mapping in guard !excludedTVPaths.contains(mapping.local.url) else { return nil }; return chosenEpisodeIDs[mapping.local.url].flatMap { index[$0] }.map { ApprovedEpisodeMapping(local: mapping.local, canonical: $0, downloadArtwork: artworkSelections[mapping.local.url] ?? false) } } }
+    private func approved() -> [ApprovedEpisodeMapping] { let index = Dictionary(uniqueKeysWithValues: canonicalEpisodes.map { ($0.tvdbID, $0) }); return mappings.compactMap { mapping in guard !excludedTVPaths.contains(mapping.local.url) else { return nil }; return chosenEpisodeIDs[mapping.local.url].flatMap { index[$0] }.map { ApprovedEpisodeMapping(local: mapping.local, canonical: $0, downloadArtwork: artworkSelections[mapping.local.url] ?? false, nfoFieldsToReplace: nfoReplacementFields[mapping.local.url, default: Set(NFORepairInspector.comparableFields)]) } } }
     private func renamePlan() throws -> MediaRenamePlan? { let moves = mappings.compactMap { mapping -> MediaRename? in let path = destinationPaths[mapping.local.url] ?? mapping.local.url.path; return path == mapping.local.url.path ? nil : MediaRename(source: mapping.local.url, destination: URL(fileURLWithPath: path)) }; return moves.isEmpty ? nil : try MediaRenamePlan(renames: moves) }
     private func planDocument() -> MappingPlanDocument? { guard let directory = destination, let series = reviewedSeries else { return nil }; return MappingPlanDocument(seriesTVDBID: series.tvdbID, libraryPath: directory.path, entries: mappings.map { MappingPlanDocument.Entry(sourcePath: $0.local.url.path, canonicalEpisodeID: chosenEpisodeIDs[$0.local.url], destinationPath: destinationPaths[$0.local.url], downloadArtwork: artworkSelections[$0.local.url] ?? false, excluded: excludedTVPaths.contains($0.local.url)) }) }
     private func exportPlan() { guard let plan = planDocument() else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "noside-media-tv-mapping.json"; panel.directoryURL = destination; guard panel.runModal() == .OK, let url = panel.url else { return }; do { try plan.write(to: url); status = "Reusable mapping plan exported: \(url.lastPathComponent)" } catch { status = error.localizedDescription } }

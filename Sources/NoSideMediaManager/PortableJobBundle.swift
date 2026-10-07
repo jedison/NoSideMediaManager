@@ -342,7 +342,8 @@ public enum PortableJobBundle {
         for (mapping, videoPath) in outputLocations {
             let nfoPath = replacingExtension(videoPath, with: "nfo")
             if !generated.contains(nfoPath) {
-                try write(NFOWriter.episodeData(mapping.canonical), relativePath: nfoPath, in: bundle)
+                let existing = mapping.local.url.deletingPathExtension().appendingPathExtension("nfo")
+                try write(NFORepairInspector.mergedEpisodeData(existingNFO: existing, canonical: mapping.canonical, replacing: mapping.nfoFieldsToReplace), relativePath: nfoPath, in: bundle)
                 generated.append(nfoPath)
             }
             if downloadArtwork, mapping.downloadArtwork, let artwork = mapping.canonical.artworkURL {
