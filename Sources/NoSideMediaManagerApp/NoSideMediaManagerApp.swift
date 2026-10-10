@@ -484,6 +484,7 @@ private final class MovieAuditSession: ObservableObject {
     @Published var ignoreRules = [String]()
     @Published var invalidNFOPaths = Set<String>()
     @Published var duplicateTMDBIDs = [String: [String]]()
+    @Published var orphanSidecars = [String]()
 
     func auditSelectedFolder() {
         guard let folder else { status = "Set Movie library root in Settings first, or choose another folder."; return }
@@ -509,7 +510,7 @@ private final class MovieAuditSession: ObservableObject {
                 self?.status = total == 0 ? "No video files found." : "Reviewing \(completed) of \(total) video files…"
             }
             guard let self else { return }
-            self.items = report.items; self.invalidNFOPaths = Set(report.invalidNFOs); self.duplicateTMDBIDs = report.duplicateTMDBIDs; self.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); self.status = "Audited \(report.items.count) videos."; self.isWorking = false
+            self.items = report.items; self.invalidNFOPaths = Set(report.invalidNFOs); self.duplicateTMDBIDs = report.duplicateTMDBIDs; self.orphanSidecars = MovieLibraryAudit.orphanSidecars(in: folder); self.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); self.status = "Audited \(report.items.count) videos; \(self.orphanSidecars.count) orphan sidecar(s) reported."; self.isWorking = false
         }
     }
     private func updateSharedAudit(_ snapshot: CompanionMovieAuditSnapshot) {
@@ -542,9 +543,11 @@ private struct MovieToolsView: View {
                 VStack(alignment: .leading) {
                     Text(item.nfoTitle ?? URL(fileURLWithPath: item.videoPath).lastPathComponent)
                     Text("\(item.state.rawValue) · \(folderLabel(item.folderState))\(item.editionHint.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(item.isMultiPartPreservationReady || item.state == .bareNeedsTMDB ? .orange : .secondary)
+                    if let languages = item.subtitleLanguages, !languages.isEmpty { Text("Embedded subtitles: \(languages.joined(separator: ", "))").font(.caption2).foregroundStyle(.secondary) }
                     if item.isMultiPartPreservationReady { Text(URL(fileURLWithPath: item.videoPath).lastPathComponent).font(.caption2).foregroundStyle(.secondary) }
                 }
             }
+            if !session.orphanSidecars.isEmpty { DisclosureGroup("Orphan sidecars (\(session.orphanSidecars.count))") { Text("These have no same-stem video. They are reported only; MMM will not move or delete them without a future explicit package review.").font(.caption).foregroundStyle(.secondary); ForEach(session.orphanSidecars, id: \.self) { Text(URL(fileURLWithPath: $0).lastPathComponent).font(.caption) } } }
             HStack {
                 Button("Select filtered") { session.selectedPaths.formUnion(filteredItems.map(\.videoPath)) }.disabled(filteredItems.isEmpty)
                 Button("Clear selection") { session.selectedPaths.removeAll() }.disabled(session.selectedPaths.isEmpty)

@@ -5,9 +5,9 @@ public enum MovieSidecarState: String, Codable, Sendable { case complete, embedd
 /// may be complete but still need its files moved into a canonical movie folder.
 public enum MovieFolderState: String, Codable, Sendable { case normalized, needsNormalization, metadataIncomplete, sharedMultiPart }
 public struct MovieAuditItem: Codable, Sendable, Equatable {
-    public let videoPath: String; public let nfoExists: Bool; public let artworkExists: Bool; public let embeddedTitle: String?; public let embeddedCreationDate: String?; public let hasEmbeddedArtwork: Bool; public let tmdbID: Int?; public let nfoTitle: String?; public let nfoYear: String?; public let nfoIsValid: Bool?; public let editionHint: String?; public let state: MovieSidecarState; public let folderState: MovieFolderState
-    public init(videoPath: String, nfoExists: Bool, artworkExists: Bool, embeddedTitle: String?, embeddedCreationDate: String?, hasEmbeddedArtwork: Bool, tmdbID: Int?, nfoTitle: String?, nfoYear: String?, nfoIsValid: Bool?, editionHint: String?, state: MovieSidecarState, folderState: MovieFolderState = .metadataIncomplete) {
-        self.videoPath = videoPath; self.nfoExists = nfoExists; self.artworkExists = artworkExists; self.embeddedTitle = embeddedTitle; self.embeddedCreationDate = embeddedCreationDate; self.hasEmbeddedArtwork = hasEmbeddedArtwork; self.tmdbID = tmdbID; self.nfoTitle = nfoTitle; self.nfoYear = nfoYear; self.nfoIsValid = nfoIsValid; self.editionHint = editionHint; self.state = state; self.folderState = folderState
+    public let videoPath: String; public let nfoExists: Bool; public let artworkExists: Bool; public let embeddedTitle: String?; public let embeddedCreationDate: String?; public let hasEmbeddedArtwork: Bool; public let tmdbID: Int?; public let nfoTitle: String?; public let nfoYear: String?; public let nfoIsValid: Bool?; public let editionHint: String?; public let subtitleLanguages: [String]?; public let state: MovieSidecarState; public let folderState: MovieFolderState
+    public init(videoPath: String, nfoExists: Bool, artworkExists: Bool, embeddedTitle: String?, embeddedCreationDate: String?, hasEmbeddedArtwork: Bool, tmdbID: Int?, nfoTitle: String?, nfoYear: String?, nfoIsValid: Bool?, editionHint: String?, subtitleLanguages: [String]? = nil, state: MovieSidecarState, folderState: MovieFolderState = .metadataIncomplete) {
+        self.videoPath = videoPath; self.nfoExists = nfoExists; self.artworkExists = artworkExists; self.embeddedTitle = embeddedTitle; self.embeddedCreationDate = embeddedCreationDate; self.hasEmbeddedArtwork = hasEmbeddedArtwork; self.tmdbID = tmdbID; self.nfoTitle = nfoTitle; self.nfoYear = nfoYear; self.nfoIsValid = nfoIsValid; self.editionHint = editionHint; self.subtitleLanguages = subtitleLanguages; self.state = state; self.folderState = folderState
     }
     public var isMultiPart: Bool { folderState == .sharedMultiPart }
     public var isPreservationReady: Bool { state == .complete && nfoIsValid == true && tmdbID != nil && folderState == .needsNormalization }
@@ -83,7 +83,7 @@ public enum MovieLibraryAudit {
             let image = primaryArtworkExists(for: sidecarBase)
             let state = classify(nfoExists: nfoExists, artworkExists: image, info: info)
             let folderState: MovieFolderState = sharedBase == nil ? folderState(for: video, nfo: parsed, sidecarState: state) : .sharedMultiPart
-            items.append(MovieAuditItem(videoPath: video.path, nfoExists: nfoExists, artworkExists: image, embeddedTitle: info.title, embeddedCreationDate: info.creationDate, hasEmbeddedArtwork: info.hasEmbeddedArtwork, tmdbID: parsed?.id, nfoTitle: parsed?.title, nfoYear: parsed?.year, nfoIsValid: nfoExists ? parsed?.valid ?? false : nil, editionHint: editionHint(video.lastPathComponent), state: state, folderState: folderState))
+            items.append(MovieAuditItem(videoPath: video.path, nfoExists: nfoExists, artworkExists: image, embeddedTitle: info.title, embeddedCreationDate: info.creationDate, hasEmbeddedArtwork: info.hasEmbeddedArtwork, tmdbID: parsed?.id, nfoTitle: parsed?.title, nfoYear: parsed?.year, nfoIsValid: nfoExists ? parsed?.valid ?? false : nil, editionHint: editionHint(video.lastPathComponent), subtitleLanguages: info.subtitleLanguages, state: state, folderState: folderState))
             progress?(index + 1, videos.count)
         }
         return items
@@ -109,6 +109,12 @@ public enum MovieLibraryAudit {
         let duplicates = Dictionary(grouping: pairs, by: \.0).compactMapValues { values in values.count > 1 ? values.map(\.1).sorted() : nil }
         let ignored = ignoredVideoFiles(in: directory).map(\.path).sorted()
         return MovieLibraryHealthReport(items: items, duplicateTMDBIDs: duplicates, invalidNFOs: items.filter { $0.nfoIsValid == false }.map(\.videoPath).sorted(), ignoredVideoFiles: ignored)
+    }
+    public static func orphanSidecars(in directory: URL, fileManager: FileManager = .default) -> [String] {
+        let videos = Set(MediaFileInspector.videoFiles(in: directory, fileManager: fileManager).map { $0.deletingPathExtension().standardizedFileURL.path })
+        let extensions: Set<String> = ["nfo", "jpg", "jpeg", "png", "srt", "ass", "ssa", "sub", "idx", "vtt"]
+        guard let enumerator = fileManager.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return [] }
+        return enumerator.compactMap { $0 as? URL }.filter { extensions.contains($0.pathExtension.lowercased()) && !videos.contains($0.deletingPathExtension().standardizedFileURL.path) }.map(\.path).sorted()
     }
     /// A portable, read-only companion to `movie-health` JSON for a person
     /// reviewing a library outside MMM. It contains no provider calls and no

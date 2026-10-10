@@ -2,6 +2,16 @@ import Foundation
 import Testing
 @testable import NoSideMediaManager
 
+@Test func orphanSidecarsAreReportedWithoutMutatingLibrary() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data().write(to: root.appendingPathComponent("Film.mp4"))
+    try Data().write(to: root.appendingPathComponent("Film.nfo"))
+    try Data().write(to: root.appendingPathComponent("Lost.srt"))
+    #expect(MovieLibraryAudit.orphanSidecars(in: root).map { URL(fileURLWithPath: $0).lastPathComponent } == ["Lost.srt"])
+}
+
 @Test func movieNFOIsKodiCompatibleAndUsesTMDBID() throws {
     let movie = Movie(tmdbID: 603, title: "The Matrix", overview: "Choice & consequence", releaseDate: "1999-03-30", runtimeMinutes: 136, rating: 8.2, genres: ["Science Fiction"])
     let text = String(decoding: try NFOWriter.movieData(movie), as: UTF8.self)
