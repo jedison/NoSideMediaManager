@@ -27,11 +27,9 @@
   rollback before touching the library.
 - Add field-by-field NFO merge/acceptance, rather than the current visible
   field-difference review and whole-file generated-NFO replacement.
-- Add ZIP integrity verification and optional SHA-256 manifesting for exported
-  package ZIPs. macOS now exports a selected frozen folder with `ditto` while
-  retaining that folder as the inspected source package.
-- Add recorded TVDB response fixtures for series, official episode order,
-  artwork URLs, pagination, and malformed API responses.
+- Extend package integrity verification to exported ZIP transport and add
+  recorded TVDB pagination and malformed-response fixtures. The frozen folder
+  now has `SHA256SUMS`/`verify.sh` plus series and official-order fixtures.
 - Add a real macOS `.xcodeproj` wrapper for the package when the product moves
   beyond the prototype stage.
 - Cache TVDB tokens securely in Keychain, with expiry handling.
@@ -43,11 +41,12 @@
   mapping JSON. The current export/load plan already records explicit
   exclusions transparently and is safe to inspect/edit.
 - Add collection/set support and configurable movie-folder layouts.
-- Add explicit handling for editions, extras, trailers, featurettes, and
-  alternate encodes rather than only flagging their likely filename hints.
-- Add an orphan-sidecar report and optional review workflow. MMM currently
-  identifies invalid NFOs and duplicate TMDB IDs, but deliberately does not
-  delete or move unassociated files.
+- Add an explicit keep/ignore/package review workflow for classified editions,
+  extras, trailers, featurettes, and alternate encodes. MMM now labels and
+  filters them but never acts automatically.
+- Add an orphan-sidecar review/package workflow. MMM now reports genuine
+  orphans without mistaking language-tagged subtitles for them, and deliberately
+  does not delete or move unassociated files.
 - Add TMDB or another provider only as an optional comparison/reference source;
   retain an explicit per-series canonical-order choice.
 - Add subtitle-sidecar inspection and language-aware review beyond the current

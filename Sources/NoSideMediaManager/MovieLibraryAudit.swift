@@ -1,13 +1,22 @@
 import Foundation
 
 public enum MovieSidecarState: String, Codable, Sendable { case complete, embeddedMetadataNeedsSidecars, bareNeedsTMDB, incompleteSidecars }
+/// A conservative, filename-derived label for content that should be reviewed
+/// as an edition or extra rather than silently treated as the main feature.
+public enum MovieContentKind: String, Codable, Sendable {
+    case feature, edition, alternateEncode, trailer, featurette, behindTheScenes, commentary
+
+    public var requiresExplicitReview: Bool {
+        switch self { case .feature, .edition: false; default: true }
+    }
+}
 /// Layout is intentionally reported separately from metadata readiness: a film
 /// may be complete but still need its files moved into a canonical movie folder.
 public enum MovieFolderState: String, Codable, Sendable { case normalized, needsNormalization, metadataIncomplete, sharedMultiPart }
 public struct MovieAuditItem: Codable, Sendable, Equatable {
-    public let videoPath: String; public let nfoExists: Bool; public let artworkExists: Bool; public let embeddedTitle: String?; public let embeddedCreationDate: String?; public let hasEmbeddedArtwork: Bool; public let tmdbID: Int?; public let nfoTitle: String?; public let nfoYear: String?; public let nfoIsValid: Bool?; public let editionHint: String?; public let subtitleLanguages: [String]?; public let state: MovieSidecarState; public let folderState: MovieFolderState
-    public init(videoPath: String, nfoExists: Bool, artworkExists: Bool, embeddedTitle: String?, embeddedCreationDate: String?, hasEmbeddedArtwork: Bool, tmdbID: Int?, nfoTitle: String?, nfoYear: String?, nfoIsValid: Bool?, editionHint: String?, subtitleLanguages: [String]? = nil, state: MovieSidecarState, folderState: MovieFolderState = .metadataIncomplete) {
-        self.videoPath = videoPath; self.nfoExists = nfoExists; self.artworkExists = artworkExists; self.embeddedTitle = embeddedTitle; self.embeddedCreationDate = embeddedCreationDate; self.hasEmbeddedArtwork = hasEmbeddedArtwork; self.tmdbID = tmdbID; self.nfoTitle = nfoTitle; self.nfoYear = nfoYear; self.nfoIsValid = nfoIsValid; self.editionHint = editionHint; self.subtitleLanguages = subtitleLanguages; self.state = state; self.folderState = folderState
+    public let videoPath: String; public let nfoExists: Bool; public let artworkExists: Bool; public let embeddedTitle: String?; public let embeddedCreationDate: String?; public let hasEmbeddedArtwork: Bool; public let tmdbID: Int?; public let nfoTitle: String?; public let nfoYear: String?; public let nfoIsValid: Bool?; public let editionHint: String?; public let contentKind: MovieContentKind?; public let subtitleLanguages: [String]?; public let state: MovieSidecarState; public let folderState: MovieFolderState
+    public init(videoPath: String, nfoExists: Bool, artworkExists: Bool, embeddedTitle: String?, embeddedCreationDate: String?, hasEmbeddedArtwork: Bool, tmdbID: Int?, nfoTitle: String?, nfoYear: String?, nfoIsValid: Bool?, editionHint: String?, contentKind: MovieContentKind? = nil, subtitleLanguages: [String]? = nil, state: MovieSidecarState, folderState: MovieFolderState = .metadataIncomplete) {
+        self.videoPath = videoPath; self.nfoExists = nfoExists; self.artworkExists = artworkExists; self.embeddedTitle = embeddedTitle; self.embeddedCreationDate = embeddedCreationDate; self.hasEmbeddedArtwork = hasEmbeddedArtwork; self.tmdbID = tmdbID; self.nfoTitle = nfoTitle; self.nfoYear = nfoYear; self.nfoIsValid = nfoIsValid; self.editionHint = editionHint; self.contentKind = contentKind; self.subtitleLanguages = subtitleLanguages; self.state = state; self.folderState = folderState
     }
     public var isMultiPart: Bool { folderState == .sharedMultiPart }
     public var isPreservationReady: Bool { state == .complete && nfoIsValid == true && tmdbID != nil && folderState == .needsNormalization }
@@ -83,7 +92,8 @@ public enum MovieLibraryAudit {
             let image = primaryArtworkExists(for: sidecarBase)
             let state = classify(nfoExists: nfoExists, artworkExists: image, info: info)
             let folderState: MovieFolderState = sharedBase == nil ? folderState(for: video, nfo: parsed, sidecarState: state) : .sharedMultiPart
-            items.append(MovieAuditItem(videoPath: video.path, nfoExists: nfoExists, artworkExists: image, embeddedTitle: info.title, embeddedCreationDate: info.creationDate, hasEmbeddedArtwork: info.hasEmbeddedArtwork, tmdbID: parsed?.id, nfoTitle: parsed?.title, nfoYear: parsed?.year, nfoIsValid: nfoExists ? parsed?.valid ?? false : nil, editionHint: editionHint(video.lastPathComponent), subtitleLanguages: info.subtitleLanguages, state: state, folderState: folderState))
+            let content = contentClassification(video.lastPathComponent)
+            items.append(MovieAuditItem(videoPath: video.path, nfoExists: nfoExists, artworkExists: image, embeddedTitle: info.title, embeddedCreationDate: info.creationDate, hasEmbeddedArtwork: info.hasEmbeddedArtwork, tmdbID: parsed?.id, nfoTitle: parsed?.title, nfoYear: parsed?.year, nfoIsValid: nfoExists ? parsed?.valid ?? false : nil, editionHint: content.hint, contentKind: content.kind, subtitleLanguages: info.subtitleLanguages, state: state, folderState: folderState))
             progress?(index + 1, videos.count)
         }
         return items
@@ -111,10 +121,16 @@ public enum MovieLibraryAudit {
         return MovieLibraryHealthReport(items: items, duplicateTMDBIDs: duplicates, invalidNFOs: items.filter { $0.nfoIsValid == false }.map(\.videoPath).sorted(), ignoredVideoFiles: ignored)
     }
     public static func orphanSidecars(in directory: URL, fileManager: FileManager = .default) -> [String] {
-        let videos = Set(MediaFileInspector.videoFiles(in: directory, fileManager: fileManager).map { $0.deletingPathExtension().standardizedFileURL.path })
+        let videos = MediaFileInspector.videoFiles(in: directory, fileManager: fileManager).map { $0.deletingPathExtension().standardizedFileURL.path }
         let extensions: Set<String> = ["nfo", "jpg", "jpeg", "png", "srt", "ass", "ssa", "sub", "idx", "vtt"]
         guard let enumerator = fileManager.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return [] }
-        return enumerator.compactMap { $0 as? URL }.filter { extensions.contains($0.pathExtension.lowercased()) && !videos.contains($0.deletingPathExtension().standardizedFileURL.path) }.map(\.path).sorted()
+        return enumerator.compactMap { $0 as? URL }.filter { sidecar in
+            guard extensions.contains(sidecar.pathExtension.lowercased()) else { return false }
+            let stem = sidecar.deletingPathExtension().standardizedFileURL.path
+            return !videos.contains { video in
+                stem == video || stem.hasPrefix(video + ".") || stem.hasPrefix(video + "-")
+            }
+        }.map(\.path).sorted()
     }
     /// A portable, read-only companion to `movie-health` JSON for a person
     /// reviewing a library outside MMM. It contains no provider calls and no
@@ -135,10 +151,11 @@ public enum MovieLibraryAudit {
         let year = (try? document.nodes(forXPath: "/movie/year"))?.first?.stringValue
         return (identifier, title?.trimmingCharacters(in: .whitespacesAndNewlines), year?.trimmingCharacters(in: .whitespacesAndNewlines), true)
     }
-    private static func editionHint(_ name: String) -> String? {
+    static func contentClassification(_ name: String) -> (kind: MovieContentKind, hint: String?) {
         let lower = name.lowercased()
-        for hint in ["director's cut", "directors cut", "extended", "remux", "3d", "commentary", "trailer", "featurette", "behind the scenes"] where lower.contains(hint) { return hint }
-        return nil
+        let values: [(String, MovieContentKind)] = [("trailer", .trailer), ("featurette", .featurette), ("behind the scenes", .behindTheScenes), ("commentary", .commentary), ("director's cut", .edition), ("directors cut", .edition), ("extended", .edition), ("remux", .alternateEncode), ("3d", .alternateEncode)]
+        for (hint, kind) in values where lower.contains(hint) { return (kind, hint) }
+        return (.feature, nil)
     }
     static func folderState(for video: URL, nfo: (id: Int?, title: String?, year: String?, valid: Bool)?, sidecarState: MovieSidecarState) -> MovieFolderState {
         guard sidecarState == .complete, nfo?.valid == true, nfo?.id != nil,

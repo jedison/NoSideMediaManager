@@ -8,8 +8,17 @@ import Testing
     defer { try? FileManager.default.removeItem(at: root) }
     try Data().write(to: root.appendingPathComponent("Film.mp4"))
     try Data().write(to: root.appendingPathComponent("Film.nfo"))
+    try Data().write(to: root.appendingPathComponent("Film.en.forced.srt"))
     try Data().write(to: root.appendingPathComponent("Lost.srt"))
     #expect(MovieLibraryAudit.orphanSidecars(in: root).map { URL(fileURLWithPath: $0).lastPathComponent } == ["Lost.srt"])
+}
+
+@Test func movieAuditLabelsExtrasAndAlternateEncodesForReview() {
+    #expect(MovieLibraryAudit.contentClassification("Film Trailer.mp4").kind == .trailer)
+    #expect(MovieLibraryAudit.contentClassification("Film Remux.mkv").kind == .alternateEncode)
+    #expect(MovieLibraryAudit.contentClassification("Film Director's Cut.m4v").kind == .edition)
+    #expect(MovieContentKind.trailer.requiresExplicitReview)
+    #expect(!MovieContentKind.edition.requiresExplicitReview)
 }
 
 @Test func movieNFOIsKodiCompatibleAndUsesTMDBID() throws {

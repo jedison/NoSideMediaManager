@@ -67,12 +67,14 @@ public enum PortableJobBundleError: LocalizedError, Equatable {
     case unresolvedMapping
     case outputAlreadyExists(URL)
     case pathOutsideShowRoot(URL)
+    case integrityManifestFailed
 
     public var errorDescription: String? {
         switch self {
         case .unresolvedMapping: "Every selected video needs a canonical TVDB episode before a job can be frozen."
         case .outputAlreadyExists(let url): "The job bundle output already exists: \(url.path)"
         case .pathOutsideShowRoot(let url): "A planned path is outside the selected show root: \(url.path)"
+        case .integrityManifestFailed: "MMM could not calculate the frozen package integrity manifest."
         }
     }
 }
@@ -144,8 +146,7 @@ public enum PortableJobBundle {
         }
         let facade = TVSeries(tvdbID: 0, title: "Movie library")
         let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: moves, generatedFiles: Array(Set(generated)).sorted(), unavailableArtwork: unavailable.sorted(), notes: notes + ["Every movie has a reviewed TMDB ID in the frozen NFO."], mediaKind: "movie", metadataProvider: "tmdb", sourceFingerprints: fingerprints(for: locations, mode: fingerprintMode))
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
-        try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic); return manifest
+        try finalize(manifest, in: bundle); return manifest
     }
     @discardableResult
     public static func createEmbeddedMovie(at requestedBundle: URL, libraryRoot: URL, source: URL, title: String, creationDate: String?, artwork: Data?, fileManager: FileManager = .default) throws -> PortableJobManifest {
@@ -157,8 +158,7 @@ public enum PortableJobBundle {
         if let artwork { let imagePath = replacingExtension(sourceRelative, with: "jpg"); let target = generatedURL(for: imagePath, in: bundle); try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true); try artwork.write(to: target, options: .atomic); generated.append(imagePath) }
         let facade = TVSeries(tvdbID: 0, title: title)
         let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: [], generatedFiles: generated.sorted(), notes: ["NFO and artwork were extracted from the video container; no TMDB lookup was used."], mediaKind: "movie", metadataProvider: "embedded", sourceFingerprints: fingerprints(for: [sourceRelative: source]))
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
-        try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic); return manifest
+        try finalize(manifest, in: bundle); return manifest
     }
     /// Freezes sidecars extracted from multiple selected containers as one
     /// package. It only writes NFO/JPG outputs inside the package.
@@ -184,9 +184,7 @@ public enum PortableJobBundle {
         }
         let facade = TVSeries(tvdbID: 0, title: "Embedded movie metadata")
         let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: [], generatedFiles: Array(Set(generated)).sorted(), notes: ["NFO and artwork were extracted from selected video containers; no TMDB lookup was used."], mediaKind: "movie", metadataProvider: "embedded", sourceFingerprints: fingerprints(for: sources))
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
-        try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
+        try finalize(manifest, in: bundle)
         return manifest
     }
     /// Freezes extracted poster artwork only. This is for a valid existing NFO
@@ -208,9 +206,7 @@ public enum PortableJobBundle {
         }
         let facade = TVSeries(tvdbID: 0, title: "Embedded artwork repair")
         let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: [], generatedFiles: generated.sorted(), notes: ["Poster artwork was extracted from the selected video containers. Existing valid NFO files are preserved unchanged."], mediaKind: "movie", metadataProvider: "embedded", sourceFingerprints: fingerprints(for: sources))
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
-        try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
+        try finalize(manifest, in: bundle)
         return manifest
     }
     /// Creates a portable single-movie transaction. It writes only `bundle`,
@@ -233,8 +229,7 @@ public enum PortableJobBundle {
         let facade = TVSeries(tvdbID: movie.tmdbID, title: movie.title)
         let moves = sourceRelative == destinationRelative ? [] : [PortableJobManifest.Move(source: sourceRelative, destination: destinationRelative)]
         let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: moves, generatedFiles: generated, unavailableArtwork: unavailable, notes: notes, mediaKind: "movie", metadataProvider: "tmdb", sourceFingerprints: fingerprints(for: [sourceRelative: source]))
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
-        try script(applyScript(manifest), named: "apply.sh", in: bundle); try script(rollbackScript(manifest), named: "rollback.sh", in: bundle); try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
+        try finalize(manifest, in: bundle)
         return manifest
     }
     /// Freezes a move-only, one-folder-per-movie transaction for films which
@@ -269,11 +264,7 @@ public enum PortableJobBundle {
         let facade = TVSeries(tvdbID: 0, title: "Existing movie library")
         let multipartNote = sidecarMoves.isEmpty ? [] : ["Emby stacked movie parts use -part1, -part2, etc.; shared NFO/artwork moves once into the movie folder."]
         let manifest = PortableJobManifest(jobID: jobID, series: facade, moves: moves, sidecarMoves: sidecarMoves, generatedFiles: [], notes: ["Existing valid NFO XML and recognised sidecars are preserved exactly; this package only reorganises them."] + multipartNote, mediaKind: "movie", metadataProvider: "existing-nfo", sourceFingerprints: fingerprints(for: sources, mode: fingerprintMode))
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
-        try script(preservationApplyScript(manifest), named: "apply.sh", in: bundle)
-        try script(preservationRollbackScript(manifest), named: "rollback.sh", in: bundle)
-        try preservationReadme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
+        try finalize(manifest, in: bundle, preservation: true)
         return manifest
     }
 
@@ -391,11 +382,7 @@ public enum PortableJobBundle {
         var sourceLocations = [String: URL]()
         for mapping in mappings { if let path = try? relative(mapping.local.url, to: root) { sourceLocations[path] = mapping.local.url } }
         let manifest = PortableJobManifest(jobID: jobID, series: series, moves: moves, generatedFiles: generated, unavailableArtwork: unavailableArtwork.sorted(), notes: notes, sourceFingerprints: fingerprints(for: sourceLocations, mode: fingerprintMode))
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
-        try script(applyScript(manifest), named: "apply.sh", in: bundle)
-        try script(rollbackScript(manifest), named: "rollback.sh", in: bundle)
-        try readme(manifest).data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
+        try finalize(manifest, in: bundle)
         return manifest
     }
 
@@ -440,6 +427,61 @@ public enum PortableJobBundle {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
 
+    /// Add a checksum manifest after every immutable package component has
+    /// been written. `verify.sh` is deliberately portable to Catalina and
+    /// Monterey: both ship `/usr/bin/shasum`.
+    private static func finalize(_ manifest: PortableJobManifest, in bundle: URL, preservation: Bool = false) throws {
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(manifest).write(to: bundle.appendingPathComponent("manifest.json"), options: .atomic)
+        try script(preservation ? preservationApplyScript(manifest) : applyScript(manifest), named: "apply.sh", in: bundle)
+        try script(preservation ? preservationRollbackScript(manifest) : rollbackScript(manifest), named: "rollback.sh", in: bundle)
+        let text = preservation ? preservationReadme(manifest) : readme(manifest)
+        try text.data(using: .utf8)!.write(to: bundle.appendingPathComponent("README.txt"), options: .atomic)
+        try script(integrityScript(), named: "verify.sh", in: bundle)
+        try integrityManifest(in: bundle)
+    }
+
+    private static func integrityScript() -> String {
+        """
+        #!/usr/bin/env bash
+        # Verifies the frozen MMM package before inspection or application.
+        set -euo pipefail
+        BUNDLE_DIR="$(cd "$(dirname "$0")" && pwd)"
+        cd "$BUNDLE_DIR"
+        /usr/bin/shasum -a 256 -c SHA256SUMS
+        echo "Package integrity verified."
+        """
+    }
+
+    private static func integrityManifest(in bundle: URL) throws {
+        let names = ["README.txt", "apply.sh", "manifest.json", "rollback.sh", "verify.sh"] + generatedRelativeFiles(in: bundle)
+        var lines = [String]()
+        for name in names.sorted() {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/shasum")
+            process.currentDirectoryURL = bundle
+            process.arguments = ["-a", "256", name]
+            let output = Pipe(); process.standardOutput = output
+            try process.run(); process.waitUntilExit()
+            guard process.terminationStatus == 0 else { throw PortableJobBundleError.integrityManifestFailed }
+            let line = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            lines.append(line)
+        }
+        try (lines.joined(separator: "\n") + "\n").write(to: bundle.appendingPathComponent("SHA256SUMS"), atomically: true, encoding: .utf8)
+    }
+
+    private static func generatedRelativeFiles(in bundle: URL) -> [String] {
+        let generated = bundle.appendingPathComponent("generated", isDirectory: true)
+        guard let files = FileManager.default.enumerator(at: generated, includingPropertiesForKeys: [.isRegularFileKey]) else { return [] }
+        return files.compactMap { $0 as? URL }.compactMap { url in
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
+            let path = url.standardizedFileURL.path
+            let root = generated.standardizedFileURL.path + "/"
+            guard path.hasPrefix(root) else { return nil }
+            return "generated/" + String(path.dropFirst(root.count))
+        }
+    }
+
     private static func applyScript(_ manifest: PortableJobManifest) -> String {
         let preflights = manifest.moves.map { "preflight_video \(quote($0.source)) \(quote($0.destination))" }.joined(separator: "\n")
         let moves = manifest.moves.map { "move_video \(quote($0.source)) \(quote($0.destination))" }.joined(separator: "\n")
@@ -461,6 +503,7 @@ public enum PortableJobBundle {
         [[ -n "$ROOT" && -d "$ROOT" ]] || usage
         ROOT="$(cd "$ROOT" && pwd)"
         BUNDLE_DIR="$(cd "$(dirname "$0")" && pwd)"
+        "$BUNDLE_DIR/verify.sh"
         BACKUP_ROOT="$ROOT/.noside-mmm-backups/\(manifest.jobID)"
         CREATED="$BACKUP_ROOT/created-files.txt"
         run() { if $DRY_RUN; then printf 'DRY-RUN:'; printf ' %q' "$@"; printf '\\n'; else "$@"; fi; }
@@ -513,7 +556,7 @@ public enum PortableJobBundle {
         DRY_RUN=false; ROOT=""
         for arg in "$@"; do if [[ "$arg" == "--dry-run" ]]; then DRY_RUN=true; elif [[ -z "$ROOT" ]]; then ROOT="$arg"; else usage; fi; done
         [[ -n "$ROOT" && -d "$ROOT" ]] || usage
-        ROOT="$(cd "$ROOT" && pwd)"; BACKUP_ROOT="$ROOT/.noside-mmm-backups/\(manifest.jobID)"
+        ROOT="$(cd "$ROOT" && pwd)"; BUNDLE_DIR="$(cd "$(dirname "$0")" && pwd)"; "$BUNDLE_DIR/verify.sh"; BACKUP_ROOT="$ROOT/.noside-mmm-backups/\(manifest.jobID)"
         run() { if $DRY_RUN; then printf 'DRY-RUN:'; printf ' %q' "$@"; printf '\\n'; else "$@"; fi; }
         sidecars() {
           local base="$1"; local file

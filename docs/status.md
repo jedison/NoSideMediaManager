@@ -1,5 +1,20 @@
 # Delivery status — 2026-09-29
 
+## Pre-validation hardening — 2026-10-12
+
+- Movie audits now label likely trailers, featurettes, behind-the-scenes clips,
+  commentaries, alternate encodes, and editions. The explicit-review categories
+  have their own macOS filter; the label is advisory and never changes a file.
+- Language-suffixed subtitle sidecars such as `Film.en.forced.srt` are no
+  longer misreported as orphaned merely because they do not exactly share the
+  video stem.
+- Every newly frozen package contains `SHA256SUMS` and `verify.sh`. `apply.sh`
+  verifies all frozen scripts, manifest, README, and generated files before a
+  dry-run or real apply can proceed.
+- Recorded offline fixtures now exercise TVDB login, series detail, and the
+  GBBO-style official episode order. The suite has 60 passing Swift tests and
+  the macOS executable builds successfully.
+
 ## Local-only release candidate — 2026-10-01
 
 The following is built and verified locally, but deliberately not deployed
