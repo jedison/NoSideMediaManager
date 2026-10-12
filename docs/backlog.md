@@ -5,6 +5,9 @@
 - Deploy and smoke-test the local-only shared-TV-audit/ignore-rules release
   when the media server and iPhone deployment window reopens. Verify that a
   macOS request and iPhone request for the same show attach to one server audit.
+- Run the state-migration script on the Media Mac mini after the Movies volume
+  is mounted and Belles is reachable; re-enter provider API keys in Settings,
+  then validate one imported frozen job with `--dry-run`.
 - Pair the iOS Companion with the media server using a real frozen job and validate
   dry-run, explicit apply, rollback, and log display before broader use.
 - Move the iOS pairing token from UserDefaults to Keychain; add QR pairing and

@@ -14,6 +14,10 @@
 - Recorded offline fixtures now exercise TVDB login, series detail, and the
   GBBO-style official episode order. The suite has 60 passing Swift tests and
   the macOS executable builds successfully.
+- `scripts/migrate-mmm-state-to-media-server.sh` supports a reviewable,
+  destination-side migration of frozen jobs and MMM preferences to a replacement
+  media server. It intentionally excludes app bundles, media files, disks, and
+  Keychain secrets.
 
 ## Local-only release candidate — 2026-10-01
 
