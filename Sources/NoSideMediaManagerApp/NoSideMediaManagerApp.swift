@@ -666,7 +666,11 @@ private struct MovieToolsView: View {
                         Button("Find TMDB match…") { session.selectedPaths = [item.videoPath]; showTMDBReview = true }
                     }
                     Divider()
-                    Button("Ignore this movie in future audits") { ignoreMovie(item) }
+                    if session.selectedPaths.contains(item.videoPath), session.selectedPaths.count > 1 {
+                        Button("Ignore \(session.selectedPaths.count) selected movies in future audits") { ignoreSelectedMovies() }
+                    } else {
+                        Button("Ignore this movie in future audits") { ignoreMovies([item]) }
+                    }
                 }
             }
             .frame(height: min(max(CGFloat(filteredItems.count) * 58, 180), 420))
@@ -701,20 +705,25 @@ private struct MovieToolsView: View {
     private var filteredItems: [MovieAuditItem] { switch session.auditFilter { case "attention": attentionItems; case "needsFolder": session.items.filter(\.isPreservationReady); case "multipart": session.items.filter(\.isMultiPart); case "specialContent": session.items.filter { $0.contentKind?.requiresExplicitReview == true }; case "artworkRepair": session.items.filter(\.isArtworkRepairReady); case "tmdbMatch": session.items.filter { $0.state == .bareNeedsTMDB }; case "invalidNFO": session.items.filter { session.invalidNFOPaths.contains($0.videoPath) }; case "duplicateTMDB": session.items.filter { duplicateTMDBPaths.contains($0.videoPath) }; case "unextractable": session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }; default: session.items } }
     private var tmdbSelections: [MovieAuditItem] { session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == .bareNeedsTMDB } }
     private func addIgnoreRule() { guard let folder = session.folder else { return }; do { try MovieLibraryAudit.addIgnoreRule(ignoreRule, in: folder); session.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); session.status = "Added audit exclusion: \(ignoreRule)"; ignoreRule = "" } catch { session.status = error.localizedDescription } }
-    private func ignoreMovie(_ item: MovieAuditItem) {
+    private func ignoreSelectedMovies() {
+        ignoreMovies(session.items.filter { session.selectedPaths.contains($0.videoPath) })
+    }
+    private func ignoreMovies(_ movies: [MovieAuditItem]) {
         guard let folder = session.folder else { return }
         let root = folder.standardizedFileURL.path + "/"
-        let path = URL(fileURLWithPath: item.videoPath).standardizedFileURL.path
-        guard path.hasPrefix(root) else { session.status = "That movie is outside the selected Movie library."; return }
-        let relativePath = String(path.dropFirst(root.count))
+        let paths = movies.map { URL(fileURLWithPath: $0.videoPath).standardizedFileURL.path }
+        guard !paths.isEmpty else { return }
+        guard paths.allSatisfy({ $0.hasPrefix(root) }) else { session.status = "One or more selected movies are outside the selected Movie library."; return }
+        let relativePaths = paths.map { String($0.dropFirst(root.count)) }
         do {
-            try MovieLibraryAudit.addIgnoreRule(relativePath, in: folder)
+            for relativePath in relativePaths { try MovieLibraryAudit.addIgnoreRule(relativePath, in: folder) }
             session.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder)
-            session.items.removeAll { $0.videoPath == item.videoPath }
-            session.selectedPaths.remove(item.videoPath)
+            let ignoredPaths = Set(paths)
+            session.items.removeAll { ignoredPaths.contains(URL(fileURLWithPath: $0.videoPath).standardizedFileURL.path) }
+            session.selectedPaths.subtract(movies.map(\.videoPath))
             let pairs = session.items.compactMap { item -> (String, String)? in item.tmdbID.map { (String($0), item.videoPath) } }
             session.duplicateTMDBIDs = Dictionary(grouping: pairs, by: \.0).compactMapValues { values in values.count > 1 ? values.map(\.1).sorted() : nil }
-            session.status = "Ignored \(relativePath) in future Movie audits. The video file was not changed."
+            session.status = "Ignored \(relativePaths.count) movie\(relativePaths.count == 1 ? "" : "s") in future Movie audits. Video files were not changed."
         } catch { session.status = error.localizedDescription }
     }
     private func exportHealthReport() { guard let folder = session.folder else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "noside-mmm-movie-health.html"; panel.message = "Save a read-only movie health report"; guard panel.runModal() == .OK, let output = panel.url else { return }; session.isWorking = true; session.status = "Creating a readable movie health report…"; Task { let report = await MovieLibraryAudit.health(directory: folder); do { try MovieLibraryAudit.htmlReport(report).write(to: output, atomically: true, encoding: .utf8); session.status = "Saved health report: \(output.lastPathComponent)" } catch { session.status = error.localizedDescription }; session.isWorking = false } }
