@@ -717,6 +717,13 @@ private struct MovieToolsView: View {
                     Text("\(item.state.rawValue) · \(folderLabel(item.folderState))\(item.contentKind.map { " · \($0.rawValue)" } ?? "")\(item.editionHint.map { " (\($0))" } ?? "")").font(.caption).foregroundStyle(item.contentKind?.requiresExplicitReview == true || item.isMultiPartPreservationReady || item.state == .bareNeedsTMDB ? .orange : .secondary)
                     if let languages = item.subtitleLanguages, !languages.isEmpty { Text("Embedded subtitles: \(languages.joined(separator: ", "))").font(.caption2).foregroundStyle(.secondary) }
                     if item.isMultiPartPreservationReady { Text(URL(fileURLWithPath: item.videoPath).lastPathComponent).font(.caption2).foregroundStyle(.secondary) }
+                    if duplicateTMDBPaths.contains(item.videoPath) {
+                        HStack(spacing: 8) {
+                            Text(movieFacts(item)).font(.caption2).foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.videoPath)]) }.font(.caption)
+                        }
+                    }
                 }
                 .contextMenu {
                     Button(session.selectedPaths.contains(item.videoPath) ? "Deselect" : "Select") {
@@ -763,6 +770,13 @@ private struct MovieToolsView: View {
     }
     private func selectedItems(of state: MovieSidecarState) -> [MovieAuditItem] { session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == state } }
     private var duplicateTMDBPaths: Set<String> { Set(session.duplicateTMDBIDs.values.flatMap { $0 }) }
+    private func movieFacts(_ item: MovieAuditItem) -> String {
+        var facts = [String]()
+        if let fileSize = item.fileSize { facts.append(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)) }
+        if let width = item.width, let height = item.height { facts.append("\(width)×\(height)") }
+        if let languages = item.subtitleLanguages, !languages.isEmpty { facts.append("subtitles: \(languages.joined(separator: ", "))") }
+        return facts.isEmpty ? "Media details unavailable" : facts.joined(separator: " · ")
+    }
     private var attentionItems: [MovieAuditItem] { session.items.filter { $0.state != .complete || $0.folderState == .needsNormalization || session.invalidNFOPaths.contains($0.videoPath) || duplicateTMDBPaths.contains($0.videoPath) } }
     private var filteredItems: [MovieAuditItem] { switch session.auditFilter { case "attention": attentionItems; case "needsFolder": session.items.filter(\.isPreservationReady); case "multipart": session.items.filter(\.isMultiPart); case "specialContent": session.items.filter { $0.contentKind?.requiresExplicitReview == true }; case "artworkRepair": session.items.filter(\.isArtworkRepairReady); case "tmdbMatch": session.items.filter { $0.state == .bareNeedsTMDB }; case "invalidNFO": session.items.filter { session.invalidNFOPaths.contains($0.videoPath) }; case "duplicateTMDB": session.items.filter { duplicateTMDBPaths.contains($0.videoPath) }; case "unextractable": session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }; default: session.items } }
     private var tmdbSelections: [MovieAuditItem] { session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == .bareNeedsTMDB } }
