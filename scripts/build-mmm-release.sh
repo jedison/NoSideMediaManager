@@ -10,7 +10,9 @@ fi
 
 scope="$1"
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-metadata=$(mktemp "${TMPDIR:-/tmp}/mmm-build-info.XXXXXX.plist")
+metadata_base=$(mktemp "${TMPDIR:-/tmp}/mmm-build-info.XXXXXX")
+rm -f "$metadata_base"
+metadata="${metadata_base}.plist"
 trap 'rm -f "$metadata"' EXIT
 if [ -n "${MMM_BUILD_INFO_SOURCE:-}" ]; then
   test -f "$MMM_BUILD_INFO_SOURCE"
