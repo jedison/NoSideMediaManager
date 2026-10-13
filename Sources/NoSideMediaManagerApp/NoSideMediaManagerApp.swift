@@ -575,7 +575,8 @@ private struct MovieToolsView: View {
     @State private var ignoreRule = ""
     @State private var showTMDBReview = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
             Text("Movie Manager").font(.largeTitle.weight(.semibold))
             Text("Audit first. Complete movies can be reorganised without rewriting their NFOs or artwork.").foregroundStyle(.secondary)
             HStack { Button(movieFolderIsSaved ? "Audit saved Movie library" : "Audit selected Movie folder", action: { session.auditSelectedFolder() }).disabled(session.folder == nil || session.isWorking); Button("Choose another folder…", action: chooseFolder).disabled(session.isWorking); Button("Export health report…", action: exportHealthReport).disabled(session.folder == nil || session.isWorking); if let folder = session.folder { Text(folder.path).lineLimit(1).font(.caption).foregroundStyle(.secondary) } }
@@ -587,6 +588,21 @@ private struct MovieToolsView: View {
                 Text("This changes only the visible .noside-mmm-ignore configuration file; it never changes a movie.").font(.caption2).foregroundStyle(.secondary)
             }
             Picker("Show", selection: $session.auditFilter) { Text("All (\(session.items.count))").tag("all"); Text("Needs attention (\(attentionItems.count))").tag("attention"); Text("Needs folder normalisation (\(session.items.filter(\.isPreservationReady).count))").tag("needsFolder"); Text("Shared multi-part movies (\(session.items.filter(\.isMultiPart).count))").tag("multipart"); Text("Special content / alternate encodes (\(session.items.filter { $0.contentKind?.requiresExplicitReview == true }.count))").tag("specialContent"); Text("Needs artwork sidecar (\(session.items.filter(\.isArtworkRepairReady).count))").tag("artworkRepair"); Text("Needs TMDB match (\(session.items.filter { $0.state == .bareNeedsTMDB }.count))").tag("tmdbMatch"); Text("Invalid NFO XML (\(session.invalidNFOPaths.count))").tag("invalidNFO"); Text("Duplicate TMDB IDs (\(duplicateTMDBPaths.count))").tag("duplicateTMDB"); Text("Cannot extract title (\(session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }.count))").tag("unextractable") }.pickerStyle(.menu)
+            if !session.selectedPaths.isEmpty {
+                HStack {
+                    Text("\(session.selectedPaths.count) selected").foregroundStyle(.secondary)
+                    if !tmdbSelections.isEmpty {
+                        Button("Find TMDB match…") { showTMDBReview = true }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(session.isWorking)
+                    }
+                    Spacer()
+                    Button("Clear selection") { session.selectedPaths.removeAll() }.disabled(session.isWorking)
+                }
+                Text(tmdbSelections.isEmpty ? "Choose a package action below for the selected movies." : "Next: review the TMDB result, destination folder, and poster choice before freezing a package.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             List(filteredItems, id: \.videoPath, selection: $session.selectedPaths) { item in
                 VStack(alignment: .leading) {
                     Text(item.nfoTitle ?? URL(fileURLWithPath: item.videoPath).lastPathComponent)
@@ -595,6 +611,7 @@ private struct MovieToolsView: View {
                     if item.isMultiPartPreservationReady { Text(URL(fileURLWithPath: item.videoPath).lastPathComponent).font(.caption2).foregroundStyle(.secondary) }
                 }
             }
+            .frame(height: min(max(CGFloat(filteredItems.count) * 58, 180), 420))
             if !session.orphanSidecars.isEmpty { DisclosureGroup("Orphan sidecars (\(session.orphanSidecars.count))") { Text("These have no same-stem video. They are reported only; MMM will not move or delete them without a future explicit package review.").font(.caption).foregroundStyle(.secondary); ForEach(session.orphanSidecars, id: \.self) { Text(URL(fileURLWithPath: $0).lastPathComponent).font(.caption) } } }
             HStack {
                 Button("Select filtered") { session.selectedPaths.formUnion(filteredItems.map(\.videoPath)) }.disabled(filteredItems.isEmpty)
@@ -604,11 +621,13 @@ private struct MovieToolsView: View {
                 Button("Freeze artwork-repair package…", action: createArtworkRepairPackage).disabled(session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isArtworkRepairReady }.isEmpty || session.isWorking)
                 Button("Freeze preservation package…", action: createSelectedPreservationPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isPreservationReady } || session.isWorking)
                 Button("Freeze multi-part package…", action: createSelectedMultiPartPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isMultiPartPreservationReady } || session.isWorking)
-                Button("Review TMDB matches…") { showTMDBReview = true }.disabled(tmdbSelections.isEmpty || session.isWorking)
             }
             Text("Artwork repair extracts only an embedded poster and preserves the existing valid NFO. Preservation packages move only complete, valid-NFO movies. TMDB matches and unextractable containers need review first.").font(.caption).foregroundStyle(.secondary)
             Text(session.status).foregroundStyle(.secondary).lineLimit(2)
-        }.padding(24).sheet(isPresented: $showTMDBReview) { if !tmdbSelections.isEmpty, let folder = session.folder { TMDBMovieReviewSheet(items: tmdbSelections, libraryRoot: folder) { message in session.status = message; session.selectedPaths.subtract(tmdbSelections.map(\.videoPath)) } } }
+            }
+        }
+        .padding(24)
+        .sheet(isPresented: $showTMDBReview) { if !tmdbSelections.isEmpty, let folder = session.folder { TMDBMovieReviewSheet(items: tmdbSelections, libraryRoot: folder) { message in session.status = message; session.selectedPaths.subtract(tmdbSelections.map(\.videoPath)) } } }
     }
     private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; if let folder = session.folder { panel.directoryURL = folder }; guard panel.runModal() == .OK, let url = panel.url else { return }; session.folder = url; session.status = "Folder selected. Click Audit selected Movie folder to review it." }
     private var movieFolderIsSaved: Bool {
