@@ -31,6 +31,12 @@ import Testing
     #expect(MMMBuildInfo.display(info: info, buildInfo: generated) == "v9.9.9 (42) • build 78 • 260929Z123456")
 }
 
+@Test func buildInfoUsesTheSameBuildNumberAsTheAppBundle() {
+    let info: [String: Any] = ["CFBundleShortVersionString": "9.9.9", "CFBundleVersion": "78"]
+    let generated: [String: Any] = ["sequence": "78", "bundleBuild": "78", "timestamp": "260929Z123456"]
+    #expect(MMMBuildInfo.display(info: info, buildInfo: generated) == "v9.9.9 (build 78) • 260929Z123456")
+}
+
 @Test func importWritesSeriesAndEpisodeFiles() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

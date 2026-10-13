@@ -29,6 +29,8 @@ lipo -create \
   -output "$output/Contents/MacOS/noside-media"
 cp "$root/Resources/AppIcon.icns" "$output/Contents/Resources/AppIcon.icns"
 "$root/scripts/generate-mmm-build-info.sh" "$output/Contents/Resources/MMMBuildInfo.plist"
+sequence=$(/usr/libexec/PlistBuddy -c 'Print :sequence' "$output/Contents/Resources/MMMBuildInfo.plist")
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $sequence" "$output/Contents/Info.plist"
 codesign --force --deep --sign "$identity" "$output"
 codesign --verify --deep --strict --verbose=2 "$output"
 printf '%s\n' "$output"
