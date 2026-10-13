@@ -616,7 +616,11 @@ private struct MovieToolsView: View {
                             .disabled(session.isWorking)
                     }
                     Spacer()
-                    Button("Clear selection") { session.selectedPaths.removeAll() }.disabled(session.isWorking)
+                    Menu("Selection") {
+                        Button("Select all shown") { session.selectedPaths.formUnion(filteredItems.map(\.videoPath)) }
+                        Button("Clear selection") { session.selectedPaths.removeAll() }
+                    }
+                    .disabled(session.isWorking)
                 }
                 Text(tmdbSelections.isEmpty ? "Choose a package action below for the selected movies." : "Next: review the TMDB result, destination folder, and poster choice before freezing a package.")
                     .font(.caption)
@@ -629,17 +633,29 @@ private struct MovieToolsView: View {
                     if let languages = item.subtitleLanguages, !languages.isEmpty { Text("Embedded subtitles: \(languages.joined(separator: ", "))").font(.caption2).foregroundStyle(.secondary) }
                     if item.isMultiPartPreservationReady { Text(URL(fileURLWithPath: item.videoPath).lastPathComponent).font(.caption2).foregroundStyle(.secondary) }
                 }
+                .contextMenu {
+                    Button(session.selectedPaths.contains(item.videoPath) ? "Deselect" : "Select") {
+                        if session.selectedPaths.contains(item.videoPath) { session.selectedPaths.remove(item.videoPath) } else { session.selectedPaths.insert(item.videoPath) }
+                    }
+                    Button("Select only this movie") { session.selectedPaths = [item.videoPath] }
+                    if item.state == .bareNeedsTMDB {
+                        Divider()
+                        Button("Find TMDB match…") { session.selectedPaths = [item.videoPath]; showTMDBReview = true }
+                    }
+                }
             }
             .frame(height: min(max(CGFloat(filteredItems.count) * 58, 180), 420))
             if !session.orphanSidecars.isEmpty { DisclosureGroup("Orphan sidecars (\(session.orphanSidecars.count))") { Text("These have no same-stem video. They are reported only; MMM will not move or delete them without a future explicit package review.").font(.caption).foregroundStyle(.secondary); ForEach(session.orphanSidecars, id: \.self) { Text(URL(fileURLWithPath: $0).lastPathComponent).font(.caption) } } }
             HStack {
-                Button("Select filtered") { session.selectedPaths.formUnion(filteredItems.map(\.videoPath)) }.disabled(filteredItems.isEmpty)
-                Button("Clear selection") { session.selectedPaths.removeAll() }.disabled(session.selectedPaths.isEmpty)
+                Menu("Create package…") {
+                    Button("Sidecars from embedded metadata…", action: createEmbeddedPackage).disabled(session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isEmbeddedSidecarReady }.isEmpty)
+                    Button("Artwork repair…", action: createArtworkRepairPackage).disabled(session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isArtworkRepairReady }.isEmpty)
+                    Button("Folder normalisation…", action: createSelectedPreservationPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isPreservationReady })
+                    Button("Shared multi-part movie…", action: createSelectedMultiPartPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isMultiPartPreservationReady })
+                }
+                .disabled(session.selectedPaths.isEmpty || session.isWorking)
                 Spacer()
-                Button("Freeze sidecar package…", action: createEmbeddedPackage).disabled(session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isEmbeddedSidecarReady }.isEmpty || session.isWorking)
-                Button("Freeze artwork-repair package…", action: createArtworkRepairPackage).disabled(session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isArtworkRepairReady }.isEmpty || session.isWorking)
-                Button("Freeze preservation package…", action: createSelectedPreservationPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isPreservationReady } || session.isWorking)
-                Button("Freeze multi-part package…", action: createSelectedMultiPartPackage).disabled(!session.items.contains { session.selectedPaths.contains($0.videoPath) && $0.isMultiPartPreservationReady } || session.isWorking)
+                Text("Right-click a movie for selection and matching actions.").font(.caption).foregroundStyle(.secondary)
             }
             Text("Artwork repair extracts only an embedded poster and preserves the existing valid NFO. Preservation packages move only complete, valid-NFO movies. TMDB matches and unextractable containers need review first.").font(.caption).foregroundStyle(.secondary)
             Text(session.status).foregroundStyle(.secondary).lineLimit(2)
