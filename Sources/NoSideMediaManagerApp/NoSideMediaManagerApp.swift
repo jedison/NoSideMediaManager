@@ -135,7 +135,16 @@ private struct ContentView: View {
             }
             if !mappings.isEmpty { mappingReview }
             Text(status).font(.callout).foregroundStyle(.secondary).lineLimit(2)
-        }.padding(24)
+        }
+        .padding(24)
+        .sheet(isPresented: $showArtworkReview) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Artwork review").font(.title2.weight(.semibold))
+                artworkReview
+            }
+            .padding(24)
+            .frame(minWidth: 560, minHeight: 300)
+        }
     }
 
     private func client() throws -> TVDBClient { guard let apiKey = TVDBCredentialStore.value(named: "TVDB_API_KEY"), !apiKey.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "Add the TVDB API key in Settings first."]) }; return TVDBClient(credentials: .init(apiKey: apiKey, subscriberPIN: TVDBCredentialStore.value(named: "TVDB_PIN"))) }
@@ -251,7 +260,6 @@ private struct ContentView: View {
                 .disabled(reviewedSeries == nil || isWorking)
             }
             if showPackagePreview { packagePreview }
-            if showArtworkReview { artworkReview }
             Text(mappingIssues.isEmpty ? "All discovered videos have an explicit disposition. This Mac creates a reviewed package only; apply.sh changes the library on the media server." : "Resolve every mapping or explicitly exclude it before freezing. Duplicate groups also require exactly one kept file.").font(.caption).foregroundStyle(mappingIssues.isEmpty ? Color.secondary : Color.orange)
         }
     }
