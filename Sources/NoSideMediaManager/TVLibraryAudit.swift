@@ -3,11 +3,11 @@ import Foundation
 /// A provider-independent local-TV audit. Duplicate candidates are reported
 /// from local episode numbers only; they are never silently merged or renamed.
 public struct TVEpisodeAuditItem: Codable, Sendable, Equatable, Identifiable {
-    public let videoPath: String; public let season: Int; public let episode: Int; public let folderSeason: Int?; public let embeddedTitle: String?; public let fileSize: Int64?
+    public let videoPath: String; public let season: Int; public let episode: Int; public let folderSeason: Int?; public let embeddedTitle: String?; public let fileSize: Int64?; public let width: Int?; public let height: Int?; public let subtitleLanguages: [String]?
     public var id: String { videoPath }
     public var episodeKey: String? { season > 0 && episode > 0 ? "S\(season)E\(episode)" : nil }
     init(_ local: LocalEpisodeFile) {
-        videoPath = local.url.path; season = local.season; episode = local.episode; folderSeason = local.folderSeason; embeddedTitle = local.metadataTitle
+        videoPath = local.url.path; season = local.season; episode = local.episode; folderSeason = local.folderSeason; embeddedTitle = local.metadataTitle; width = local.width; height = local.height; subtitleLanguages = local.subtitleLanguages.isEmpty ? nil : local.subtitleLanguages
         fileSize = try? local.url.resourceValues(forKeys: [.fileSizeKey]).fileSize.map(Int64.init)
     }
 }

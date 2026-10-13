@@ -220,10 +220,18 @@ private struct ContentView: View {
                         Picker("\(duplicate.label): keep", selection: Binding(get: { duplicateKeepPaths[duplicate.id]?.path ?? "" }, set: { chooseDuplicate($0, duplicate: duplicate) })) {
                             Text("Choose one file").tag("")
                             ForEach(duplicate.videoPaths, id: \.self) { path in
-                                Text("\(URL(fileURLWithPath: path).lastPathComponent) · \(fileSizeLabel(path))").tag(path)
+                                Text("\(URL(fileURLWithPath: path).lastPathComponent) · \(candidateFacts(path))").tag(path)
                             }
                         }
                         .pickerStyle(.menu)
+                        ForEach(duplicate.videoPaths, id: \.self) { path in
+                            HStack(spacing: 8) {
+                                Text(URL(fileURLWithPath: path).lastPathComponent).font(.caption).lineLimit(1)
+                                Text(candidateFacts(path)).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                                Spacer()
+                                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }.font(.caption)
+                            }
+                        }
                     }
                 }
             }
@@ -232,6 +240,13 @@ private struct ContentView: View {
     private func fileSizeLabel(_ path: String) -> String {
         guard let size = tvAudit?.items.first(where: { $0.videoPath == path })?.fileSize else { return "size unavailable" }
         return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+    }
+    private func candidateFacts(_ path: String) -> String {
+        guard let item = tvAudit?.items.first(where: { $0.videoPath == path }) else { return fileSizeLabel(path) }
+        var facts = [fileSizeLabel(path)]
+        if let width = item.width, let height = item.height { facts.append("\(width)×\(height)") }
+        if let subtitles = item.subtitleLanguages, !subtitles.isEmpty { facts.append("subtitles: \(subtitles.joined(separator: ", "))") }
+        return facts.joined(separator: " · ")
     }
     private func chooseDuplicate(_ path: String, duplicate: TVDuplicateDecision) {
         let candidates = duplicate.videoPaths.map(URL.init(fileURLWithPath:))
