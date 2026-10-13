@@ -326,6 +326,17 @@ import Testing
     #expect(throws: MovieLibraryAudit.IgnoreRuleError.self) { try MovieLibraryAudit.removeIgnoreRule("../everything", in: root) }
 }
 
+@Test func movieLibrarySignatureChangesWhenAVideoIsAdded() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let before = MovieLibraryAudit.librarySignature(in: root)
+    try Data("video".utf8).write(to: root.appendingPathComponent("Film.mkv"))
+    let after = MovieLibraryAudit.librarySignature(in: root)
+    #expect(before != after)
+    #expect(after.videoCount == 1)
+}
+
 @Test func movieHealthHTMLIsReadableAndEscapesPaths() {
     let item = MovieAuditItem(videoPath: "/Movies/<Unsafe>.mp4", nfoExists: false, artworkExists: false, embeddedTitle: nil, embeddedCreationDate: nil, hasEmbeddedArtwork: false, tmdbID: nil, nfoTitle: "A < B", nfoYear: nil, nfoIsValid: nil, editionHint: nil, state: .bareNeedsTMDB)
     let html = MovieLibraryAudit.htmlReport(.init(items: [item], duplicateTMDBIDs: [:], invalidNFOs: [], ignoredVideoFiles: []))

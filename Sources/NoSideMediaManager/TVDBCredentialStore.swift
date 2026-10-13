@@ -51,4 +51,26 @@ public enum TVDBCredentialStore {
         guard status == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status), userInfo: nil) }
         lock.lock(); cache[name] = value; loaded.insert(name); lock.unlock()
     }
+
+    /// TVDB access tokens are credentials too: keep the short-lived session in
+    /// Keychain, never in preferences or a package.  The API does not expose a
+    /// reliable expiry in every login response, so MMM uses a deliberately
+    /// conservative six-hour lifetime and obtains a fresh token afterwards.
+    public static func cachedTVDBSession(for apiKey: String, now: Date = Date()) -> String? {
+        guard let value = value(named: "TVDB_SESSION"),
+              let record = try? JSONDecoder().decode(TVDBSessionRecord.self, from: Data(value.utf8)),
+              record.apiKey == apiKey, record.expiresAt > now else { return nil }
+        return record.token
+    }
+    public static func storeTVDBSession(_ token: String, for apiKey: String, now: Date = Date()) throws {
+        let record = TVDBSessionRecord(apiKey: apiKey, token: token, expiresAt: now.addingTimeInterval(6 * 60 * 60))
+        let data = try JSONEncoder().encode(record)
+        try set(String(decoding: data, as: UTF8.self), named: "TVDB_SESSION")
+    }
+}
+
+struct TVDBSessionRecord: Codable, Equatable {
+    let apiKey: String
+    let token: String
+    let expiresAt: Date
 }

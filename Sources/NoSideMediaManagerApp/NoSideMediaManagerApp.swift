@@ -558,7 +558,7 @@ private struct PackageOperationsView: View {
             }
             Text("Right-click a package for dry-run, apply, rollback, Finder, ZIP, or delete actions. Applied packages retain their rollback evidence.").font(.caption).foregroundStyle(.secondary)
             if !log.isEmpty { ScrollView { Text(log).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 160) }
-            if !history.isEmpty { VStack(alignment: .leading, spacing: 6) { Text("Operation history").font(.headline); ForEach(history.reversed()) { entry in VStack(alignment: .leading, spacing: 2) { Text("\(entry.operation.rawValue) · \(entry.succeeded ? "completed" : "failed") · \(entry.date.formatted(date: .abbreviated, time: .shortened))").font(.caption); if !entry.log.isEmpty { Text(entry.log).font(.system(.caption2, design: .monospaced)).lineLimit(2).foregroundStyle(.secondary) } } } } }
+            if !history.isEmpty { VStack(alignment: .leading, spacing: 6) { HStack { Text("Operation history").font(.headline); Spacer(); Button("Copy latest log") { copyLatestHistoryLog() }; Button("Export history…") { exportHistory() } }; ForEach(history.reversed()) { entry in VStack(alignment: .leading, spacing: 2) { Text("\(entry.operation.rawValue) · \(entry.succeeded ? "completed" : "failed") · \(entry.date.formatted(date: .abbreviated, time: .shortened))").font(.caption); if !entry.log.isEmpty { Text(entry.log).font(.system(.caption2, design: .monospaced)).lineLimit(2).foregroundStyle(.secondary) } } } } }
             Text(status).foregroundStyle(.secondary)
         }.padding(24).task { refresh() }.onChange(of: selected) { _ in loadHistory() }.confirmationDialog("Apply this frozen package?", isPresented: $confirmApply, titleVisibility: .visible) { Button("Apply", role: .destructive) { run(.apply) } } message: { Text("This performs the reviewed package on the configured media-library root. A rollback remains available afterward.") }.confirmationDialog("Delete this frozen package?", isPresented: $confirmDelete, titleVisibility: .visible) { Button("Delete package", role: .destructive) { deleteSelectedPackage() } } message: { Text("This removes only the package folder and its generated files. It does not change media files. Applied packages cannot be deleted because their rollback evidence is retained.") }
     }
@@ -597,6 +597,24 @@ private struct PackageOperationsView: View {
                 status = "Exported \(output.lastPathComponent). The original folder remains the inspected source package."
             } catch { status = error.localizedDescription }
         }
+    }
+    private func copyLatestHistoryLog() {
+        guard let latest = history.last else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(latest.log, forType: .string)
+        status = "Copied the latest operation log."
+    }
+    private func exportHistory() {
+        guard let selected else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(selected.title.replacingOccurrences(of: "/", with: "-"))-operation-history.json"
+        panel.message = "Export immutable package-operation history"
+        guard panel.runModal() == .OK, let output = panel.url else { return }
+        do {
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(history).write(to: output, options: .atomic)
+            status = "Exported \(history.count) operation record(s) to \(output.lastPathComponent)."
+        } catch { status = error.localizedDescription }
     }
 }
 
@@ -675,7 +693,10 @@ private final class MovieAuditSession: ObservableObject {
                     guard snapshot.phase == .complete, snapshot.report != nil else { return }
                     guard self?.isWorking != true else { return }
                     self?.updateSharedAudit(snapshot)
-                    if let completed = snapshot.completedAt { self?.status = "Loaded saved Movie audit from \(completed.formatted(date: .abbreviated, time: .shortened))." }
+                    if let completed = snapshot.completedAt {
+                        let freshness = await service.movieAuditIsCurrent()
+                        self?.status = freshness == true ? "Loaded current saved Movie audit from \(completed.formatted(date: .abbreviated, time: .shortened))." : freshness == false ? "Loaded saved Movie audit from \(completed.formatted(date: .abbreviated, time: .shortened)); the library has changed, so audit again before packaging." : "Loaded saved Movie audit from \(completed.formatted(date: .abbreviated, time: .shortened)); audit again before packaging because this older result cannot be freshness-checked."
+                    }
                     return
                 }
                 try? await Task.sleep(nanoseconds: 200_000_000)
@@ -792,6 +813,8 @@ private struct MovieToolsView: View {
         var facts = [String]()
         if let fileSize = item.fileSize { facts.append(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)) }
         if let width = item.width, let height = item.height { facts.append("\(width)×\(height)") }
+        if let bytes = item.fileSize, let seconds = item.durationSeconds, seconds > 0 { facts.append(String(format: "%.1f Mbps", Double(bytes) * 8 / seconds / 1_000_000)) }
+        if let languages = item.audioLanguages, !languages.isEmpty { facts.append("audio: \(languages.joined(separator: ", "))") }
         if let languages = item.subtitleLanguages, !languages.isEmpty { facts.append("subtitles: \(languages.joined(separator: ", "))") }
         return facts.isEmpty ? "Media details unavailable" : facts.joined(separator: " · ")
     }

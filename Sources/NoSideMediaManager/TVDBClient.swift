@@ -95,6 +95,7 @@ public struct TVDBClient: TVMetadataSource, Sendable {
 
     private func login() async throws -> String {
         guard !credentials.apiKey.isEmpty else { throw Error.invalidCredentials }
+        if let cached = TVDBCredentialStore.cachedTVDBSession(for: credentials.apiKey) { return cached }
         var request = URLRequest(url: baseURL.appendingPathComponent("login"))
         request.httpMethod = "POST"
         request.timeoutInterval = 10
@@ -104,6 +105,7 @@ public struct TVDBClient: TVMetadataSource, Sendable {
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
         guard let token = try JSONDecoder().decode(TVDBEnvelope<Token>.self, from: data).data.token.nilIfBlank else { throw Error.invalidResponse }
+        try? TVDBCredentialStore.storeTVDBSession(token, for: credentials.apiKey)
         return token
     }
 

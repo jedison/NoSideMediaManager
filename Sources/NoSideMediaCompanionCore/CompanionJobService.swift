@@ -50,10 +50,15 @@ public actor CompanionJobService {
         movieAuditSnapshot = .init(phase: .running, completedVideos: completed, totalVideos: total, startedAt: movieAuditSnapshot.startedAt)
     }
     private func completeMovieAudit(report: MovieLibraryHealthReport) {
-        movieAuditSnapshot = .init(phase: .complete, completedVideos: report.items.count, totalVideos: report.items.count, startedAt: movieAuditSnapshot.startedAt, completedAt: Date(), report: .init(report: report))
+        movieAuditSnapshot = .init(phase: .complete, completedVideos: report.items.count, totalVideos: report.items.count, startedAt: movieAuditSnapshot.startedAt, completedAt: Date(), report: .init(report: report), signature: MovieLibraryAudit.librarySignature(in: configuration.libraryRoot))
         let cache = configuration.jobsRoot.appendingPathComponent(".noside-mmm-last-movie-audit.json")
         if let data = try? JSONEncoder().encode(movieAuditSnapshot) { try? data.write(to: cache, options: .atomic) }
         movieAuditTask = nil
+    }
+    /// `nil` means this is an older retained audit without a signature.
+    public func movieAuditIsCurrent() -> Bool? {
+        guard let signature = movieAuditSnapshot.signature else { return nil }
+        return signature == MovieLibraryAudit.librarySignature(in: configuration.libraryRoot)
     }
     public func tvFolders() -> [CompanionTVFolder] { ((try? FileManager.default.contentsOfDirectory(at: configuration.tvLibraryRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []).filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }.map { CompanionTVFolder(name: $0.lastPathComponent) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }
     public func startTVAudit(folder: String) throws -> CompanionTVAuditSnapshot {
