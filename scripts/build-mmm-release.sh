@@ -10,10 +10,20 @@ fi
 
 scope="$1"
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+common_git_dir=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+release_lock="${common_git_dir:-$root/.git}/mmm-release.lock"
+if ! mkdir "$release_lock" 2>/dev/null; then
+  echo "Another MMM release is already being packaged; wait for it to finish before retrying." >&2
+  exit 75
+fi
 metadata_base=$(mktemp "${TMPDIR:-/tmp}/mmm-build-info.XXXXXX")
 rm -f "$metadata_base"
 metadata="${metadata_base}.plist"
-trap 'rm -f "$metadata"' EXIT
+cleanup() {
+  rm -f "$metadata"
+  rmdir "$release_lock" 2>/dev/null || true
+}
+trap cleanup EXIT
 if [ -n "${MMM_BUILD_INFO_SOURCE:-}" ]; then
   test -f "$MMM_BUILD_INFO_SOURCE"
   cp "$MMM_BUILD_INFO_SOURCE" "$metadata"
