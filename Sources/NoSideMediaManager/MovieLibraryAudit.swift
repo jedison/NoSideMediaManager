@@ -39,12 +39,19 @@ public enum MovieLibraryAudit {
     /// Updates only MMM's small, human-editable library configuration file.
     /// It never moves, renames, or changes a media item.
     public static func addIgnoreRule(_ rule: String, in directory: URL, fileManager: FileManager = .default) throws {
-        let cleaned = rule.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard !cleaned.isEmpty, !cleaned.hasPrefix("."), !cleaned.split(separator: "/").contains("..") else { throw IgnoreRuleError.invalidRule }
+        let cleaned = try normalizedIgnoreRule(rule)
         var rules = customIgnoreRules(in: directory, fileManager: fileManager)
         rules.insert(cleaned)
-        let output = "# NoSide Media Manager audit exclusions (relative to this library root)\n" + rules.sorted().joined(separator: "\n") + "\n"
-        try output.write(to: directory.appendingPathComponent(".noside-mmm-ignore"), atomically: true, encoding: .utf8)
+        try writeIgnoreRules(rules, in: directory)
+    }
+    /// Removes a user-managed exclusion without touching media.  It is
+    /// deliberately idempotent so an edited configuration can be reconciled
+    /// safely from either the app or CLI.
+    public static func removeIgnoreRule(_ rule: String, in directory: URL, fileManager: FileManager = .default) throws {
+        let cleaned = try normalizedIgnoreRule(rule)
+        var rules = customIgnoreRules(in: directory, fileManager: fileManager)
+        rules.remove(cleaned)
+        try writeIgnoreRules(rules, in: directory)
     }
     static func ignoredVideoFiles(in directory: URL, fileManager: FileManager = .default) -> [URL] {
         let rules = customIgnoreRules(in: directory, fileManager: fileManager)
@@ -76,6 +83,15 @@ public enum MovieLibraryAudit {
         let file = directory.appendingPathComponent(".noside-mmm-ignore")
         guard let text = try? String(contentsOf: file) else { return [] }
         return Set(text.split(whereSeparator: { $0.isNewline }).map(String.init).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty && !$0.hasPrefix("#") }.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "/")) })
+    }
+    private static func normalizedIgnoreRule(_ rule: String) throws -> String {
+        let cleaned = rule.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !cleaned.isEmpty, !cleaned.hasPrefix("."), !cleaned.split(separator: "/").contains("..") else { throw IgnoreRuleError.invalidRule }
+        return cleaned
+    }
+    private static func writeIgnoreRules(_ rules: Set<String>, in directory: URL) throws {
+        let output = "# NoSide Media Manager audit exclusions (relative to this library root)\n" + rules.sorted().joined(separator: "\n") + "\n"
+        try output.write(to: directory.appendingPathComponent(".noside-mmm-ignore"), atomically: true, encoding: .utf8)
     }
     public static func classify(nfoExists: Bool, artworkExists: Bool, info: EmbeddedMediaInfo) -> MovieSidecarState {
         if nfoExists && artworkExists { return .complete }

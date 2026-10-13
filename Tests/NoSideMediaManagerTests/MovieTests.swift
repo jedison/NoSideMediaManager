@@ -316,10 +316,14 @@ import Testing
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
-    try MovieLibraryAudit.addIgnoreRule("Truth in Motion.ite/videos", in: root)
-    #expect(MovieLibraryAudit.ignoreRules(in: root) == ["Truth in Motion.ite/videos"])
-    #expect(MovieLibraryAudit.isIgnored(root.appendingPathComponent("Truth in Motion.ite/videos/loop.m4v"), libraryRoot: root, customRules: Set(MovieLibraryAudit.ignoreRules(in: root))))
+    try MovieLibraryAudit.addIgnoreRule("Bonus/loop.m4v", in: root)
+    #expect(MovieLibraryAudit.ignoreRules(in: root) == ["Bonus/loop.m4v"])
+    #expect(MovieLibraryAudit.isIgnored(root.appendingPathComponent("Bonus/loop.m4v"), libraryRoot: root, customRules: Set(MovieLibraryAudit.ignoreRules(in: root))))
+    try MovieLibraryAudit.removeIgnoreRule("Bonus/loop.m4v", in: root)
+    #expect(MovieLibraryAudit.ignoreRules(in: root).isEmpty)
+    #expect(!MovieLibraryAudit.isIgnored(root.appendingPathComponent("Bonus/loop.m4v"), libraryRoot: root, customRules: Set(MovieLibraryAudit.ignoreRules(in: root))))
     #expect(throws: MovieLibraryAudit.IgnoreRuleError.self) { try MovieLibraryAudit.addIgnoreRule("../everything", in: root) }
+    #expect(throws: MovieLibraryAudit.IgnoreRuleError.self) { try MovieLibraryAudit.removeIgnoreRule("../everything", in: root) }
 }
 
 @Test func movieHealthHTMLIsReadableAndEscapesPaths() {

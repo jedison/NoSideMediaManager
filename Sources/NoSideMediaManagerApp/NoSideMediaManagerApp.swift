@@ -698,9 +698,18 @@ private struct MovieToolsView: View {
             if session.isWorking { ProgressView(value: Double(session.reviewedFiles), total: Double(max(session.totalFiles, 1))) { Text(session.totalFiles == 0 ? "Finding video files…" : "Reviewing \(session.reviewedFiles) of \(session.totalFiles) video files") }.progressViewStyle(.linear) }
             DisclosureGroup("Audit exclusions (\(session.ignoreRules.count))") {
                 if session.ignoreRules.isEmpty { Text("No custom exclusions. Standard iTunes Extras clips are already ignored.").font(.caption).foregroundStyle(.secondary) }
-                else { Text(session.ignoreRules.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).textSelection(.enabled) }
+                else {
+                    ForEach(session.ignoreRules, id: \.self) { rule in
+                        HStack {
+                            Text(rule).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                            Spacer()
+                            Button("Remove") { removeIgnoreRule(rule) }
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                }
                 HStack { TextField("Relative folder or file to ignore", text: $ignoreRule); Button("Add exclusion") { addIgnoreRule() }.disabled(ignoreRule.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.folder == nil) }
-                Text("This changes only the visible .noside-mmm-ignore configuration file; it never changes a movie.").font(.caption2).foregroundStyle(.secondary)
+                Text("This changes only the visible .noside-mmm-ignore configuration file; it never changes a movie. Removing an exclusion makes the item visible again after the next audit.").font(.caption2).foregroundStyle(.secondary)
             }
             Picker("Show", selection: $session.auditFilter) { Text("All (\(session.items.count))").tag("all"); Text("Needs attention (\(attentionItems.count))").tag("attention"); Text("Needs folder normalisation (\(session.items.filter(\.isPreservationReady).count))").tag("needsFolder"); Text("Shared multi-part movies (\(session.items.filter(\.isMultiPart).count))").tag("multipart"); Text("Special content / alternate encodes (\(session.items.filter { $0.contentKind?.requiresExplicitReview == true }.count))").tag("specialContent"); Text("Needs artwork sidecar (\(session.items.filter(\.isArtworkRepairReady).count))").tag("artworkRepair"); Text("Needs TMDB match (\(session.items.filter { $0.state == .bareNeedsTMDB }.count))").tag("tmdbMatch"); Text("Invalid NFO XML (\(session.invalidNFOPaths.count))").tag("invalidNFO"); Text("Duplicate TMDB IDs (\(duplicateTMDBPaths.count))").tag("duplicateTMDB"); Text("Cannot extract title (\(session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }.count))").tag("unextractable") }.pickerStyle(.menu)
             if !session.selectedPaths.isEmpty {
@@ -790,6 +799,14 @@ private struct MovieToolsView: View {
     private var filteredItems: [MovieAuditItem] { switch session.auditFilter { case "attention": attentionItems; case "needsFolder": session.items.filter(\.isPreservationReady); case "multipart": session.items.filter(\.isMultiPart); case "specialContent": session.items.filter { $0.contentKind?.requiresExplicitReview == true }; case "artworkRepair": session.items.filter(\.isArtworkRepairReady); case "tmdbMatch": session.items.filter { $0.state == .bareNeedsTMDB }; case "invalidNFO": session.items.filter { session.invalidNFOPaths.contains($0.videoPath) }; case "duplicateTMDB": session.items.filter { duplicateTMDBPaths.contains($0.videoPath) }; case "unextractable": session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }; default: session.items } }
     private var tmdbSelections: [MovieAuditItem] { session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == .bareNeedsTMDB } }
     private func addIgnoreRule() { guard let folder = session.folder else { return }; do { try MovieLibraryAudit.addIgnoreRule(ignoreRule, in: folder); session.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); session.removeIgnoredRows(); session.status = "Added audit exclusion: \(ignoreRule). Matching rows were removed from this audit."; ignoreRule = "" } catch { session.status = error.localizedDescription } }
+    private func removeIgnoreRule(_ rule: String) {
+        guard let folder = session.folder else { return }
+        do {
+            try MovieLibraryAudit.removeIgnoreRule(rule, in: folder)
+            session.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder)
+            session.status = "Removed audit exclusion: \(rule). It will be included when you next audit this library."
+        } catch { session.status = error.localizedDescription }
+    }
     private func ignoreSelectedMovies() {
         ignoreMovies(session.items.filter { session.selectedPaths.contains($0.videoPath) })
     }
