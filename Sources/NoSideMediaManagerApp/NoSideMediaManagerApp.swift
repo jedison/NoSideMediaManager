@@ -115,8 +115,8 @@ private struct ContentView: View {
                     Text("Selected show folder").font(.headline)
                     Text(destination.path).lineLimit(1).font(.caption).foregroundStyle(.secondary)
                     HStack {
-                        Button("Audit selected folder", action: auditTVFolder).disabled(isWorking)
                         Button("Choose another show folder…", action: chooseTVFolder).disabled(isWorking)
+                        Button("Audit selected folder", action: auditTVFolder).disabled(isWorking)
                         Button("Clear selection") { clearTVFolder() }.disabled(isWorking)
                     }
                 }
@@ -235,11 +235,20 @@ private struct ContentView: View {
                 }
             }.frame(minHeight: 180)
             Toggle("Enable selected TVDB episode artwork downloads", isOn: $downloadArtwork)
+            Text("Next: confirm the episode mappings above, optionally review the artwork choices, then preview and freeze the portable package.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             HStack {
-                Button("Export named preset…", action: exportPlan).disabled(reviewedSeries == nil)
-                Button("Load preset or plan…", action: importPlan).disabled(reviewedSeries == nil)
-                Button("Review artwork…") { showArtworkReview = true }.disabled(approved().isEmpty)
-                Button("Preview frozen package…") { showPackagePreview = true }.disabled(reviewedSeries == nil || isWorking || !mappingIssues.isEmpty)
+                Button("Review artwork (optional)…") { showArtworkReview = true }
+                    .disabled(approved().isEmpty)
+                Button("Preview package…") { showPackagePreview = true }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(reviewedSeries == nil || isWorking || !mappingIssues.isEmpty)
+                Menu("Plans & presets") {
+                    Button("Load preset or plan…", action: importPlan)
+                    Button("Export named preset…", action: exportPlan)
+                }
+                .disabled(reviewedSeries == nil || isWorking)
             }
             if showPackagePreview { packagePreview }
             if showArtworkReview { artworkReview }
