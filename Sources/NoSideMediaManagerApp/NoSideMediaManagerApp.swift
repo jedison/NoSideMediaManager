@@ -12,12 +12,33 @@ private func configuredJobsFolder() -> URL? {
     return URL(fileURLWithPath: path)
 }
 
+/// Launches a new instance from the installed bundle before ending this one.
+/// This makes a staged, non-interrupting deployment available on demand.
+@MainActor
+private func restartMicroMM() {
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = true
+    configuration.createsNewApplicationInstance = true
+    NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
+        if let error {
+            Task { @MainActor in NSAlert(error: error).runModal() }
+            return
+        }
+        Task { @MainActor in NSApp.terminate(nil) }
+    }
+}
+
 @main
 struct NoSideMediaManagerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .frame(minWidth: 720, idealWidth: 840, minHeight: 620, idealHeight: 700)
+        }
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Restart microMM", action: restartMicroMM)
+            }
         }
     }
 }
