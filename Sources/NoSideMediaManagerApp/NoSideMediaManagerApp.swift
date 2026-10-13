@@ -159,7 +159,10 @@ private struct ContentView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         destination = url
         tvAudit = nil
-        query = url.lastPathComponent.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ").replacingOccurrences(of: #"(?i)season\s*\d+"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
+        let selectedName = url.lastPathComponent
+        let folderIsSeason = selectedName.range(of: #"(?i)^season\s*\d+\s*$"#, options: .regularExpression) != nil
+        let suggestedName = folderIsSeason ? url.deletingLastPathComponent().lastPathComponent : selectedName
+        query = suggestedName.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         status = "Folder selected. Check the suggested search, then choose the correct TVDB series."
     }
     private func clearTVFolder() { destination = nil; query = ""; results = []; mappings = []; canonicalEpisodes = []; reviewedSeries = nil; tvAudit = nil; excludedTVPaths = []; duplicateKeepPaths = [:]; status = "Choose one TV show folder to audit, search TVDB, and review its episode mappings." }
