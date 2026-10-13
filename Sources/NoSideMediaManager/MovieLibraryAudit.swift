@@ -52,7 +52,14 @@ public enum MovieLibraryAudit {
             .filter { isIgnored($0, libraryRoot: directory, customRules: rules) }
     }
 
-    static func isIgnored(_ video: URL, libraryRoot: URL, customRules: Set<String> = []) -> Bool {
+    /// Checks the current library's standard and user-managed exclusions.
+    /// It is read-only and can safely be used by a UI to hide already-loaded
+    /// audit rows immediately after an exclusion is added.
+    public static func isIgnored(_ video: URL, libraryRoot: URL, customRules: Set<String>? = nil, fileManager: FileManager = .default) -> Bool {
+        isIgnoredInternal(video, libraryRoot: libraryRoot, customRules: customRules ?? customIgnoreRules(in: libraryRoot, fileManager: fileManager))
+    }
+
+    private static func isIgnoredInternal(_ video: URL, libraryRoot: URL, customRules: Set<String>) -> Bool {
         let root = libraryRoot.standardizedFileURL.path + "/"
         let path = video.standardizedFileURL.path
         guard path.hasPrefix(root) else { return false }
