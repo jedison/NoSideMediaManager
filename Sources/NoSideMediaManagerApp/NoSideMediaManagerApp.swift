@@ -7,6 +7,12 @@ private enum MMMAppRelease {
     static let display = MMMBuildInfo.display(in: Bundle.main)
 }
 
+private struct TVDuplicateDecision: Identifiable {
+    let id: String
+    let label: String
+    let videoPaths: [String]
+}
+
 private func configuredJobsFolder() -> URL? {
     guard let path = UserDefaults.standard.string(forKey: "companion.jobsRoot"), !path.isEmpty else { return nil }
     return URL(fileURLWithPath: path)
@@ -152,7 +158,7 @@ private struct ContentView: View {
                 }
             }
             if isWorking, tvTotalFiles > 0 { ProgressView(value: Double(tvReviewedFiles), total: Double(tvTotalFiles)) { Text("Reviewing \(tvReviewedFiles) of \(tvTotalFiles) TV video files") }.progressViewStyle(.linear) }
-            if let tvAudit { tvAuditSummary(tvAudit); duplicateReview(tvAudit) }
+            if let tvAudit { tvAuditSummary(tvAudit); duplicateReview() }
             if !results.isEmpty {
                 List(results, id: \.tvdbID) { result in
                     HStack { VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) }; Spacer(); Button("Review selected folder") { if let destination { review(result, in: destination) } }.disabled(isWorking || destination == nil) }
@@ -205,16 +211,16 @@ private struct ContentView: View {
             return audit.items
         }
     }
-    private func duplicateReview(_ audit: TVLibraryAuditReport) -> some View {
+    private func duplicateReview() -> some View {
         Group {
-            if !audit.duplicates.isEmpty {
-                DisclosureGroup("Duplicate episode decisions (\(audit.duplicates.count))", isExpanded: $duplicateReviewExpanded) {
+            if !duplicateDecisionGroups.isEmpty {
+                DisclosureGroup("Duplicate episode decisions (\(duplicateDecisionGroups.count))", isExpanded: $duplicateReviewExpanded) {
                     Text("Each local duplicate must have exactly one file kept in this job. Other candidates are explicitly excluded; nothing is deleted.").font(.caption).foregroundStyle(.secondary)
-                    ForEach(audit.duplicates) { duplicate in
-                        Picker("\(duplicate.id): keep", selection: Binding(get: { duplicateKeepPaths[duplicate.id]?.path ?? "" }, set: { chooseDuplicate($0, duplicate: duplicate) })) {
+                    ForEach(duplicateDecisionGroups) { duplicate in
+                        Picker("\(duplicate.label): keep", selection: Binding(get: { duplicateKeepPaths[duplicate.id]?.path ?? "" }, set: { chooseDuplicate($0, duplicate: duplicate) })) {
                             Text("Choose one file").tag("")
                             ForEach(duplicate.videoPaths, id: \.self) { path in
-                                Text("\(URL(fileURLWithPath: path).lastPathComponent) · \(fileSizeLabel(path, audit: audit))").tag(path)
+                                Text("\(URL(fileURLWithPath: path).lastPathComponent) · \(fileSizeLabel(path))").tag(path)
                             }
                         }
                         .pickerStyle(.menu)
@@ -223,11 +229,11 @@ private struct ContentView: View {
             }
         }
     }
-    private func fileSizeLabel(_ path: String, audit: TVLibraryAuditReport) -> String {
-        guard let size = audit.items.first(where: { $0.videoPath == path })?.fileSize else { return "size unavailable" }
+    private func fileSizeLabel(_ path: String) -> String {
+        guard let size = tvAudit?.items.first(where: { $0.videoPath == path })?.fileSize else { return "size unavailable" }
         return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
-    private func chooseDuplicate(_ path: String, duplicate: TVEpisodeDuplicate) {
+    private func chooseDuplicate(_ path: String, duplicate: TVDuplicateDecision) {
         let candidates = duplicate.videoPaths.map(URL.init(fileURLWithPath:))
         excludedTVPaths.subtract(candidates)
         guard !path.isEmpty else { duplicateKeepPaths.removeValue(forKey: duplicate.id); return }
@@ -238,7 +244,7 @@ private struct ContentView: View {
     private var mappingReview: some View {
         VStack(alignment: .leading) {
             Text("Mapping review").font(.headline)
-            Text("\(approved().count) included · \(excludedTVPaths.count) excluded · \(mappingIssues.count) decision(s) remaining · \(nfoDifferenceCounts.values.filter { $0 > 0 }.count) NFOs differ").font(.caption).foregroundStyle(mappingIssues.isEmpty ? Color.secondary : Color.orange)
+            Text("\(approved().count) included · \(effectiveExcludedTVPaths.count) excluded · \(mappingIssues.count) decision(s) remaining · \(nfoDifferenceCounts.values.filter { $0 > 0 }.count) NFOs differ").font(.caption).foregroundStyle(mappingIssues.isEmpty ? Color.secondary : Color.orange)
             HStack {
                 Picker("Show", selection: $mappingFilter) {
                     Text("Needs decision (\(unresolvedMappings.count))").tag("needsDecision")
@@ -295,7 +301,20 @@ private struct ContentView: View {
             Text(mappingIssues.isEmpty ? "All discovered videos have an explicit disposition. This Mac creates a reviewed package only; apply.sh changes the library on the media server." : "Resolve every mapping or explicitly exclude it before freezing. Duplicate groups also require exactly one kept file.").font(.caption).foregroundStyle(mappingIssues.isEmpty ? Color.secondary : Color.orange)
         }
     }
-    private func duplicateGroup(for path: URL) -> TVEpisodeDuplicate? { tvAudit?.duplicates.first { $0.videoPaths.contains(path.path) } }
+    private var duplicateDecisionGroups: [TVDuplicateDecision] {
+        let local = (tvAudit?.duplicates ?? []).map { TVDuplicateDecision(id: "local-\($0.id)", label: $0.id, videoPaths: $0.videoPaths) }
+        let canonicalIndex = Dictionary(uniqueKeysWithValues: canonicalEpisodes.map { ($0.tvdbID, $0) })
+        let mapped = Dictionary(grouping: mappings.compactMap { mapping in chosenEpisodeIDs[mapping.local.url].map { ($0, mapping.local.url.path) } }, by: \.0)
+            .compactMap { id, values -> TVDuplicateDecision? in
+                let paths = values.map(\.1).sorted()
+                guard paths.count > 1, !local.contains(where: { Set($0.videoPaths) == Set(paths) }) else { return nil }
+                let label = canonicalIndex[id].map { "TVDB S\($0.season)E\($0.number)" } ?? "TVDB episode \(id)"
+                return TVDuplicateDecision(id: "tvdb-\(id)", label: label, videoPaths: paths)
+            }
+            .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+        return local + mapped
+    }
+    private func duplicateGroup(for path: URL) -> TVDuplicateDecision? { duplicateDecisionGroups.first { $0.videoPaths.contains(path.path) } }
     private func isEffectivelyExcluded(_ path: URL) -> Bool {
         if excludedTVPaths.contains(path) { return true }
         guard let duplicate = duplicateGroup(for: path) else { return false }
@@ -307,8 +326,7 @@ private struct ContentView: View {
     private var nfoChangedMappings: [EpisodeMapping] { mappings.filter { nfoDifferenceCounts[$0.local.url, default: 0] > 0 } }
     private var seasonConflictMappings: [EpisodeMapping] { mappings.filter { mapping in mapping.local.folderSeason.map { $0 != mapping.local.season } ?? false } }
     private var duplicateMappings: [EpisodeMapping] {
-        guard let audit = tvAudit else { return [] }
-        let paths = Set(audit.duplicates.flatMap(\.videoPaths))
+        let paths = Set(duplicateDecisionGroups.flatMap(\.videoPaths))
         return mappings.filter { paths.contains($0.local.url.path) }
     }
     private var filteredMappings: [EpisodeMapping] {
@@ -386,16 +404,14 @@ private struct ContentView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
-    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); nfoReplacementFields = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, Set(NFORepairInspector.comparableFields)) }); let duplicatesNeedDecision = tvAudit?.duplicates.contains { duplicateKeepPaths[$0.id] == nil } ?? false; mappingFilter = duplicatesNeedDecision ? "duplicates" : (mappings.contains { $0.canonical == nil } ? "needsDecision" : "ready"); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); nfoReplacementFields = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, Set(NFORepairInspector.comparableFields)) }); let duplicatesNeedDecision = duplicateDecisionGroups.contains { duplicateKeepPaths[$0.id] == nil }; mappingFilter = duplicatesNeedDecision ? "duplicates" : (mappings.contains { $0.canonical == nil } ? "needsDecision" : "ready"); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
     private var mappingIssues: [String] {
         var issues = mappings.filter { !excludedTVPaths.contains($0.local.url) && chosenEpisodeIDs[$0.local.url] == nil }.map { "Unmapped: \($0.local.url.lastPathComponent)" }
-        if let audit = tvAudit {
-            for duplicate in audit.duplicates {
-                let candidates = duplicate.videoPaths.map(URL.init(fileURLWithPath:))
-                let included = candidates.filter { !excludedTVPaths.contains($0) }
-                if duplicateKeepPaths[duplicate.id] == nil || included.count != 1 {
-                    issues.append("Duplicate \(duplicate.id) needs exactly one kept file")
-                }
+        for duplicate in duplicateDecisionGroups {
+            let candidates = duplicate.videoPaths.map(URL.init(fileURLWithPath:))
+            let included = candidates.filter { !excludedTVPaths.contains($0) }
+            if duplicateKeepPaths[duplicate.id] == nil || included.count != 1 {
+                issues.append("Duplicate \(duplicate.label) needs exactly one kept file")
             }
         }
         return issues
