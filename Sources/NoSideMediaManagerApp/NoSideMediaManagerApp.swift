@@ -647,6 +647,7 @@ private final class MovieAuditSession: ObservableObject {
     }
     private func updateSharedAudit(_ snapshot: CompanionMovieAuditSnapshot) {
         reviewedFiles = snapshot.completedVideos; totalFiles = snapshot.totalVideos
+        if let folder { ignoreRules = MovieLibraryAudit.ignoreRules(in: folder) }
         if let report = snapshot.report { items = report.items; invalidNFOPaths = Set(report.invalidNFOPaths); duplicateTMDBIDs = report.duplicateTMDBIDs; status = "Audited \(report.items.count) videos." }
         else if snapshot.phase == .running { status = snapshot.totalVideos == 0 ? "Finding video files…" : "Reviewing \(snapshot.completedVideos) of \(snapshot.totalVideos) video files…" }
         else if snapshot.phase == .failed { status = snapshot.error ?? "Shared audit failed." }
