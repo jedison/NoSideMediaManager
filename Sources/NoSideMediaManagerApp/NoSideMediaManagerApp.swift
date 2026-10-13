@@ -472,8 +472,25 @@ private struct PackageOperationsView: View {
                 TextField("Filter packages", text: $packageQuery)
                 Picker("State", selection: $packageState) { Text("All").tag("all"); Text("Ready").tag("ready"); Text("Applied").tag("applied"); Text("Rolled back").tag("rolledBack") }.pickerStyle(.menu).frame(width: 130)
             }
-            List(filteredJobs, selection: $selected) { job in VStack(alignment: .leading) { Text(job.title); Text("\(job.state == .applied ? "APPLIED · " : job.state == .rolledBack ? "ROLLED BACK · " : "READY · ")\(job.mediaKind.uppercased()) · \(job.provider.uppercased()) · \(job.moves) moves · \(job.generatedFiles) generated files\(job.createdAt.map { " · \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")").font(.caption).foregroundStyle(.secondary); if job.unavailableArtwork > 0 { Text("\(job.unavailableArtwork) artwork download(s) unavailable when frozen").font(.caption2).foregroundStyle(.orange) } }.tag(job) }
-            HStack { Button("Dry-run", action: { run(.dryRun) }).disabled(selected == nil || selected?.state == .applied || working); Button("Apply", role: .destructive) { confirmApply = true }.disabled(selected == nil || selected?.state == .applied || working); Button("Rollback") { run(.rollback) }.disabled(selected?.state != .applied || working); Button("Reveal package") { revealSelectedPackage() }.disabled(selected == nil); Button("Export ZIP…") { exportSelectedPackage() }.disabled(selected == nil || working); Button("Delete package…", role: .destructive) { confirmDelete = true }.disabled(selected == nil || selected?.state == .applied || working) }
+            List(filteredJobs, selection: $selected) { job in
+                VStack(alignment: .leading) {
+                    Text(job.title)
+                    Text("\(job.state == .applied ? "APPLIED · " : job.state == .rolledBack ? "ROLLED BACK · " : "READY · ")\(job.mediaKind.uppercased()) · \(job.provider.uppercased()) · \(job.moves) moves · \(job.generatedFiles) generated files\(job.createdAt.map { " · \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")").font(.caption).foregroundStyle(.secondary)
+                    if job.unavailableArtwork > 0 { Text("\(job.unavailableArtwork) artwork download(s) unavailable when frozen").font(.caption2).foregroundStyle(.orange) }
+                }
+                .tag(job)
+                .contextMenu {
+                    Button("Dry-run") { run(.dryRun, job: job) }.disabled(job.state == .applied || working)
+                    Button("Apply", role: .destructive) { selected = job; confirmApply = true }.disabled(job.state == .applied || working)
+                    Button("Rollback") { run(.rollback, job: job) }.disabled(job.state != .applied || working)
+                    Divider()
+                    Button("Reveal in Finder") { revealPackage(job) }
+                    Button("Export ZIP…") { exportPackage(job) }.disabled(working)
+                    Divider()
+                    Button("Delete package…", role: .destructive) { selected = job; confirmDelete = true }.disabled(job.state == .applied || working)
+                }
+            }
+            Text("Right-click a package for dry-run, apply, rollback, Finder, ZIP, or delete actions. Applied packages retain their rollback evidence.").font(.caption).foregroundStyle(.secondary)
             if !log.isEmpty { ScrollView { Text(log).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 160) }
             if !history.isEmpty { VStack(alignment: .leading, spacing: 6) { Text("Operation history").font(.headline); ForEach(history.reversed()) { entry in VStack(alignment: .leading, spacing: 2) { Text("\(entry.operation.rawValue) · \(entry.succeeded ? "completed" : "failed") · \(entry.date.formatted(date: .abbreviated, time: .shortened))").font(.caption); if !entry.log.isEmpty { Text(entry.log).font(.system(.caption2, design: .monospaced)).lineLimit(2).foregroundStyle(.secondary) } } } } }
             Text(status).foregroundStyle(.secondary)
@@ -489,12 +506,12 @@ private struct PackageOperationsView: View {
         }
     }
     private func refresh() { guard let service = service() else { status = "Set Jobs folder and Movie library root in Settings first."; return }; working = true; Task { jobs = await service.jobs(); selected = jobs.first; status = "Loaded \(jobs.count) frozen package(s)."; working = false; loadHistory() } }
-    private func run(_ operation: CompanionOperation) { guard let selected, let service = service() else { return }; working = true; Task { do { let result = try await service.run(jobID: selected.id, operation: operation); log = result.log; status = result.succeeded ? "\(operation.rawValue) completed." : "\(operation.rawValue) failed; review the log."; jobs = await service.jobs(); self.selected = jobs.first(where: { $0.id == selected.id }); loadHistory() } catch { status = error.localizedDescription }; working = false } }
+    private func run(_ operation: CompanionOperation, job: CompanionJob? = nil) { guard let selected = job ?? selected, let service = service() else { return }; self.selected = selected; working = true; Task { do { let result = try await service.run(jobID: selected.id, operation: operation); log = result.log; status = result.succeeded ? "\(operation.rawValue) completed." : "\(operation.rawValue) failed; review the log."; jobs = await service.jobs(); self.selected = jobs.first(where: { $0.id == selected.id }); loadHistory() } catch { status = error.localizedDescription }; working = false } }
     private func loadHistory() { guard let selected, let service = service() else { history = []; return }; Task { history = (try? await service.history(jobID: selected.id)) ?? [] } }
     private func deleteSelectedPackage() { guard let selected, let service = service() else { return }; working = true; Task { do { try await service.deletePackage(jobID: selected.id); jobs = await service.jobs(); self.selected = jobs.first; log = ""; history = []; status = "Deleted frozen package ‘\(selected.title)’. No media-library files were changed." } catch { status = error.localizedDescription }; working = false } }
-    private func revealSelectedPackage() { guard let selected, let service = service() else { return }; Task { if let directory = await service.packageDirectory(jobID: selected.id) { NSWorkspace.shared.activateFileViewerSelecting([directory]) } else { status = "The selected package is no longer present." } } }
-    private func exportSelectedPackage() {
-        guard let selected, let service = service() else { return }
+    private func revealPackage(_ job: CompanionJob) { guard let service = service() else { return }; Task { if let directory = await service.packageDirectory(jobID: job.id) { NSWorkspace.shared.activateFileViewerSelecting([directory]) } else { status = "The selected package is no longer present." } } }
+    private func exportPackage(_ selected: CompanionJob) {
+        guard let service = service() else { return }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "\(selected.title.replacingOccurrences(of: "/", with: "-"))-\(selected.id).zip"
         panel.message = "Export the frozen package as a portable ZIP"
