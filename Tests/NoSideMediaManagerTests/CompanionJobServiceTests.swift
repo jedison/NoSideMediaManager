@@ -41,6 +41,27 @@ import Testing
     #expect(await service.jobs().first?.state == .rolledBack)
 }
 
+@Test func companionDeletesReadyPackageButRetainsAppliedRollbackEvidence() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let jobs = root.appendingPathComponent("jobs", isDirectory: true); let library = root.appendingPathComponent("library", isDirectory: true)
+    let ready = jobs.appendingPathComponent("ready", isDirectory: true); let applied = jobs.appendingPathComponent("applied", isDirectory: true)
+    try FileManager.default.createDirectory(at: ready, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: applied, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: library.appendingPathComponent(".noside-mmm-backups/mmm-applied"), withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try JSONEncoder().encode(PortableJobManifest(jobID: "mmm-ready", series: TVSeries(tvdbID: 1, title: "Ready"), moves: [], generatedFiles: [])).write(to: ready.appendingPathComponent("manifest.json"))
+    try JSONEncoder().encode(PortableJobManifest(jobID: "mmm-applied", series: TVSeries(tvdbID: 2, title: "Applied"), moves: [], generatedFiles: [])).write(to: applied.appendingPathComponent("manifest.json"))
+    let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: library, token: "secret", version: "test"))
+    try await service.deletePackage(jobID: "mmm-ready")
+    #expect(!FileManager.default.fileExists(atPath: ready.path))
+    do {
+        try await service.deletePackage(jobID: "mmm-applied")
+        Issue.record("Expected an applied package deletion to be rejected")
+    } catch let error as CompanionJobServiceError {
+        #expect(error == .appliedPackageCannotBeDeleted)
+    }
+    #expect(FileManager.default.fileExists(atPath: applied.path))
+    #expect(FileManager.default.fileExists(atPath: library.appendingPathComponent(".noside-mmm-backups/mmm-applied").path))
+}
+
 @Test func companionRetainsOperationHistoryBesideFrozenJob() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let jobs = root.appendingPathComponent("jobs", isDirectory: true); let library = root.appendingPathComponent("library", isDirectory: true); let job = jobs.appendingPathComponent("history", isDirectory: true)
