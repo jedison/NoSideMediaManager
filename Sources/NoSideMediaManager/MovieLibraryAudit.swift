@@ -88,7 +88,10 @@ public enum MovieLibraryAudit {
         let videos = MediaFileInspector.videoFiles(in: directory).filter { !isIgnored($0, libraryRoot: directory, customRules: customIgnoreRules(in: directory, fileManager: .default)) }
         progress?(0, videos.count)
         for (index, video) in videos.enumerated() {
-            guard let info = try? await MediaFileInspector.inspect(video) else { progress?(index + 1, videos.count); continue }
+            // MKV and older AVI containers are not always readable by
+            // AVFoundation. They remain real library videos and must be
+            // reviewed as bare items, never silently omitted from an audit.
+            let info = (try? await MediaFileInspector.inspect(video)) ?? EmbeddedMediaInfo(fileName: video.lastPathComponent, title: nil, creationDate: nil, durationSeconds: nil, width: nil, height: nil, audioLanguages: [], subtitleLanguages: [], hasEmbeddedArtwork: false)
             let base = video.deletingPathExtension()
             // CD/Disc/Part files may deliberately share a single movie NFO and
             // artwork. Treat that shared set as complete, never as three

@@ -39,6 +39,18 @@ import Testing
     #expect(MovieLibraryAudit.classify(nfoExists: false, artworkExists: false, info: bare) == .bareNeedsTMDB)
 }
 
+@Test func movieAuditKeepsUninspectableMKVAsBareReviewItem() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let video = root.appendingPathComponent("Unreadable Container.mkv")
+    try Data("not a real container".utf8).write(to: video)
+    let items = await MovieLibraryAudit.inspect(directory: root)
+    #expect(items.count == 1)
+    #expect(URL(fileURLWithPath: items[0].videoPath).lastPathComponent == video.lastPathComponent)
+    #expect(items[0].state == .bareNeedsTMDB)
+}
+
 @Test func movieBundleHasRelativePathsAndCanApply() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let source = root.appendingPathComponent("Incoming/Matrix.mkv"); let destination = root.appendingPathComponent("The Matrix (1999).mkv")

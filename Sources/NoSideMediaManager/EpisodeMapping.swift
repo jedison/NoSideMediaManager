@@ -18,7 +18,7 @@ public enum EpisodeFolderScanner {
     private static let expression = try! NSRegularExpression(pattern: #"(?i)(?:S)(\d{1,3})(?:E)(\d{1,3})"#)
     private static let seriesExpression = try! NSRegularExpression(pattern: #"(?i)series\s*(\d{1,3})\s*-\s*(\d{1,3})\."#)
     private static let folderExpression = try! NSRegularExpression(pattern: #"(?i)season\s*(\d{1,3})"#)
-    private static let extensions: Set<String> = ["m4v", "mkv", "mp4", "avi", "mov"]
+    private static let extensions: Set<String> = ["m4v", "mkv", "mp4", "avi", "mov", "mpg", "mpeg", "wmv", "ts", "m2ts", "mts", "webm", "flv", "3gp"]
 
     public static func scan(directory: URL, fileManager: FileManager = .default) throws -> [LocalEpisodeFile] {
         guard let enumerator = fileManager.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return [] }
