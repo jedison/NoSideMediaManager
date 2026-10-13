@@ -18,6 +18,21 @@ import Testing
     #expect(await service.serverInfo().libraryRoot == library.path)
 }
 
+@Test func companionRestoresCompletedMovieAuditFromDisk() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let jobs = root.appendingPathComponent("jobs", isDirectory: true); let library = root.appendingPathComponent("library", isDirectory: true)
+    try FileManager.default.createDirectory(at: jobs, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: library, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let report = MovieLibraryHealthReport(items: [], duplicateTMDBIDs: [:], invalidNFOs: [], ignoredVideoFiles: [])
+    let saved = CompanionMovieAuditSnapshot(phase: .complete, completedVideos: 0, totalVideos: 0, startedAt: Date(timeIntervalSince1970: 1), completedAt: Date(timeIntervalSince1970: 2), report: .init(report: report))
+    try JSONEncoder().encode(saved).write(to: jobs.appendingPathComponent(".noside-mmm-last-movie-audit.json"))
+    let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: library, token: "secret", version: "test"))
+    let restored = await service.movieAuditStatus()
+    #expect(restored.phase == .complete)
+    #expect(restored.completedAt == saved.completedAt)
+    #expect(restored.report?.totalVideos == 0)
+}
+
 @Test func companionReadsLegacyManifestAndMarksBackupAsApplied() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let jobs = root.appendingPathComponent("jobs", isDirectory: true); let library = root.appendingPathComponent("library", isDirectory: true); let job = jobs.appendingPathComponent("legacy", isDirectory: true)

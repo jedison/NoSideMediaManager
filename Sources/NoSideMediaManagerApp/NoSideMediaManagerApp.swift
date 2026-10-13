@@ -589,6 +589,26 @@ private final class MovieAuditSession: ObservableObject {
         else if snapshot.phase == .running { status = snapshot.totalVideos == 0 ? "Finding video files…" : "Reviewing \(snapshot.completedVideos) of \(snapshot.totalVideos) video files…" }
         else if snapshot.phase == .failed { status = snapshot.error ?? "Shared audit failed." }
     }
+    func restoreSavedAuditIfAvailable() {
+        guard let folder,
+              let configured = UserDefaults.standard.string(forKey: "companion.libraryRoot"),
+              folder.standardizedFileURL == URL(fileURLWithPath: configured).standardizedFileURL else { return }
+        Task { [weak self] in
+            // Companion starts alongside the app. Give it a brief chance to load
+            // the retained audit before treating this screen as a fresh session.
+            for _ in 0..<10 {
+                if let service = CompanionRuntime.shared.service {
+                    let snapshot = await service.movieAuditStatus()
+                    guard snapshot.phase == .complete, snapshot.report != nil else { return }
+                    guard self?.isWorking != true else { return }
+                    self?.updateSharedAudit(snapshot)
+                    if let completed = snapshot.completedAt { self?.status = "Loaded saved Movie audit from \(completed.formatted(date: .abbreviated, time: .shortened))." }
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+        }
+    }
 }
 
 @MainActor
@@ -666,6 +686,7 @@ private struct MovieToolsView: View {
         }
         .padding(24)
         .sheet(isPresented: $showTMDBReview) { if !tmdbSelections.isEmpty, let folder = session.folder { TMDBMovieReviewSheet(items: tmdbSelections, libraryRoot: folder) { message in session.status = message; session.selectedPaths.subtract(tmdbSelections.map(\.videoPath)) } } }
+        .task { session.restoreSavedAuditIfAvailable() }
     }
     private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; if let folder = session.folder { panel.directoryURL = folder }; guard panel.runModal() == .OK, let url = panel.url else { return }; session.folder = url; session.status = "Folder selected. Click Audit selected Movie folder to review it." }
     private var movieFolderIsSaved: Bool {
