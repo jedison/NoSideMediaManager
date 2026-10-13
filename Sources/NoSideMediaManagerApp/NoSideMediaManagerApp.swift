@@ -229,8 +229,8 @@ private struct ContentView: View {
                                 Text(URL(fileURLWithPath: path).lastPathComponent).font(.caption).lineLimit(1)
                                 Text(candidateFacts(path)).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                                 Spacer()
-                                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }.font(.caption)
                             }
+                            .contextMenu { Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) } }
                         }
                     }
                 }
@@ -295,6 +295,7 @@ private struct ContentView: View {
                     }
                     TextField("Keep location, or enter a full destination video path", text: Binding(get: { destinationPaths[mapping.local.url] ?? mapping.local.url.path }, set: { destinationPaths[mapping.local.url] = $0 })).font(.caption).disabled(excluded)
                 }
+                .contextMenu { Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([mapping.local.url]) } }
             }.frame(height: min(max(CGFloat(filteredMappings.count) * 82, 180), 420))
             Toggle("Enable selected TVDB episode artwork downloads", isOn: $downloadArtwork)
             Text("Next: confirm the episode mappings above, optionally review the artwork choices, then preview and freeze the portable package.")
@@ -728,14 +729,12 @@ private struct MovieToolsView: View {
                     if let languages = item.subtitleLanguages, !languages.isEmpty { Text("Embedded subtitles: \(languages.joined(separator: ", "))").font(.caption2).foregroundStyle(.secondary) }
                     if item.isMultiPartPreservationReady { Text(URL(fileURLWithPath: item.videoPath).lastPathComponent).font(.caption2).foregroundStyle(.secondary) }
                     if duplicateTMDBPaths.contains(item.videoPath) {
-                        HStack(spacing: 8) {
-                            Text(movieFacts(item)).font(.caption2).foregroundStyle(.secondary)
-                            Spacer()
-                            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.videoPath)]) }.font(.caption)
-                        }
+                        Text(movieFacts(item)).font(.caption2).foregroundStyle(.secondary)
                     }
                 }
                 .contextMenu {
+                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.videoPath)]) }
+                    Divider()
                     Button(session.selectedPaths.contains(item.videoPath) ? "Deselect" : "Select") {
                         if session.selectedPaths.contains(item.videoPath) { session.selectedPaths.remove(item.videoPath) } else { session.selectedPaths.insert(item.videoPath) }
                     }
