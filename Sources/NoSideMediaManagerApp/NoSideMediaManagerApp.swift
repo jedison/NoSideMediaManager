@@ -107,7 +107,8 @@ private struct ContentView: View {
 
 
     private var tvScreen: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
             Text("Media Manager").font(.largeTitle.weight(.semibold))
             Text("TVDB → Kodi NFO").foregroundStyle(.secondary)
             if let destination {
@@ -130,11 +131,15 @@ private struct ContentView: View {
             }
             if isWorking, tvTotalFiles > 0 { ProgressView(value: Double(tvReviewedFiles), total: Double(tvTotalFiles)) { Text("Reviewing \(tvReviewedFiles) of \(tvTotalFiles) TV video files") }.progressViewStyle(.linear) }
             if let tvAudit { tvAuditSummary(tvAudit); duplicateReview(tvAudit) }
-            List(results, id: \.tvdbID) { result in
-                HStack { VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) }; Spacer(); Button("Review selected folder") { if let destination { review(result, in: destination) } }.disabled(isWorking || destination == nil) }
+            if !results.isEmpty {
+                List(results, id: \.tvdbID) { result in
+                    HStack { VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) }; Spacer(); Button("Review selected folder") { if let destination { review(result, in: destination) } }.disabled(isWorking || destination == nil) }
+                }
+                .frame(height: min(max(CGFloat(results.count) * 48, 96), 240))
             }
             if !mappings.isEmpty { mappingReview }
             Text(status).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+            }
         }
         .padding(24)
         .sheet(isPresented: $showArtworkReview) {
@@ -242,7 +247,7 @@ private struct ContentView: View {
                     }
                     TextField("Keep location, or enter a full destination video path", text: Binding(get: { destinationPaths[mapping.local.url] ?? mapping.local.url.path }, set: { destinationPaths[mapping.local.url] = $0 })).font(.caption).disabled(excluded)
                 }
-            }.frame(minHeight: 180)
+            }.frame(height: min(max(CGFloat(filteredMappings.count) * 82, 180), 420))
             Toggle("Enable selected TVDB episode artwork downloads", isOn: $downloadArtwork)
             Text("Next: confirm the episode mappings above, optionally review the artwork choices, then preview and freeze the portable package.")
                 .font(.caption)
@@ -315,13 +320,39 @@ private struct ContentView: View {
     private var artworkReview: some View {
         GroupBox("TVDB artwork review") {
             VStack(alignment: .leading, spacing: 5) {
-                Text("Download replaces the poster sidecar only through the frozen package. Turn it off to keep any existing JPG unchanged.").font(.caption).foregroundStyle(.secondary)
-                ScrollView { LazyVStack(alignment: .leading) { ForEach(approved(), id: \.local.url) { mapping in HStack { Text(mapping.local.url.lastPathComponent).lineLimit(1); Spacer(); Text(mapping.canonical.artworkURL == nil ? "No TVDB artwork" : (artworkSelections[mapping.local.url] ?? false ? "Download TVDB JPG" : "Keep existing JPG")).font(.caption).foregroundStyle(.secondary); Toggle("Artwork", isOn: Binding(get: { artworkSelections[mapping.local.url] ?? false }, set: { artworkSelections[mapping.local.url] = $0 })).labelsHidden().disabled(mapping.canonical.artworkURL == nil) } } }.frame(maxHeight: 150) }
+                Text("These are the actual TVDB images that would be downloaded with the frozen package. Turn one off to keep its existing JPG unchanged.").font(.caption).foregroundStyle(.secondary)
+                ScrollView { LazyVStack(alignment: .leading, spacing: 10) { ForEach(approved(), id: \.local.url) { mapping in HStack(spacing: 12) {
+                    artworkThumbnail(for: mapping.canonical.artworkURL)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(mapping.local.url.lastPathComponent).lineLimit(1)
+                        Text(mapping.canonical.artworkURL == nil ? "No TVDB image" : (artworkSelections[mapping.local.url] ?? false ? "Download this TVDB JPG" : "Keep existing JPG")).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Toggle("Artwork", isOn: Binding(get: { artworkSelections[mapping.local.url] ?? false }, set: { artworkSelections[mapping.local.url] = $0 })).labelsHidden().disabled(mapping.canonical.artworkURL == nil)
+                } } }.frame(maxHeight: 460) }
                 Button("Done") { showArtworkReview = false }
             }
         }
     }
-    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); nfoReplacementFields = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, Set(NFORepairInspector.comparableFields)) }); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
+    @ViewBuilder private func artworkThumbnail(for url: URL?) -> some View {
+        if let url {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image): image.resizable().scaledToFill()
+                case .failure: Color.secondary.opacity(0.2).overlay(Image(systemName: "photo").foregroundStyle(.secondary))
+                default: ProgressView()
+                }
+            }
+            .frame(width: 104, height: 58)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        } else {
+            Color.secondary.opacity(0.12)
+                .overlay(Image(systemName: "photo.slash").foregroundStyle(.secondary))
+                .frame(width: 104, height: 58)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); nfoReplacementFields = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, Set(NFORepairInspector.comparableFields)) }); let duplicatesNeedDecision = tvAudit?.duplicates.contains { duplicateKeepPaths[$0.id] == nil } ?? false; mappingFilter = duplicatesNeedDecision ? "duplicates" : (mappings.contains { $0.canonical == nil } ? "needsDecision" : "ready"); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
     private var mappingIssues: [String] {
         var issues = mappings.filter { !excludedTVPaths.contains($0.local.url) && chosenEpisodeIDs[$0.local.url] == nil }.map { "Unmapped: \($0.local.url.lastPathComponent)" }
         if let audit = tvAudit {
