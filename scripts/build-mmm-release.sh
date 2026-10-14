@@ -36,7 +36,12 @@ if [ "$scope" = "macos" ] || [ "$scope" = "both" ]; then
   "$root/scripts/package-micromm-macos.sh"
 fi
 if [ "$scope" = "ios" ] || [ "$scope" = "both" ]; then
+  # Keep the installable iOS bundle's version fields—not merely its embedded
+  # About resource—on the exact same generated identity as microMM macOS.
+  sequence=$(/usr/libexec/PlistBuddy -c 'Print :sequence' "$metadata")
+  version=$(/usr/libexec/PlistBuddy -c 'Print :version' "$metadata")
   xcodebuild -project "$root/Companion iOS/NoSideMediaCompanion.xcodeproj" \
     -scheme NoSideMediaCompanion -configuration Release -sdk iphoneos \
-    -destination 'generic/platform=iOS' build
+    -destination 'generic/platform=iOS' \
+    CURRENT_PROJECT_VERSION="$sequence" MARKETING_VERSION="$version" build
 fi
