@@ -25,7 +25,7 @@ the matching command-line executable. They are built from the same MMM core and
 always share one release number. Run the bundled CLI directly when needed:
 
 ```sh
-"~/NoSideMediaManagerJobs/microMM.app/Contents/MacOS/noside-media" --help
+"/path/to/microMM.app/Contents/MacOS/noside-media" --help
 ```
 
 The older standalone `noside-media` deployment is retired rather than used.
@@ -48,6 +48,10 @@ For an explicit coordinated release, build both apps through one command:
 It creates one build identity once, then embeds that exact identity in both the
 macOS app and iPhone companion. `ios` and `macos` are available when only one
 artifact is being released.
+
+The macOS packaging script uses ad-hoc signing unless `MMM_SIGNING_IDENTITY` is
+provided. Keep a distribution signing identity in your local environment; do
+not commit it to the repository.
 
 Movie support uses TMDB and starts as a reviewed, one-movie-at-a-time workflow.
 

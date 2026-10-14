@@ -12,6 +12,10 @@ private func configuredJobsFolder() -> URL? {
     return URL(fileURLWithPath: path)
 }
 
+private let defaultJobsRoot = FileManager.default.homeDirectoryForCurrentUser
+    .appendingPathComponent("NoSideMediaManagerJobs", isDirectory: true)
+    .path
+
 @main
 struct NoSideMediaManagerApp: App {
     var body: some Scene {
@@ -32,9 +36,9 @@ private final class CompanionRuntime: ObservableObject {
     func startFromStoredSettings() {
         guard server == nil else { return }
         let defaults = UserDefaults.standard
-        let jobs = defaults.string(forKey: "companion.jobsRoot") ?? "~/NoSideMediaManagerJobs"
+        let jobs = defaults.string(forKey: "companion.jobsRoot") ?? defaultJobsRoot
         let movies = defaults.string(forKey: "companion.libraryRoot") ?? ""
-        let tv = defaults.string(forKey: "companion.tvLibraryRoot") ?? "/Volumes/Movies/My/TV Shows"
+        let tv = defaults.string(forKey: "companion.tvLibraryRoot") ?? ""
         let token = defaults.string(forKey: "companion.token") ?? ""
         let port = defaults.string(forKey: "companion.port") ?? "8347"
         guard let number = UInt16(port), !jobs.isEmpty, !movies.isEmpty, !tv.isEmpty, !token.isEmpty else { status = "Companion needs saved jobs, movie-library, TV-library, token, and port settings."; return }
@@ -174,9 +178,9 @@ private struct MMMSettingsView: View {
     @State private var apiKey = TVDBCredentialStore.value(named: "TVDB_API_KEY") ?? ""
     @State private var pin = TVDBCredentialStore.value(named: "TVDB_PIN") ?? ""
     @State private var tmdbAPIKey = TVDBCredentialStore.value(named: "TMDB_API_KEY") ?? ""
-    @State private var jobsRoot = UserDefaults.standard.string(forKey: "companion.jobsRoot") ?? "~/NoSideMediaManagerJobs"
+    @State private var jobsRoot = UserDefaults.standard.string(forKey: "companion.jobsRoot") ?? defaultJobsRoot
     @State private var libraryRoot = UserDefaults.standard.string(forKey: "companion.libraryRoot") ?? ""
-    @State private var tvLibraryRoot = UserDefaults.standard.string(forKey: "companion.tvLibraryRoot") ?? "/Volumes/Movies/My/TV Shows"
+    @State private var tvLibraryRoot = UserDefaults.standard.string(forKey: "companion.tvLibraryRoot") ?? ""
     @State private var token = UserDefaults.standard.string(forKey: "companion.token") ?? ""
     @State private var port = UserDefaults.standard.string(forKey: "companion.port") ?? "8347"
     @State private var lanVisible = UserDefaults.standard.object(forKey: "companion.lanVisible") as? Bool ?? true
@@ -262,7 +266,7 @@ private struct PackageOperationsView: View {
             Text(status).foregroundStyle(.secondary)
         }.padding(24).task { refresh() }.confirmationDialog("Apply this frozen package?", isPresented: $confirmApply, titleVisibility: .visible) { Button("Apply", role: .destructive) { run(.apply) } } message: { Text("This performs the reviewed package on the configured media-library root. A rollback remains available afterward.") }
     }
-    private func service() -> CompanionJobService? { let d = UserDefaults.standard; guard let root = d.string(forKey: "companion.libraryRoot"), !root.isEmpty else { return nil }; let jobs = d.string(forKey: "companion.jobsRoot") ?? "~/NoSideMediaManagerJobs"; let token = d.string(forKey: "companion.token") ?? ""; return CompanionJobService(configuration: .init(jobsRoot: URL(fileURLWithPath: jobs), libraryRoot: URL(fileURLWithPath: root), token: token, version: MMMAppRelease.display)) }
+    private func service() -> CompanionJobService? { let d = UserDefaults.standard; guard let root = d.string(forKey: "companion.libraryRoot"), !root.isEmpty else { return nil }; let jobs = d.string(forKey: "companion.jobsRoot") ?? defaultJobsRoot; let token = d.string(forKey: "companion.token") ?? ""; return CompanionJobService(configuration: .init(jobsRoot: URL(fileURLWithPath: jobs), libraryRoot: URL(fileURLWithPath: root), token: token, version: MMMAppRelease.display)) }
     private func refresh() { guard let service = service() else { status = "Set Jobs folder and Movie library root in Settings first."; return }; working = true; Task { jobs = await service.jobs(); selected = jobs.first; status = "Loaded \(jobs.count) frozen package(s)."; working = false } }
     private func run(_ operation: CompanionOperation) { guard let selected, let service = service() else { return }; working = true; Task { do { let result = try await service.run(jobID: selected.id, operation: operation); log = result.log; status = result.succeeded ? "\(operation.rawValue) completed." : "\(operation.rawValue) failed; review the log."; jobs = await service.jobs(); self.selected = jobs.first(where: { $0.id == selected.id }) } catch { status = error.localizedDescription }; working = false } }
 }

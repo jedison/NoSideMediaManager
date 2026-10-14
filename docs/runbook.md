@@ -1,10 +1,9 @@
 # MMM runbook
 
-Repository-side engineering reference for MMM. The authoritative operational
-runbook for the media server, Emby, media, remote access, and MMM is the Google Doc
-[Emby Server Setup Runbook](<private operational document>).
-Keep this file aligned with that document, but use the Google Doc for live
-operations.
+Repository-side engineering reference for MMM. Keep live hostnames, account
+names, network identifiers, and operational credentials outside this repository.
+This document intentionally describes the portable process rather than a
+particular home-media installation.
 
 ## Frozen media jobs
 
@@ -40,14 +39,14 @@ troubleshooting the Companion itself.
 ### Tailscale
 
 Install Tailscale on the analysis Mac, media server, and iPhone, then authenticate
-each device into the same Tailnet. The media server's current MagicDNS name is:
+each device into the same Tailnet. Use the media server's own MagicDNS hostname
+in microMM rather than a changing home-LAN address:
 
 ```text
 your-media-server.your-tailnet.ts.net
 ```
 
-Use that hostname in microMM on the iPhone, rather than a changing home-LAN
-address. Check the media server's Tailnet reachability from the analysis Mac with:
+Check the media server's Tailnet reachability from the analysis Mac with:
 
 ```zsh
 tailscale ping --timeout=10s your-media-server.your-tailnet.ts.net
@@ -60,16 +59,16 @@ allowed in the media server's Firewall settings.
 
 ### SSH from the analysis Mac to the media server
 
-The current key-based connection is:
+Use a key-based SSH connection appropriate to your own media-server account:
 
 ```zsh
-ssh jedison@your-media-server
+ssh media-user@your-media-server
 ```
 
 Verify it without allowing a password fallback:
 
 ```zsh
-ssh -o BatchMode=yes -o ConnectTimeout=12 jedison@your-media-server
+ssh -o BatchMode=yes -o ConnectTimeout=12 media-user@your-media-server
 ```
 
 For a new analysis Mac, first enable **Remote Login** on the media server under
@@ -78,7 +77,7 @@ media server account. From the new Mac, the following sends the default Ed25519
 public key and asks for the media server account password once:
 
 ```zsh
-cat ~/.ssh/id_ed25519.pub | ssh jedison@your-media-server 'umask 077; mkdir -p ~/.ssh; cat >> ~/.ssh/authorized_keys'
+cat ~/.ssh/id_ed25519.pub | ssh media-user@your-media-server 'umask 077; mkdir -p ~/.ssh; cat >> ~/.ssh/authorized_keys'
 ```
 
 If the new Mac does not yet have that key, create it first:
@@ -92,10 +91,11 @@ verification command above before relying on it for media work.
 
 ## Media server Wi-Fi keeper
 
-The media server has a system LaunchDaemon package at:
+The media server can use the included system LaunchDaemon package, installed in
+a local jobs folder such as:
 
 ```text
-~/NoSideMediaManagerJobs/wifi-keeper
+/path/to/NoSideMediaManagerJobs/wifi-keeper
 ```
 
 It sends four pings to `1.1.1.1` every five minutes, including at boot, to keep
@@ -106,7 +106,7 @@ Install it once from Terminal on the media server (an administrator password is
 required):
 
 ```zsh
-~/NoSideMediaManagerJobs/wifi-keeper/install.sh
+/path/to/NoSideMediaManagerJobs/wifi-keeper/install.sh
 ```
 
 Verify recent checks:
@@ -118,7 +118,7 @@ tail -n 30 /Library/Logs/NoSide/wifi-keeper.log
 Remove it if no longer wanted:
 
 ```zsh
-~/NoSideMediaManagerJobs/wifi-keeper/uninstall.sh
+/path/to/NoSideMediaManagerJobs/wifi-keeper/uninstall.sh
 ```
 
 For an immediate diagnosis when the media server appears offline:
