@@ -13,10 +13,11 @@ package dependencies.
 
 ## Status and quick start
 
-This is an actively developed, local-first macOS project. It is most useful to
-developers and careful media-library administrators who are comfortable
-reviewing a plan before it changes files. It is not a hosted service and does
-not send a media library to NoSide.
+This is an actively developed, local-first macOS project with an optional
+companion iOS app for authenticated access to the configured media server. It
+is most useful to developers and careful media-library administrators who are
+comfortable reviewing a plan before it changes files. It is not a hosted
+service and does not send a media library to NoSide.
 
 ```sh
 swift test
@@ -33,6 +34,9 @@ and [Apache-2.0 license](LICENSE) before distribution or deployment.
   TVDB v4 client, and an import service.
 - `noside-media`: a small CLI for looking up a series, reviewing mappings, and
   freezing a portable filesystem-change job.
+- `NoSideMediaCompanion`: an iPhone companion app that connects to the local
+  Companion server with a pairing token for authenticated remote audit, search,
+  and frozen-package actions. It is not a file-sharing service.
 
 ## One app, including the CLI
 
@@ -47,6 +51,13 @@ always share one release number. Run the bundled CLI directly when needed:
 The older standalone `noside-media` deployment is retired rather than used.
 Frozen jobs remain portable and do not need microMM installed to run their
 `apply.sh` or `rollback.sh` scripts.
+
+## Companion iOS app
+
+The repository also contains an optional iPhone companion app. It connects to
+the macOS Companion server only after you configure a local jobs folder,
+media-library roots, and pairing token. For remote access, use a private network
+such as Tailscale; do not expose the Companion server to the public internet.
 
 Build outputs and release archives are deliberately not committed to this
 source repository. Create them locally or obtain a published GitHub Release
