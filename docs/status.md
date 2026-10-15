@@ -18,8 +18,9 @@
   destination-side migration of frozen jobs and MMM preferences to a replacement
   media server. It intentionally excludes app bundles, media files, disks, and
   Keychain secrets.
-- After Mini validation, Belles' duplicate Emby, Caddy, Emby keep-awake, and
-  Movies SMB services were retired. `scripts/retire-belles-media-services.sh`
+- After a replacement-server validation, the prior server's duplicate Emby,
+  Caddy, Emby keep-awake, and Movies SMB services were retired.
+  `scripts/retire-old-media-server-services.sh`
   preserves the reversible launch configuration while leaving Tailscale,
   rclone, other shares, and the media volume untouched.
 
