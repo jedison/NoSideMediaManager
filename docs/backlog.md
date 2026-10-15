@@ -36,6 +36,14 @@
 - Add a real macOS `.xcodeproj` wrapper for the package when the product moves
   beyond the prototype stage.
 - Cache TVDB tokens securely in Keychain, with expiry handling.
+- Add a low-resolution review filter for Movies. Report readable dimensions
+  (and file size when dimensions are unavailable), let the user choose a
+  threshold, and offer only Keep as intentional legacy copy / review actions;
+  never downgrade, delete, or replace a film automatically.
+- Add a suspected-artwork-mismatch review. Compare a movie NFO's selected
+  provider identity with the current poster only when trustworthy provenance
+  or a perceptual comparison is available; present possible mismatches for
+  human keep/replace review and never overwrite alternate/approved artwork.
 
 ## Later
 
