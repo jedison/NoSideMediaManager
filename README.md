@@ -11,6 +11,11 @@ NFOs carried by a move-only preservation package are never rewritten.
 Requires macOS Monterey 12 or later. It uses only Apple frameworks and has no
 package dependencies.
 
+![microMM Movie Manager, ready to audit a selected movie folder](docs/images/micromm-movie-manager.png)
+
+_The macOS app starts with a selected-folder audit. It does not scan or modify
+a media library until you explicitly choose and review a workflow._
+
 ## Status and quick start
 
 This is an actively developed, local-first macOS project with an optional
