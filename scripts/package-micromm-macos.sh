@@ -9,7 +9,9 @@ root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 output="${1:-$root/build/release/microMM.app}"
 scratch="${MMM_SWIFT_SCRATCH:-/tmp/noside-mmm-release-build}"
 arm_scratch="${MMM_SWIFT_ARM_SCRATCH:-/tmp/noside-mmm-release-build-arm64}"
-identity="${MMM_SIGNING_IDENTITY:-Apple Development: your-apple-developer-account@example.com (YOURTEAMID)}"
+# Ad-hoc signing is portable for local testing. Supply an Apple Development
+# identity through MMM_SIGNING_IDENTITY for a distributable signed build.
+identity="${MMM_SIGNING_IDENTITY:--}"
 
 swift build -c release --arch x86_64 --product noside-media --scratch-path "$scratch"
 swift build -c release --arch x86_64 --product NoSideMediaManagerApp --scratch-path "$scratch"

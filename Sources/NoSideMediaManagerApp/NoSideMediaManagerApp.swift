@@ -7,6 +7,11 @@ private enum MMMAppRelease {
     static let display = MMMBuildInfo.display(in: Bundle.main)
 }
 
+private enum MMMDefaults {
+    static let jobsRoot = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("NoSideMediaManagerJobs", isDirectory: true).path
+}
+
 private struct TVDuplicateDecision: Identifiable {
     let id: String
     let label: String
@@ -59,7 +64,7 @@ private final class CompanionRuntime: ObservableObject {
     func startFromStoredSettings() {
         guard server == nil else { return }
         let defaults = UserDefaults.standard
-        let jobs = defaults.string(forKey: "companion.jobsRoot") ?? "~/NoSideMediaManagerJobs"
+        let jobs = defaults.string(forKey: "companion.jobsRoot") ?? MMMDefaults.jobsRoot
         let movies = defaults.string(forKey: "companion.libraryRoot") ?? ""
         let tv = defaults.string(forKey: "companion.tvLibraryRoot") ?? "/Volumes/Movies/My/TV Shows"
         let token = defaults.string(forKey: "companion.token") ?? ""
@@ -448,7 +453,7 @@ private struct MMMSettingsView: View {
     @State private var apiKey = TVDBCredentialStore.value(named: "TVDB_API_KEY") ?? ""
     @State private var pin = TVDBCredentialStore.value(named: "TVDB_PIN") ?? ""
     @State private var tmdbAPIKey = TVDBCredentialStore.value(named: "TMDB_API_KEY") ?? ""
-    @State private var jobsRoot = UserDefaults.standard.string(forKey: "companion.jobsRoot") ?? "~/NoSideMediaManagerJobs"
+    @State private var jobsRoot = UserDefaults.standard.string(forKey: "companion.jobsRoot") ?? MMMDefaults.jobsRoot
     @State private var libraryRoot = UserDefaults.standard.string(forKey: "companion.libraryRoot") ?? ""
     @State private var tvLibraryRoot = UserDefaults.standard.string(forKey: "companion.tvLibraryRoot") ?? "/Volumes/Movies/My/TV Shows"
     @State private var token = UserDefaults.standard.string(forKey: "companion.token") ?? ""
@@ -562,7 +567,7 @@ private struct PackageOperationsView: View {
             Text(status).foregroundStyle(.secondary)
         }.padding(24).task { refresh() }.onChange(of: selected) { _ in loadHistory() }.confirmationDialog("Apply this frozen package?", isPresented: $confirmApply, titleVisibility: .visible) { Button("Apply", role: .destructive) { run(.apply) } } message: { Text("This performs the reviewed package on the configured media-library root. A rollback remains available afterward.") }.confirmationDialog("Delete this frozen package?", isPresented: $confirmDelete, titleVisibility: .visible) { Button("Delete package", role: .destructive) { deleteSelectedPackage() } } message: { Text("This removes only the package folder and its generated files. It does not change media files. Applied packages cannot be deleted because their rollback evidence is retained.") }
     }
-    private func service() -> CompanionJobService? { let d = UserDefaults.standard; guard let root = d.string(forKey: "companion.libraryRoot"), !root.isEmpty else { return nil }; let jobs = d.string(forKey: "companion.jobsRoot") ?? "~/NoSideMediaManagerJobs"; let token = d.string(forKey: "companion.token") ?? ""; return CompanionJobService(configuration: .init(jobsRoot: URL(fileURLWithPath: jobs), libraryRoot: URL(fileURLWithPath: root), token: token, version: MMMAppRelease.display)) }
+    private func service() -> CompanionJobService? { let d = UserDefaults.standard; guard let root = d.string(forKey: "companion.libraryRoot"), !root.isEmpty else { return nil }; let jobs = d.string(forKey: "companion.jobsRoot") ?? MMMDefaults.jobsRoot; let token = d.string(forKey: "companion.token") ?? ""; return CompanionJobService(configuration: .init(jobsRoot: URL(fileURLWithPath: jobs), libraryRoot: URL(fileURLWithPath: root), token: token, version: MMMAppRelease.display)) }
     private var filteredJobs: [CompanionJob] {
         jobs.filter { job in
             let stateMatches = packageState == "all" || job.state.rawValue == packageState

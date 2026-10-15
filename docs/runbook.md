@@ -63,13 +63,13 @@ allowed in the media server's Firewall settings.
 The current key-based connection is:
 
 ```zsh
-ssh jedison@your-media-server
+ssh your-media-server-user@your-media-server
 ```
 
 Verify it without allowing a password fallback:
 
 ```zsh
-ssh -o BatchMode=yes -o ConnectTimeout=12 jedison@your-media-server
+ssh -o BatchMode=yes -o ConnectTimeout=12 your-media-server-user@your-media-server
 ```
 
 For a new analysis Mac, first enable **Remote Login** on the media server under
@@ -78,7 +78,7 @@ media server account. From the new Mac, the following sends the default Ed25519
 public key and asks for the media server account password once:
 
 ```zsh
-cat ~/.ssh/id_ed25519.pub | ssh jedison@your-media-server 'umask 077; mkdir -p ~/.ssh; cat >> ~/.ssh/authorized_keys'
+cat ~/.ssh/id_ed25519.pub | ssh your-media-server-user@your-media-server 'umask 077; mkdir -p ~/.ssh; cat >> ~/.ssh/authorized_keys'
 ```
 
 If the new Mac does not yet have that key, create it first:
@@ -95,7 +95,7 @@ verification command above before relying on it for media work.
 The media server has a system LaunchDaemon package at:
 
 ```text
-~/NoSideMediaManagerJobs/wifi-keeper
+$HOME/NoSideMediaManagerJobs/wifi-keeper
 ```
 
 It sends four pings to `1.1.1.1` every five minutes, including at boot, to keep
@@ -106,7 +106,7 @@ Install it once from Terminal on the media server (an administrator password is
 required):
 
 ```zsh
-~/NoSideMediaManagerJobs/wifi-keeper/install.sh
+$HOME/NoSideMediaManagerJobs/wifi-keeper/install.sh
 ```
 
 Verify recent checks:
@@ -118,7 +118,7 @@ tail -n 30 /Library/Logs/NoSide/wifi-keeper.log
 Remove it if no longer wanted:
 
 ```zsh
-~/NoSideMediaManagerJobs/wifi-keeper/uninstall.sh
+$HOME/NoSideMediaManagerJobs/wifi-keeper/uninstall.sh
 ```
 
 For an immediate diagnosis when the media server appears offline:

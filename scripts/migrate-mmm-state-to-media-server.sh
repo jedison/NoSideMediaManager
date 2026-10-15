@@ -12,7 +12,7 @@ usage() {
 Usage:
   migrate-mmm-state-to-media-server.sh [--dry-run] \
     --source user@old-media-server \
-    [--jobs-root ~/NoSideMediaManagerJobs] \
+    [--jobs-root "$HOME/NoSideMediaManagerJobs"] \
     [--movies-root /Volumes/Movies/My/Movies] \
     [--tv-root "/Volumes/Movies/My/TV Shows"]
 

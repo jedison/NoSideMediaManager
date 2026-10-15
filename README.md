@@ -25,7 +25,7 @@ the matching command-line executable. They are built from the same MMM core and
 always share one release number. Run the bundled CLI directly when needed:
 
 ```sh
-"~/NoSideMediaManagerJobs/microMM.app/Contents/MacOS/noside-media" --help
+"$HOME/NoSideMediaManagerJobs/microMM.app/Contents/MacOS/noside-media" --help
 ```
 
 The older standalone `noside-media` deployment is retired rather than used.
