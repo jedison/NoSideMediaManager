@@ -11,6 +11,22 @@ NFOs carried by a move-only preservation package are never rewritten.
 Requires macOS Monterey 12 or later. It uses only Apple frameworks and has no
 package dependencies.
 
+## Status and quick start
+
+This is an actively developed, local-first macOS project. It is most useful to
+developers and careful media-library administrators who are comfortable
+reviewing a plan before it changes files. It is not a hosted service and does
+not send a media library to NoSide.
+
+```sh
+swift test
+swift run noside-media --help
+```
+
+Configure provider credentials only when you need a provider lookup. Read the
+[privacy notes](docs/PRIVACY.md), [third-party notices](docs/THIRD_PARTY_NOTICES.md),
+and [Apache-2.0 license](LICENSE) before distribution or deployment.
+
 ## What is here
 
 - `NoSideMediaManager`: provider-neutral TV metadata models, XML/NFO writer,
@@ -31,6 +47,11 @@ always share one release number. Run the bundled CLI directly when needed:
 The older standalone `noside-media` deployment is retired rather than used.
 Frozen jobs remain portable and do not need microMM installed to run their
 `apply.sh` or `rollback.sh` scripts.
+
+Build outputs and release archives are deliberately not committed to this
+source repository. Create them locally or obtain a published GitHub Release
+when one is available. The legacy 0.4.9 archive is retained as a release asset,
+not as tracked source.
 
 ## Automatic build identity
 
