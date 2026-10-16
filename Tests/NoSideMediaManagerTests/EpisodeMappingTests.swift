@@ -33,6 +33,22 @@ import Testing
     #expect(audit.folderSeasonConflicts == 1)
 }
 
+@Test func tvAuditExposesDuplicateCandidateFileSizes() throws {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let first = folder.appendingPathComponent("Show S01E01.mkv")
+    let second = folder.appendingPathComponent("Show S01E01.mp4")
+    try Data(repeating: 0, count: 17).write(to: first)
+    try Data(repeating: 0, count: 29).write(to: second)
+    let audit = TVLibraryAudit.report(for: [
+        .init(url: first, season: 1, episode: 1),
+        .init(url: second, season: 1, episode: 1)
+    ])
+    #expect(audit.duplicates.count == 1)
+    #expect(audit.items.map(\.fileSize).sorted { ($0 ?? -1) < ($1 ?? -1) } == [17, 29])
+}
+
 @Test func embeddedTitleCanProposeSameSeasonEpisodeButNotOverrideConflict() {
     let episode = TVEpisode(tvdbID: 44, seriesTVDBID: 1, season: 4, number: 1, title: "Cake")
     let titleMatched = LocalEpisodeFile(url: URL(fileURLWithPath: "/tmp/30 Series 4, Cake.m4v"), season: 4, episode: 0, folderSeason: 4, metadataTitle: "Series 4, Cake")

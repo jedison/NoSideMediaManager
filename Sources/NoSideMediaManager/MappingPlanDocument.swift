@@ -6,7 +6,12 @@ public struct MappingPlanDocument: Codable, Sendable, Equatable {
         public var canonicalEpisodeID: Int?
         public var destinationPath: String?
         public var downloadArtwork: Bool
-        public init(sourcePath: String, canonicalEpisodeID: Int?, destinationPath: String? = nil, downloadArtwork: Bool = true) { self.sourcePath = sourcePath; self.canonicalEpisodeID = canonicalEpisodeID; self.destinationPath = destinationPath; self.downloadArtwork = downloadArtwork }
+        /// An explicit review disposition. Excluded entries remain in this
+        /// transparent JSON so a later review can explain why a local file was
+        /// intentionally left out of a package. Older plan files decode with
+        /// this as nil (equivalent to included).
+        public var excluded: Bool?
+        public init(sourcePath: String, canonicalEpisodeID: Int?, destinationPath: String? = nil, downloadArtwork: Bool = true, excluded: Bool? = nil) { self.sourcePath = sourcePath; self.canonicalEpisodeID = canonicalEpisodeID; self.destinationPath = destinationPath; self.downloadArtwork = downloadArtwork; self.excluded = excluded }
     }
     public let formatVersion: Int
     public let seriesTVDBID: Int

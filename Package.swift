@@ -16,6 +16,6 @@ let package = Package(
         .target(name: "NoSideMediaCompanionCore", dependencies: ["NoSideMediaManager"]),
         .executableTarget(name: "NoSideMediaCLI", dependencies: ["NoSideMediaManager"]),
         .executableTarget(name: "NoSideMediaManagerApp", dependencies: ["NoSideMediaManager", "NoSideMediaCompanionCore"]),
-        .testTarget(name: "NoSideMediaManagerTests", dependencies: ["NoSideMediaManager", "NoSideMediaCompanionCore"])
+        .testTarget(name: "NoSideMediaManagerTests", dependencies: ["NoSideMediaManager", "NoSideMediaCompanionCore"], resources: [.process("Fixtures")])
     ]
 )

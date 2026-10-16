@@ -2,6 +2,25 @@ import Foundation
 import Testing
 @testable import NoSideMediaManager
 
+@Test func orphanSidecarsAreReportedWithoutMutatingLibrary() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data().write(to: root.appendingPathComponent("Film.mp4"))
+    try Data().write(to: root.appendingPathComponent("Film.nfo"))
+    try Data().write(to: root.appendingPathComponent("Film.en.forced.srt"))
+    try Data().write(to: root.appendingPathComponent("Lost.srt"))
+    #expect(MovieLibraryAudit.orphanSidecars(in: root).map { URL(fileURLWithPath: $0).lastPathComponent } == ["Lost.srt"])
+}
+
+@Test func movieAuditLabelsExtrasAndAlternateEncodesForReview() {
+    #expect(MovieLibraryAudit.contentClassification("Film Trailer.mp4").kind == .trailer)
+    #expect(MovieLibraryAudit.contentClassification("Film Remux.mkv").kind == .alternateEncode)
+    #expect(MovieLibraryAudit.contentClassification("Film Director's Cut.m4v").kind == .edition)
+    #expect(MovieContentKind.trailer.requiresExplicitReview)
+    #expect(!MovieContentKind.edition.requiresExplicitReview)
+}
+
 @Test func movieNFOIsKodiCompatibleAndUsesTMDBID() throws {
     let movie = Movie(tmdbID: 603, title: "The Matrix", overview: "Choice & consequence", releaseDate: "1999-03-30", runtimeMinutes: 136, rating: 8.2, genres: ["Science Fiction"])
     let text = String(decoding: try NFOWriter.movieData(movie), as: UTF8.self)
@@ -18,6 +37,18 @@ import Testing
     let bare = EmbeddedMediaInfo(fileName: "Bare.mkv", title: nil, creationDate: nil, durationSeconds: nil, width: nil, height: nil, audioLanguages: [], subtitleLanguages: [], hasEmbeddedArtwork: false)
     #expect(MovieLibraryAudit.classify(nfoExists: false, artworkExists: false, info: embedded) == .embeddedMetadataNeedsSidecars)
     #expect(MovieLibraryAudit.classify(nfoExists: false, artworkExists: false, info: bare) == .bareNeedsTMDB)
+}
+
+@Test func movieAuditKeepsUninspectableMKVAsBareReviewItem() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let video = root.appendingPathComponent("Unreadable Container.mkv")
+    try Data("not a real container".utf8).write(to: video)
+    let items = await MovieLibraryAudit.inspect(directory: root)
+    #expect(items.count == 1)
+    #expect(URL(fileURLWithPath: items[0].videoPath).lastPathComponent == video.lastPathComponent)
+    #expect(items[0].state == .bareNeedsTMDB)
 }
 
 @Test func movieBundleHasRelativePathsAndCanApply() async throws {
@@ -279,6 +310,38 @@ import Testing
     #expect(MovieLibraryAudit.isIgnored(URL(fileURLWithPath: "/Movies/Ruby.ite/images/videos/loop.m4v"), libraryRoot: root))
     #expect(!MovieLibraryAudit.isIgnored(URL(fileURLWithPath: "/Movies/Truth.ite/Truth.m4v"), libraryRoot: root))
     #expect(MovieLibraryAudit.isIgnored(URL(fileURLWithPath: "/Movies/Bonus/clip.m4v"), libraryRoot: root, customRules: ["Bonus"]))
+}
+
+@Test func movieAuditIgnoreRulesStayPlainTextAndRejectTraversal() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try MovieLibraryAudit.addIgnoreRule("Bonus/loop.m4v", in: root)
+    #expect(MovieLibraryAudit.ignoreRules(in: root) == ["Bonus/loop.m4v"])
+    #expect(MovieLibraryAudit.isIgnored(root.appendingPathComponent("Bonus/loop.m4v"), libraryRoot: root, customRules: Set(MovieLibraryAudit.ignoreRules(in: root))))
+    try MovieLibraryAudit.removeIgnoreRule("Bonus/loop.m4v", in: root)
+    #expect(MovieLibraryAudit.ignoreRules(in: root).isEmpty)
+    #expect(!MovieLibraryAudit.isIgnored(root.appendingPathComponent("Bonus/loop.m4v"), libraryRoot: root, customRules: Set(MovieLibraryAudit.ignoreRules(in: root))))
+    #expect(throws: MovieLibraryAudit.IgnoreRuleError.self) { try MovieLibraryAudit.addIgnoreRule("../everything", in: root) }
+    #expect(throws: MovieLibraryAudit.IgnoreRuleError.self) { try MovieLibraryAudit.removeIgnoreRule("../everything", in: root) }
+}
+
+@Test func movieLibrarySignatureChangesWhenAVideoIsAdded() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let before = MovieLibraryAudit.librarySignature(in: root)
+    try Data("video".utf8).write(to: root.appendingPathComponent("Film.mkv"))
+    let after = MovieLibraryAudit.librarySignature(in: root)
+    #expect(before != after)
+    #expect(after.videoCount == 1)
+}
+
+@Test func movieHealthHTMLIsReadableAndEscapesPaths() {
+    let item = MovieAuditItem(videoPath: "/Movies/<Unsafe>.mp4", nfoExists: false, artworkExists: false, embeddedTitle: nil, embeddedCreationDate: nil, hasEmbeddedArtwork: false, tmdbID: nil, nfoTitle: "A < B", nfoYear: nil, nfoIsValid: nil, editionHint: nil, state: .bareNeedsTMDB)
+    let html = MovieLibraryAudit.htmlReport(.init(items: [item], duplicateTMDBIDs: [:], invalidNFOs: [], ignoredVideoFiles: []))
+    #expect(html.contains("A &lt; B"))
+    #expect(html.contains("/Movies/&lt;Unsafe&gt;.mp4"))
 }
 
 @Test func selectedEmbeddedMoviesFreezeAsOneSidecarPackage() throws {

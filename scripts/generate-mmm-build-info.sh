@@ -40,11 +40,11 @@ fi
 trap 'rmdir "$lock"' EXIT
 
 version=$(tr -d '[:space:]' < "$root/VERSION")
-bundle_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$root/distribution/microMM/Info.plist")
+initial_bundle_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$root/distribution/microMM/Info.plist")
 
 # The first automatic sequence continues the shipped app's existing build
 # number; subsequent values come solely from the local, ignored counter.
-counter="$bundle_build"
+counter="$initial_bundle_build"
 if [ -f "$counter_file" ]; then
   counter=$(tr -d '[:space:]' < "$counter_file")
 else
@@ -61,7 +61,7 @@ else
   done
 fi
 case "$counter" in
-  ''|*[!0-9]*) counter="$bundle_build" ;;
+  ''|*[!0-9]*) counter="$initial_bundle_build" ;;
 esac
 counter=$((counter + 1))
 mkdir -p "$(dirname "$counter_file")"
@@ -73,4 +73,4 @@ mkdir -p "$(dirname "$output")"
 /usr/libexec/PlistBuddy -c "Add :sequence string $counter" "$output"
 /usr/libexec/PlistBuddy -c "Add :timestamp string $timestamp" "$output"
 /usr/libexec/PlistBuddy -c "Add :version string $version" "$output"
-/usr/libexec/PlistBuddy -c "Add :bundleBuild string $bundle_build" "$output"
+/usr/libexec/PlistBuddy -c "Add :bundleBuild string $counter" "$output"

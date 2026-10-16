@@ -18,7 +18,10 @@ public struct EmbeddedMediaInfo: Codable, Sendable, Equatable {
 }
 
 public enum MediaFileInspector {
-    private static let videoExtensions: Set<String> = ["m4v", "mkv", "mp4", "avi", "mov"]
+    /// Common containers that MMM can audit and package without transcoding.
+    /// A container that AVFoundation cannot inspect is still reported as a
+    /// review item rather than omitted.
+    private static let videoExtensions: Set<String> = ["m4v", "mkv", "mp4", "avi", "mov", "mpg", "mpeg", "wmv", "ts", "m2ts", "mts", "webm", "flv", "3gp"]
 
     /// Enumerates supported video containers without relying on their filename
     /// pattern, so older M4V libraries can be inspected before they are mapped.

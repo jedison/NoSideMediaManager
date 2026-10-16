@@ -11,13 +11,16 @@ struct CompanionClient {
     }
     func health() async throws -> CompanionServerInfo { try await perform(try request(path: "/v1/health")) }
     func jobs() async throws -> [CompanionJob] { try await perform(try request(path: "/v1/jobs")) }
+    func history(jobID: String) async throws -> [CompanionOperationHistoryEntry] { try await perform(try request(path: "/v1/jobs/\(jobID)/history")) }
     /// Full libraries inspect embedded container metadata and can legitimately
     /// take several minutes on the media server.
     func startMovieAudit() async throws -> CompanionMovieAuditSnapshot { try await perform(try request(path: "/v1/audit/movies", method: "POST")) }
     func movieAuditStatus() async throws -> CompanionMovieAuditSnapshot { try await perform(try request(path: "/v1/audit/movies")) }
     func tvFolders() async throws -> [CompanionTVFolder] { try await perform(try request(path: "/v1/audit/tv/folders")) }
-    func tvAudit(folder: String) async throws -> CompanionTVAuditReport { let folder = folder.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? folder; return try await perform(try request(path: "/v1/audit/tv?folder=\(folder)")) }
+    func startTVAudit(folder: String) async throws -> CompanionTVAuditSnapshot { let folder = folder.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? folder; return try await perform(try request(path: "/v1/audit/tv?folder=\(folder)", method: "POST")) }
+    func tvAuditStatus(folder: String) async throws -> CompanionTVAuditSnapshot { let folder = folder.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? folder; return try await perform(try request(path: "/v1/audit/tv?folder=\(folder)")) }
     func reviewTV(seriesID: Int, folder: String) async throws -> CompanionTVMappingReview { let folder = folder.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? folder; return try await perform(try request(path: "/v1/review/tv?folder=\(folder)&seriesID=\(seriesID)", timeout: 600)) }
+    func freezeTVPackage(_ package: CompanionTVPackageRequest) async throws -> CompanionJob { let body = try JSONEncoder().encode(package); return try await perform(try request(path: "/v1/review/tv/package", method: "POST", body: body, timeout: 600)) }
     func freezeMoviePackage(_ kind: String, videoPaths: [String]) async throws -> CompanionJob { let body = try JSONEncoder().encode(CompanionMoviePackageRequest(videoPaths: videoPaths)); return try await perform(try request(path: "/v1/audit/movies/\(kind)-package", method: "POST", body: body, timeout: 600)) }
     func searchMovies(_ query: String) async throws -> [CompanionTMDBMovie] { let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query; return try await perform(try request(path: "/v1/search/movies?query=\(encoded)", timeout: 120)) }
     func freezeTMDBPackage(videoPath: String, tmdbID: Int) async throws -> CompanionJob { let body = try JSONEncoder().encode(TMDBPackageRequest(videoPath: videoPath, tmdbID: tmdbID)); return try await perform(try request(path: "/v1/audit/movies/tmdb-package", method: "POST", body: body, timeout: 600)) }

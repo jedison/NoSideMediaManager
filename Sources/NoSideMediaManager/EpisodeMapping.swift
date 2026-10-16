@@ -6,16 +6,19 @@ public struct LocalEpisodeFile: Sendable, Equatable, Identifiable {
     public let episode: Int
     public let folderSeason: Int?
     public let metadataTitle: String?
+    public let width: Int?
+    public let height: Int?
+    public let subtitleLanguages: [String]
     public var id: URL { url }
 
-    public init(url: URL, season: Int, episode: Int, folderSeason: Int? = nil, metadataTitle: String? = nil) { self.url = url; self.season = season; self.episode = episode; self.folderSeason = folderSeason; self.metadataTitle = metadataTitle }
+    public init(url: URL, season: Int, episode: Int, folderSeason: Int? = nil, metadataTitle: String? = nil, width: Int? = nil, height: Int? = nil, subtitleLanguages: [String] = []) { self.url = url; self.season = season; self.episode = episode; self.folderSeason = folderSeason; self.metadataTitle = metadataTitle; self.width = width; self.height = height; self.subtitleLanguages = subtitleLanguages }
 }
 
 public enum EpisodeFolderScanner {
     private static let expression = try! NSRegularExpression(pattern: #"(?i)(?:S)(\d{1,3})(?:E)(\d{1,3})"#)
     private static let seriesExpression = try! NSRegularExpression(pattern: #"(?i)series\s*(\d{1,3})\s*-\s*(\d{1,3})\."#)
     private static let folderExpression = try! NSRegularExpression(pattern: #"(?i)season\s*(\d{1,3})"#)
-    private static let extensions: Set<String> = ["m4v", "mkv", "mp4", "avi", "mov"]
+    private static let extensions: Set<String> = ["m4v", "mkv", "mp4", "avi", "mov", "mpg", "mpeg", "wmv", "ts", "m2ts", "mts", "webm", "flv", "3gp"]
 
     public static func scan(directory: URL, fileManager: FileManager = .default) throws -> [LocalEpisodeFile] {
         guard let enumerator = fileManager.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return [] }
@@ -38,18 +41,22 @@ public enum EpisodeFolderScanner {
     @MainActor
     public static func scanIncludingEmbeddedMetadata(directory: URL, fileManager: FileManager = .default, progress: (@MainActor @Sendable (Int, Int) -> Void)? = nil) async throws -> [LocalEpisodeFile] {
         let direct = try scan(directory: directory, fileManager: fileManager)
-        let directPaths = Set(direct.map { $0.url.standardizedFileURL.path })
-        var results = direct
+        let directByPath = Dictionary(uniqueKeysWithValues: direct.map { ($0.url.standardizedFileURL.path, $0) })
+        var results = [LocalEpisodeFile]()
         let videos = MediaFileInspector.videoFiles(in: directory, fileManager: fileManager)
         progress?(0, videos.count)
         for (index, url) in videos.enumerated() {
-            guard !directPaths.contains(url.standardizedFileURL.path) else { progress?(index + 1, videos.count); continue }
-            let folderSeason = season(in: url.deletingLastPathComponent().lastPathComponent)
             let info = try? await MediaFileInspector.inspect(url)
+            if let local = directByPath[url.standardizedFileURL.path] {
+                results.append(LocalEpisodeFile(url: url, season: local.season, episode: local.episode, folderSeason: local.folderSeason, metadataTitle: info?.title, width: info?.width, height: info?.height, subtitleLanguages: info?.subtitleLanguages ?? []))
+                progress?(index + 1, videos.count)
+                continue
+            }
+            let folderSeason = season(in: url.deletingLastPathComponent().lastPathComponent)
             if let title = info?.title, let match = embeddedEpisode(in: title) {
-                results.append(LocalEpisodeFile(url: url, season: match.season, episode: match.episode, folderSeason: folderSeason, metadataTitle: title))
+                results.append(LocalEpisodeFile(url: url, season: match.season, episode: match.episode, folderSeason: folderSeason, metadataTitle: title, width: info?.width, height: info?.height, subtitleLanguages: info?.subtitleLanguages ?? []))
             } else {
-                results.append(LocalEpisodeFile(url: url, season: folderSeason ?? 0, episode: 0, folderSeason: folderSeason, metadataTitle: info?.title))
+                results.append(LocalEpisodeFile(url: url, season: folderSeason ?? 0, episode: 0, folderSeason: folderSeason, metadataTitle: info?.title, width: info?.width, height: info?.height, subtitleLanguages: info?.subtitleLanguages ?? []))
             }
             progress?(index + 1, videos.count)
         }

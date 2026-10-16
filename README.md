@@ -236,10 +236,15 @@ swift run noside-media movie-health "/Volumes/Movies/Movies" > ~/Desktop/movie-h
 Movie audits automatically ignore ancillary clips beneath standard iTunes
 Extras `.ite` folders such as `motion/`, `images/`, and `videos/`; a possible
 top-level movie file in a `.ite` package is still audited. For other recurring
-exclusions, create a plain-text `.noside-mmm-ignore` file at the movie-library
+exclusions, use the plain-text `.noside-mmm-ignore` file at the movie-library
 root. Put one relative file or directory path on each line; blank lines and
-`#` comments are ignored. The file is read-only configuration—MMM never
-creates or edits it.
+`#` comments are ignored. It stays deliberately editable, and MMM can add a
+safe relative rule without touching a media file:
+
+```sh
+./noside-media movie-ignore-list "/Volumes/Movies/My/Movies"
+./noside-media movie-ignore-add "/Volumes/Movies/My/Movies" "Truth in Motion.ite/videos"
+```
 
 For an `embeddedMetadataNeedsSidecars` item, freeze sidecars from its existing
 container title/date/cover art—without TMDB or a rename:

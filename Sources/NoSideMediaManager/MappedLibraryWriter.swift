@@ -4,7 +4,9 @@ public struct ApprovedEpisodeMapping: Sendable, Equatable {
     public let local: LocalEpisodeFile
     public let canonical: TVEpisode
     public let downloadArtwork: Bool
-    public init(local: LocalEpisodeFile, canonical: TVEpisode, downloadArtwork: Bool = true) { self.local = local; self.canonical = canonical; self.downloadArtwork = downloadArtwork }
+    /// TVDB fields explicitly approved to replace an existing episode NFO.
+    public let nfoFieldsToReplace: Set<String>
+    public init(local: LocalEpisodeFile, canonical: TVEpisode, downloadArtwork: Bool = true, nfoFieldsToReplace: Set<String> = ["title", "plot", "aired", "season", "episode"]) { self.local = local; self.canonical = canonical; self.downloadArtwork = downloadArtwork; self.nfoFieldsToReplace = nfoFieldsToReplace }
 }
 
 /// Writes sidecars next to the media files selected in a reviewed mapping.

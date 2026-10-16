@@ -28,6 +28,9 @@ import Testing
     #expect(!apply.contains(root.path))
     #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("rollback.sh").path))
     #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("manifest.json").path))
+    #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("SHA256SUMS").path))
+    #expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("verify.sh").path))
+    try runScript(bundle.appendingPathComponent("verify.sh"), [])
     #expect(manifest.notes.isEmpty)
     for script in ["apply.sh", "rollback.sh"] {
         let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -35,6 +38,23 @@ import Testing
         try process.run(); process.waitUntilExit()
         #expect(process.terminationStatus == 0)
     }
+}
+
+@Test func portablePackageRejectsTamperedGeneratedFileBeforeDryRun() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let source = root.appendingPathComponent("Incoming/GBBO.mkv")
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: source.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("video".utf8).write(to: source)
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+    let series = TVSeries(tvdbID: 1, title: "Bake Off")
+    let episode = TVEpisode(tvdbID: 2, seriesTVDBID: 1, season: 1, number: 1, title: "Cake")
+    _ = try await PortableJobBundle.create(at: bundle, showRoot: root, series: series, mappings: [.init(local: .init(url: source, season: 1, episode: 1), canonical: episode)], downloadArtwork: false)
+    try Data("tampered".utf8).write(to: bundle.appendingPathComponent("generated/tvshow.nfo"))
+    let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/bash"); process.arguments = [bundle.appendingPathComponent("apply.sh").path, "--dry-run", root.path]
+    try process.run(); process.waitUntilExit()
+    #expect(process.terminationStatus != 0)
+    #expect(FileManager.default.fileExists(atPath: source.path))
 }
 
 @Test func portableBundleAppliesAndRollsBackOnATargetRoot() async throws {

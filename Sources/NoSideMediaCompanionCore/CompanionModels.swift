@@ -15,23 +15,57 @@ public struct CompanionJob: Codable, Sendable, Equatable, Hashable, Identifiable
 
 public enum CompanionOperation: String, Codable, Sendable { case dryRun = "dry-run", apply, rollback }
 public struct CompanionOperationResult: Codable, Sendable, Equatable { public let jobID: String; public let operation: CompanionOperation; public let succeeded: Bool; public let log: String; public init(jobID: String, operation: CompanionOperation, succeeded: Bool, log: String) { self.jobID = jobID; self.operation = operation; self.succeeded = succeeded; self.log = log } }
+/// An append-only local record of Companion-requested package operations. It
+/// lives beside the manifest, not in the media library, so a package remains
+/// inspectable after the app has been relaunched.
+public struct CompanionOperationHistoryEntry: Codable, Sendable, Equatable, Identifiable { public let id: UUID; public let date: Date; public let operation: CompanionOperation; public let succeeded: Bool; public let log: String; public init(id: UUID = UUID(), date: Date = Date(), operation: CompanionOperation, succeeded: Bool, log: String) { self.id = id; self.date = date; self.operation = operation; self.succeeded = succeeded; self.log = log } }
 public struct CompanionMovieAuditSummary: Codable, Sendable, Equatable { public let totalVideos: Int; public let ignoredVideos: Int; public let byState: [String: Int]; public let invalidNFOs: Int; public init(report: MovieLibraryHealthReport) { totalVideos = report.items.count; ignoredVideos = report.ignoredVideoFiles.count; byState = report.summary; invalidNFOs = report.invalidNFOs.count } }
-public struct CompanionMovieAuditReport: Codable, Sendable, Equatable { public let items: [MovieAuditItem]; public let totalVideos: Int; public let ignoredVideos: Int; public let byState: [String: Int]; public let byFolderState: [String: Int]; public let invalidNFOs: Int; public init(report: MovieLibraryHealthReport) { items = report.items; totalVideos = report.items.count; ignoredVideos = report.ignoredVideoFiles.count; byState = report.summary; byFolderState = report.folderSummary; invalidNFOs = report.invalidNFOs.count } }
+public struct CompanionMovieAuditReport: Codable, Sendable, Equatable {
+    public let items: [MovieAuditItem]; public let totalVideos: Int; public let ignoredVideos: Int; public let byState: [String: Int]; public let byFolderState: [String: Int]; public let invalidNFOs: Int; public let invalidNFOPaths: [String]; public let duplicateTMDBIDs: [String: [String]]
+    public init(report: MovieLibraryHealthReport) { items = report.items; totalVideos = report.items.count; ignoredVideos = report.ignoredVideoFiles.count; byState = report.summary; byFolderState = report.folderSummary; invalidNFOs = report.invalidNFOs.count; invalidNFOPaths = report.invalidNFOs; duplicateTMDBIDs = report.duplicateTMDBIDs }
+    private enum CodingKeys: String, CodingKey { case items, totalVideos, ignoredVideos, byState, byFolderState, invalidNFOs, invalidNFOPaths, duplicateTMDBIDs }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        items = try values.decode([MovieAuditItem].self, forKey: .items)
+        totalVideos = try values.decode(Int.self, forKey: .totalVideos)
+        ignoredVideos = try values.decode(Int.self, forKey: .ignoredVideos)
+        byState = try values.decode([String: Int].self, forKey: .byState)
+        byFolderState = try values.decode([String: Int].self, forKey: .byFolderState)
+        invalidNFOs = try values.decode(Int.self, forKey: .invalidNFOs)
+        invalidNFOPaths = try values.decodeIfPresent([String].self, forKey: .invalidNFOPaths) ?? []
+        duplicateTMDBIDs = try values.decodeIfPresent([String: [String]].self, forKey: .duplicateTMDBIDs) ?? [:]
+    }
+}
 public enum CompanionMovieAuditPhase: String, Codable, Sendable, Equatable { case idle, running, complete, failed }
 /// A shared, retained audit. Starting while another caller is already scanning
 /// attaches to that scan rather than inspecting every media container again.
 public struct CompanionMovieAuditSnapshot: Codable, Sendable, Equatable {
-    public let phase: CompanionMovieAuditPhase; public let completedVideos: Int; public let totalVideos: Int; public let startedAt: Date?; public let completedAt: Date?; public let report: CompanionMovieAuditReport?; public let error: String?
-    public init(phase: CompanionMovieAuditPhase = .idle, completedVideos: Int = 0, totalVideos: Int = 0, startedAt: Date? = nil, completedAt: Date? = nil, report: CompanionMovieAuditReport? = nil, error: String? = nil) { self.phase = phase; self.completedVideos = completedVideos; self.totalVideos = totalVideos; self.startedAt = startedAt; self.completedAt = completedAt; self.report = report; self.error = error }
+    public let phase: CompanionMovieAuditPhase; public let completedVideos: Int; public let totalVideos: Int; public let startedAt: Date?; public let completedAt: Date?; public let report: CompanionMovieAuditReport?; public let signature: MovieLibrarySignature?; public let error: String?
+    public init(phase: CompanionMovieAuditPhase = .idle, completedVideos: Int = 0, totalVideos: Int = 0, startedAt: Date? = nil, completedAt: Date? = nil, report: CompanionMovieAuditReport? = nil, signature: MovieLibrarySignature? = nil, error: String? = nil) { self.phase = phase; self.completedVideos = completedVideos; self.totalVideos = totalVideos; self.startedAt = startedAt; self.completedAt = completedAt; self.report = report; self.signature = signature; self.error = error }
+    private enum CodingKeys: String, CodingKey { case phase, completedVideos, totalVideos, startedAt, completedAt, report, signature, error }
+    public init(from decoder: Decoder) throws { let values = try decoder.container(keyedBy: CodingKeys.self); phase = try values.decode(CompanionMovieAuditPhase.self, forKey: .phase); completedVideos = try values.decode(Int.self, forKey: .completedVideos); totalVideos = try values.decode(Int.self, forKey: .totalVideos); startedAt = try values.decodeIfPresent(Date.self, forKey: .startedAt); completedAt = try values.decodeIfPresent(Date.self, forKey: .completedAt); report = try values.decodeIfPresent(CompanionMovieAuditReport.self, forKey: .report); signature = try values.decodeIfPresent(MovieLibrarySignature.self, forKey: .signature); error = try values.decodeIfPresent(String.self, forKey: .error) }
 }
 public struct CompanionMoviePackageRequest: Codable, Sendable, Equatable { public let videoPaths: [String]; public init(videoPaths: [String]) { self.videoPaths = videoPaths } }
 public struct CompanionTMDBMovie: Codable, Sendable, Equatable, Identifiable { public let tmdbID: Int; public let title: String; public let year: String?; public let overview: String?; public var id: Int { tmdbID }; public init(_ result: MovieSearchResult) { tmdbID = result.tmdbID; title = result.title; year = result.year; overview = result.overview } }
 public struct CompanionTMDBPackageRequest: Codable, Sendable, Equatable { public let videoPath: String; public let tmdbID: Int; public init(videoPath: String, tmdbID: Int) { self.videoPath = videoPath; self.tmdbID = tmdbID } }
 public struct CompanionTVFolder: Codable, Sendable, Equatable, Identifiable { public let name: String; public var id: String { name }; public init(name: String) { self.name = name } }
 public struct CompanionTVAuditReport: Codable, Sendable, Equatable { public let folder: String; public let report: TVLibraryAuditReport; public init(folder: String, report: TVLibraryAuditReport) { self.folder = folder; self.report = report } }
+/// Like Movie audits, TV audits are shared server work. A second phone or the
+/// Mac joins the in-flight scan instead of starting another scan of the same
+/// show folder.
+public struct CompanionTVAuditSnapshot: Codable, Sendable, Equatable {
+    public let folder: String; public let phase: CompanionMovieAuditPhase; public let startedAt: Date?; public let completedAt: Date?; public let report: CompanionTVAuditReport?; public let error: String?
+    public init(folder: String, phase: CompanionMovieAuditPhase = .idle, startedAt: Date? = nil, completedAt: Date? = nil, report: CompanionTVAuditReport? = nil, error: String? = nil) { self.folder = folder; self.phase = phase; self.startedAt = startedAt; self.completedAt = completedAt; self.report = report; self.error = error }
+}
 public struct CompanionTVEpisodeChoice: Codable, Sendable, Equatable, Identifiable { public let tvdbID: Int; public let season: Int; public let episode: Int; public let title: String; public var id: Int { tvdbID }; public init(_ episode: TVEpisode) { tvdbID = episode.tvdbID; season = episode.season; self.episode = episode.number; title = episode.title } }
 public struct CompanionTVMappingReviewItem: Codable, Sendable, Equatable, Identifiable { public let videoPath: String; public let localSeason: Int; public let localEpisode: Int; public let folderSeason: Int?; public let embeddedTitle: String?; public let proposedEpisode: CompanionTVEpisodeChoice?; public var id: String { videoPath }; public init(_ mapping: EpisodeMapping) { videoPath = mapping.local.url.path; localSeason = mapping.local.season; localEpisode = mapping.local.episode; folderSeason = mapping.local.folderSeason; embeddedTitle = mapping.local.metadataTitle; proposedEpisode = mapping.canonical.map(CompanionTVEpisodeChoice.init) } }
-public struct CompanionTVMappingReview: Codable, Sendable, Equatable { public let folder: String; public let seriesTVDBID: Int; public let seriesTitle: String; public let mappings: [CompanionTVMappingReviewItem]; public let unmatchedCount: Int; public init(folder: String, series: TVSeries, mappings: [EpisodeMapping]) { self.folder = folder; seriesTVDBID = series.tvdbID; seriesTitle = series.title; self.mappings = mappings.map(CompanionTVMappingReviewItem.init); unmatchedCount = mappings.filter { $0.canonical == nil }.count } }
+public struct CompanionTVMappingReview: Codable, Sendable, Equatable { public let folder: String; public let seriesTVDBID: Int; public let seriesTitle: String; public let mappings: [CompanionTVMappingReviewItem]; public let canonicalEpisodes: [CompanionTVEpisodeChoice]; public let unmatchedCount: Int; public init(folder: String, series: TVSeries, mappings: [EpisodeMapping], canonicalEpisodes: [TVEpisode]) { self.folder = folder; seriesTVDBID = series.tvdbID; seriesTitle = series.title; self.mappings = mappings.map(CompanionTVMappingReviewItem.init); self.canonicalEpisodes = canonicalEpisodes.map(CompanionTVEpisodeChoice.init); unmatchedCount = mappings.filter { $0.canonical == nil }.count } }
+/// A phone can request a frozen TV package, but it must supply an explicit
+/// disposition for every local file. The Companion never accepts a path for
+/// execution; it re-audits the configured show folder and validates this
+/// request before writing a portable package below its jobs root.
+public struct CompanionTVPackageDecision: Codable, Sendable, Equatable { public let videoPath: String; public let canonicalEpisodeID: Int?; public let destinationPath: String?; public let downloadArtwork: Bool; public let excluded: Bool; public init(videoPath: String, canonicalEpisodeID: Int?, destinationPath: String? = nil, downloadArtwork: Bool = true, excluded: Bool = false) { self.videoPath = videoPath; self.canonicalEpisodeID = canonicalEpisodeID; self.destinationPath = destinationPath; self.downloadArtwork = downloadArtwork; self.excluded = excluded } }
+public struct CompanionTVPackageRequest: Codable, Sendable, Equatable { public let folder: String; public let seriesTVDBID: Int; public let decisions: [CompanionTVPackageDecision]; public init(folder: String, seriesTVDBID: Int, decisions: [CompanionTVPackageDecision]) { self.folder = folder; self.seriesTVDBID = seriesTVDBID; self.decisions = decisions } }
 
 public struct CompanionConfiguration: Sendable {
     public let jobsRoot: URL; public let libraryRoot: URL; public let tvLibraryRoot: URL; public let token: String; public let version: String; public let tvdbCredentials: TVDBClient.Credentials?; public let tmdbAPIKey: String?

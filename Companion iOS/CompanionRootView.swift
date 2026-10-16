@@ -7,7 +7,7 @@ struct CompanionRootView: View {
 
     var body: some View {
         NavigationStack {
-            Group { if session.server == nil { PairingView() } else { JobListView() } }
+            Group { if session.server == nil { PairingView() } else { CompanionHomeView() } }
                 .navigationTitle("microMM")
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
@@ -140,11 +140,57 @@ private struct CompanionInfoView: View {
     }
 }
 
+private struct CompanionHomeView: View {
+    @EnvironmentObject private var session: CompanionSession
+    var body: some View {
+        List {
+            Section {
+                NavigationLink(destination: MovieAuditView()) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label("Movies", systemImage: "film.stack")
+                            .font(.title3.weight(.semibold))
+                        Text(movieSubtitle).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Button { session.startMovieAudit() } label: {
+                    Label(session.movieAuditProgress?.phase == "running" ? "Movie audit already running" : session.movieAuditProgress?.phase == "complete" ? "Run new movie audit" : "Audit Movie library", systemImage: "magnifyingglass")
+                }
+                .disabled(session.isMovieAuditLoading)
+                if let progress = session.movieAuditProgress, progress.phase == "running" {
+                    ProgressView(value: Double(progress.completedVideos), total: Double(max(progress.totalVideos, 1))) {
+                        Text(progress.totalVideos == 0 ? "Finding movie files…" : "\(progress.completedVideos) of \(progress.totalVideos) movies audited")
+                    }.progressViewStyle(.linear)
+                }
+            } header: { Text("Movies") }
+            Section {
+                NavigationLink(destination: TVToolsView()) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label("TV shows", systemImage: "tv")
+                            .font(.title3.weight(.semibold))
+                        Text("Choose a show folder, search TVDB, and review mappings.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } header: { Text("TV") }
+            Section {
+                NavigationLink("Frozen packages (\(session.jobs.count))", destination: JobListView())
+                Button { Task { await session.refresh() } } label: { Label("Refresh", systemImage: "arrow.clockwise") }.disabled(session.isLoading)
+            } header: { Text("Packages") }
+            Section { Text(session.status).font(.footnote).foregroundStyle(.secondary) }
+        }
+        .navigationTitle("microMM")
+        .task { await session.refreshMovieAuditStatus() }
+    }
+    private var movieSubtitle: String {
+        guard let audit = session.movieAudit else { return "Audit the configured Movie library." }
+        let attention = audit.items.filter { $0.state != "complete" }.count
+        return "\(audit.totalVideos) videos · \(attention) need attention"
+    }
+}
+
 private struct JobListView: View {
     @EnvironmentObject private var session: CompanionSession
     var body: some View {
         List {
-            Section { NavigationLink("Remote audit & TVDB search", destination: RemoteToolsView()) }
             Section {
                 Text(session.status).font(.footnote).foregroundStyle(.secondary)
                 Button { Task { await session.refresh() } } label: { Label("Refresh jobs", systemImage: "arrow.clockwise") }
@@ -264,25 +310,35 @@ private struct TVToolsView: View {
     @State private var selectedTVFolder = ""
     @State private var selectedTVSeries: TVSeriesSearchResult?
     @State private var tvAudit: CompanionTVAuditReport?
+    @State private var tvAuditSnapshot: CompanionTVAuditSnapshot?
     @State private var tvReview: CompanionTVMappingReview?
+    @State private var tvEpisodeIDs = [String: Int]()
+    @State private var tvExcludedPaths = Set<String>()
+    @State private var tvArtworkPaths = Set<String>()
+    @State private var tvEpisodeFilter = ""
     @State private var status = "These requests run on the media server and do not change media files."
     @State private var working = false
     var body: some View { List {
         Section("TVDB") { TextField("Search series", text: $query); Button("Search TVDB") { runSearch() }.disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || working); ForEach(results) { result in Button { selectedTVSeries = result; tvReview = nil; status = "Selected \(result.title). Choose its local show folder, then review the proposed episode mappings." } label: { HStack { VStack(alignment: .leading) { Text(result.title); Text("TVDB \(result.tvdbID)\(result.year.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary) }; Spacer(); if selectedTVSeries?.tvdbID == result.tvdbID { Image(systemName: "checkmark.circle.fill").foregroundStyle(.blue) } } } } }
-        Section("TV library") { Button("Load TV show folders") { loadTVFolders() }.disabled(working); if !tvFolders.isEmpty { Picker("Show folder", selection: $selectedTVFolder) { Text("Choose a show").tag(""); ForEach(tvFolders) { Text($0.name).tag($0.name) } }; Button("Audit selected TV folder") { runTVAudit() }.disabled(selectedTVFolder.isEmpty || working); Button("Search TVDB from folder") { query = selectedTVFolder; runSearch() }.disabled(selectedTVFolder.isEmpty || working); if let series = selectedTVSeries { Button("Review \(series.title) against this folder") { runTVReview(series) }.disabled(selectedTVFolder.isEmpty || working) } }; if let tvAudit { Text("\(tvAudit.folder): \(tvAudit.report.items.count) videos · \(tvAudit.report.duplicates.count) duplicate episode candidate(s) · \(tvAudit.report.unnumberedCount) unnumbered").font(.caption); ForEach(tvAudit.report.duplicates) { duplicate in Text("S\(duplicate.season)E\(duplicate.episode): \(duplicate.videoPaths.count) copies").font(.caption).foregroundStyle(.orange) } } }
-        if let review = tvReview { Section("TV mapping review · \(review.seriesTitle)") { Text("\(review.mappings.count) files · \(review.unmatchedCount) need an explicit episode choice").font(.caption).foregroundStyle(review.unmatchedCount > 0 ? .orange : .secondary); ForEach(review.mappings) { mapping in VStack(alignment: .leading) { Text(URL(fileURLWithPath: mapping.videoPath).lastPathComponent).lineLimit(1); Text(mapping.proposedEpisode.map { "S\($0.season)E\($0.episode) · \($0.title)" } ?? "Needs explicit episode choice").font(.caption).foregroundStyle(mapping.proposedEpisode == nil ? .orange : .secondary) } }; Text("This is a review only. The Mac app remains the place to make explicit episode choices and freeze the TV package.").font(.footnote).foregroundStyle(.secondary) } }
+        Section("TV library") { Button("Load TV show folders") { loadTVFolders() }.disabled(working); if !tvFolders.isEmpty { Picker("Show folder", selection: $selectedTVFolder) { Text("Choose a show").tag(""); ForEach(tvFolders) { Text($0.name).tag($0.name) } }.onChange(of: selectedTVFolder) { _, folder in if !folder.isEmpty { refreshTVAudit(folder) } }; Button(tvAuditSnapshot?.phase == "running" ? "TV audit already running" : "Audit selected TV folder") { runTVAudit() }.disabled(selectedTVFolder.isEmpty || working); Button("Search TVDB from folder") { query = selectedTVFolder; runSearch() }.disabled(selectedTVFolder.isEmpty || working); if let series = selectedTVSeries { Button("Review \(series.title) against this folder") { runTVReview(series) }.disabled(selectedTVFolder.isEmpty || working) } }; if let snapshot = tvAuditSnapshot { if snapshot.phase == "running" { ProgressView("Auditing \(snapshot.folder) on the media server…") } else if let completed = snapshot.completedAt { Text("Last completed \(completed.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary) } }; if let tvAudit { Text("\(tvAudit.folder): \(tvAudit.report.items.count) videos · \(tvAudit.report.duplicates.count) duplicate episode candidate(s) · \(tvAudit.report.unnumberedCount) unnumbered").font(.caption); ForEach(tvAudit.report.duplicates) { duplicate in Text("S\(duplicate.season)E\(duplicate.episode): \(duplicate.videoPaths.count) copies").font(.caption).foregroundStyle(.orange) } } }
+        if let review = tvReview { Section("TV mapping review · \(review.seriesTitle)") { Text("\(review.mappings.count) files · \(tvOutstandingDecisions(review)) decision(s) remaining").font(.caption).foregroundStyle(tvOutstandingDecisions(review) > 0 ? .orange : .secondary); TextField("Filter TVDB episodes", text: $tvEpisodeFilter); ForEach(review.mappings) { mapping in VStack(alignment: .leading) { Toggle(isOn: Binding(get: { !tvExcludedPaths.contains(mapping.videoPath) }, set: { included in if included { tvExcludedPaths.remove(mapping.videoPath) } else { tvExcludedPaths.insert(mapping.videoPath) } })) { Text(URL(fileURLWithPath: mapping.videoPath).lastPathComponent).lineLimit(1) }; Picker("Canonical episode", selection: Binding(get: { tvEpisodeIDs[mapping.videoPath] ?? 0 }, set: { tvEpisodeIDs[mapping.videoPath] = $0 })) { Text("Needs decision").tag(0); ForEach(tvChoices(review, mapping: mapping)) { choice in Text("S\(choice.season)E\(choice.episode) · \(choice.title)").tag(choice.tvdbID) } }.disabled(tvExcludedPaths.contains(mapping.videoPath)); Toggle("Download TVDB JPG", isOn: Binding(get: { tvArtworkPaths.contains(mapping.videoPath) }, set: { enabled in if enabled { tvArtworkPaths.insert(mapping.videoPath) } else { tvArtworkPaths.remove(mapping.videoPath) } })).disabled(tvExcludedPaths.contains(mapping.videoPath)) } }; Button("Freeze reviewed TV package") { freezeTV(review) }.disabled(working || tvOutstandingDecisions(review) > 0); Text("A frozen package is created on the media server only. Review its dry-run before applying it.").font(.footnote).foregroundStyle(.secondary) } }
         Section { Text(status).font(.footnote).foregroundStyle(.secondary) }
     }.navigationTitle("TV shows") }
     private func runSearch() { working = true; Task { defer { working = false }; do { results = try await session.client.searchTV(query); status = "Found \(results.count) series." } catch { status = error.localizedDescription } } }
     private func loadTVFolders() { working = true; Task { defer { working = false }; do { tvFolders = try await session.client.tvFolders(); status = "Loaded \(tvFolders.count) TV show folders." } catch { status = error.localizedDescription } } }
-    private func runTVAudit() { working = true; Task { defer { working = false }; do { tvAudit = try await session.client.tvAudit(folder: selectedTVFolder); status = "TV audit complete." } catch { status = error.localizedDescription } } }
-    private func runTVReview(_ series: TVSeriesSearchResult) { working = true; Task { defer { working = false }; do { tvReview = try await session.client.reviewTV(seriesID: series.tvdbID, folder: selectedTVFolder); status = "TV mapping review complete." } catch { status = error.localizedDescription } } }
+    private func runTVAudit() { guard !selectedTVFolder.isEmpty else { return }; working = true; let folder = selectedTVFolder; Task { defer { working = false }; do { var snapshot = try await session.client.startTVAudit(folder: folder); tvAuditSnapshot = snapshot; status = snapshot.phase == "running" ? "Joining the shared TV audit on the media server…" : "TV audit already complete."; while snapshot.phase == "running" { try await Task.sleep(for: .seconds(10)); snapshot = try await session.client.tvAuditStatus(folder: folder); tvAuditSnapshot = snapshot }; tvAudit = snapshot.report; status = snapshot.phase == "complete" ? "TV audit complete." : (snapshot.error ?? "TV audit failed.") } catch { status = error.localizedDescription } } }
+    private func refreshTVAudit(_ folder: String) { Task { do { let snapshot = try await session.client.tvAuditStatus(folder: folder); tvAuditSnapshot = snapshot; tvAudit = snapshot.report; if snapshot.phase == "running" { runTVAudit() } } catch { status = error.localizedDescription } } }
+    private func runTVReview(_ series: TVSeriesSearchResult) { working = true; Task { defer { working = false }; do { let review = try await session.client.reviewTV(seriesID: series.tvdbID, folder: selectedTVFolder); tvReview = review; tvEpisodeIDs = Dictionary(uniqueKeysWithValues: review.mappings.compactMap { mapping in mapping.proposedEpisode.map { (mapping.videoPath, $0.tvdbID) } }); tvExcludedPaths = []; tvArtworkPaths = Set(review.mappings.filter { $0.proposedEpisode != nil }.map(\.videoPath)); status = "Review every episode choice, duplicate, and artwork decision before freezing." } catch { status = error.localizedDescription } } }
+    private func tvChoices(_ review: CompanionTVMappingReview, mapping: CompanionTVMappingReviewItem) -> [CompanionTVEpisodeChoice] { let query = tvEpisodeFilter.trimmingCharacters(in: .whitespacesAndNewlines); let chosen = tvEpisodeIDs[mapping.videoPath]; return review.canonicalEpisodes.filter { $0.tvdbID == chosen || query.isEmpty || "S\($0.season)E\($0.episode) \($0.title)".localizedCaseInsensitiveContains(query) } }
+    private func tvOutstandingDecisions(_ review: CompanionTVMappingReview) -> Int { let unmapped = review.mappings.filter { !tvExcludedPaths.contains($0.videoPath) && tvEpisodeIDs[$0.videoPath] == nil }.count; let duplicateProblems = tvAudit?.report.duplicates.filter { duplicate in duplicate.videoPaths.filter { !tvExcludedPaths.contains($0) }.count != 1 }.count ?? 0; return unmapped + duplicateProblems }
+    private func freezeTV(_ review: CompanionTVMappingReview) { working = true; let decisions = review.mappings.map { CompanionTVPackageDecision(videoPath: $0.videoPath, canonicalEpisodeID: tvEpisodeIDs[$0.videoPath], destinationPath: $0.videoPath, downloadArtwork: tvArtworkPaths.contains($0.videoPath), excluded: tvExcludedPaths.contains($0.videoPath)) }; Task { defer { working = false }; do { let job = try await session.client.freezeTVPackage(.init(folder: review.folder, seriesTVDBID: review.seriesTVDBID, decisions: decisions)); status = "Frozen TV job \(job.id) created. Dry-run it before applying."; await session.refresh() } catch { status = error.localizedDescription } } }
 }
 
 private struct JobDetailView: View {
     @EnvironmentObject private var session: CompanionSession
     let job: CompanionJob
     @State private var result: CompanionOperationResult?
+    @State private var history = [CompanionOperationHistoryEntry]()
     @State private var showApply = false
     @State private var isWorking = false
     var body: some View {
@@ -293,8 +349,11 @@ private struct JobDetailView: View {
             }
             Section("Package operations") { Button("Dry run") { run(.dryRun) }.disabled(isWorking || job.state == .applied); Button("Apply", role: .destructive) { showApply = true }.disabled(isWorking || job.state == .applied); Button("Rollback") { run(.rollback) }.disabled(isWorking || job.state != .applied) }
             if let result { Section("\(result.operation.rawValue) result") { Text(result.log.isEmpty ? "No output." : result.log).font(.system(.caption, design: .monospaced)).textSelection(.enabled); Text(result.succeeded ? "Completed." : "Failed; review the log before proceeding.").foregroundStyle(result.succeeded ? Color.secondary : Color.red) } }
+            if !history.isEmpty { Section("Operation history") { ForEach(history.reversed()) { entry in VStack(alignment: .leading, spacing: 3) { Text("\(entry.operation.rawValue) · \(entry.succeeded ? "completed" : "failed")"); Text(entry.date.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary); if !entry.log.isEmpty { Text(entry.log).font(.system(.caption2, design: .monospaced)).lineLimit(3).foregroundStyle(.secondary) } } } } }
         }.navigationTitle(job.title)
+            .task { await loadHistory() }
             .confirmationDialog("Apply this frozen job?", isPresented: $showApply, titleVisibility: .visible) { Button("Apply \(job.title)", role: .destructive) { run(.apply) } } message: { Text("This runs the exact reviewed package on the media server. Review its dry-run result first; rollback remains available after apply.") }
     }
-    private func run(_ operation: CompanionOperation) { isWorking = true; Task { defer { isWorking = false }; do { result = try await session.client.run(job, operation: operation) } catch { result = CompanionOperationResult(jobID: job.id, operation: operation, succeeded: false, log: error.localizedDescription) } } }
+    private func run(_ operation: CompanionOperation) { isWorking = true; Task { defer { isWorking = false }; do { result = try await session.client.run(job, operation: operation); await loadHistory() } catch { result = CompanionOperationResult(jobID: job.id, operation: operation, succeeded: false, log: error.localizedDescription) } } }
+    private func loadHistory() async { history = (try? await session.client.history(jobID: job.id)) ?? [] }
 }

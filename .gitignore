@@ -10,7 +10,7 @@ Fixtures/
 Review/
 .mmm-build-counter
 .mmm-build-counter.lock
-
 # Build and release artifacts are published separately from source.
 distribution/*.zip
 distribution/noside-media/noside-media
+private/

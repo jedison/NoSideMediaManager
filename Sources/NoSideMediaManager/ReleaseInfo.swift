@@ -24,6 +24,9 @@ public enum MMMBuildInfo {
               let timestamp = buildInfo?["timestamp"] as? String else {
             return "v\(version) (\(bundleBuild))"
         }
+        if bundleBuild == sequence {
+            return "v\(version) (build \(sequence)) • \(timestamp)"
+        }
         return "v\(version) (\(bundleBuild)) • build \(sequence) • \(timestamp)"
     }
 }
