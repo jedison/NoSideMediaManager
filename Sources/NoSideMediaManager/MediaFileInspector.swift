@@ -15,6 +15,12 @@ public struct EmbeddedMediaInfo: Codable, Sendable, Equatable {
     public let audioLanguages: [String]
     public let subtitleLanguages: [String]
     public let hasEmbeddedArtwork: Bool
+    /// Lightweight stable signature of embedded cover bytes.  MMM retains no
+    /// image data in an audit; this lets the audit flag a real local mismatch.
+    public let embeddedArtworkDigest: UInt64?
+    public init(fileName: String, title: String?, creationDate: String?, durationSeconds: Double?, width: Int?, height: Int?, audioLanguages: [String], subtitleLanguages: [String], hasEmbeddedArtwork: Bool, embeddedArtworkDigest: UInt64? = nil) {
+        self.fileName = fileName; self.title = title; self.creationDate = creationDate; self.durationSeconds = durationSeconds; self.width = width; self.height = height; self.audioLanguages = audioLanguages; self.subtitleLanguages = subtitleLanguages; self.hasEmbeddedArtwork = hasEmbeddedArtwork; self.embeddedArtworkDigest = embeddedArtworkDigest
+    }
 }
 
 public enum MediaFileInspector {
@@ -39,6 +45,7 @@ public enum MediaFileInspector {
         let metadata = try await asset.load(.commonMetadata)
         let video = tracks.first { $0.mediaType == .video }
         let size = try await video?.load(.naturalSize)
+        let artwork = metadata.first { $0.commonKey?.rawValue == "artwork" }?.dataValue
         return EmbeddedMediaInfo(
             fileName: url.lastPathComponent,
             title: stringValue(for: "title", in: metadata),
@@ -48,7 +55,8 @@ public enum MediaFileInspector {
             height: size.map { Int($0.height.rounded()) },
             audioLanguages: try await languages(for: tracks, type: .audio),
             subtitleLanguages: try await languages(for: tracks, type: .subtitle),
-            hasEmbeddedArtwork: metadata.contains { $0.commonKey?.rawValue == "artwork" && $0.dataValue != nil }
+            hasEmbeddedArtwork: artwork != nil,
+            embeddedArtworkDigest: artwork.map(artworkDigest)
         )
     }
 
@@ -57,11 +65,19 @@ public enum MediaFileInspector {
     @MainActor
     public static func extractMovieMetadata(_ url: URL) async throws -> EmbeddedMovieMetadata {
         let asset = AVURLAsset(url: url); let metadata = try await asset.load(.commonMetadata)
-        return EmbeddedMovieMetadata(title: stringValue(for: "title", in: metadata), creationDate: stringValue(for: "creationDate", in: metadata), artwork: metadata.first { $0.commonKey?.rawValue == "artwork" }?.dataValue)
+        let genres = metadata.compactMap { $0.commonKey?.rawValue == "type" ? $0.stringValue : nil }.flatMap { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } }.filter { !$0.isEmpty }
+        return EmbeddedMovieMetadata(title: stringValue(for: "title", in: metadata), creationDate: stringValue(for: "creationDate", in: metadata), overview: stringValue(for: "description", in: metadata), genres: Array(Set(genres)).sorted(), studio: stringValue(for: "publisher", in: metadata), artist: stringValue(for: "artist", in: metadata) ?? stringValue(for: "creator", in: metadata), artwork: metadata.first { $0.commonKey?.rawValue == "artwork" }?.dataValue)
     }
 
     private static func stringValue(for key: String, in metadata: [AVMetadataItem]) -> String? {
         metadata.first { $0.commonKey?.rawValue == key }?.stringValue
+    }
+
+    /// FNV-1a is used only to compare local audit evidence, not as an
+    /// integrity/security checksum. It avoids retaining poster bytes for every
+    /// movie in a saved audit.
+    public static func artworkDigest(_ data: Data) -> UInt64 {
+        data.reduce(1_469_598_103_934_665_603) { ($0 ^ UInt64($1)) &* 1_099_511_628_211 }
     }
 
     @MainActor

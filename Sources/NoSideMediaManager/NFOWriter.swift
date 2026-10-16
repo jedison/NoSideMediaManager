@@ -1,8 +1,9 @@
 import Foundation
 
 public enum NFOWriter {
-    public static func embeddedMovieData(title: String, creationDate: String?) throws -> Data {
-        let root = XMLElement(name: "movie"); add("title", title, to: root); add("premiered", creationDate, to: root)
+    public static func embeddedMovieData(title: String, creationDate: String?, overview: String? = nil, genres: [String] = [], studio: String? = nil, artist: String? = nil) throws -> Data {
+        let root = XMLElement(name: "movie"); add("title", title, to: root); add("premiered", creationDate, to: root); add("plot", overview, to: root); add("studio", studio, to: root); add("artist", artist, to: root)
+        for genre in genres { add("genre", genre, to: root) }
         addLockData(to: root)
         let xml = XMLDocument(rootElement: root); xml.characterEncoding = "UTF-8"; xml.version = "1.0"; return xml.xmlData(options: [.nodePrettyPrint])
     }
@@ -21,10 +22,12 @@ public enum NFOWriter {
         let xml = XMLDocument(rootElement: root); xml.characterEncoding = "UTF-8"; xml.version = "1.0"
         return xml.xmlData(options: [.nodePrettyPrint])
     }
-    public static func seasonData(number: Int, title: String? = nil) throws -> Data {
+    public static func seasonData(number: Int, title: String? = nil, overview: String? = nil, premiered: String? = nil) throws -> Data {
         let root = XMLElement(name: "season")
         add("title", title ?? "Season \(number)", to: root)
         add("seasonnumber", String(number), to: root)
+        add("plot", overview, to: root)
+        add("premiered", premiered, to: root)
         addLockData(to: root)
         let xml = XMLDocument(rootElement: root)
         xml.characterEncoding = "UTF-8"

@@ -11,18 +11,15 @@
 
 ## Product work
 
-- Add a visual per-sidecar keep/move/replace review beyond the existing poster
-  choice.
-- Extend embedded extraction when containers expose cast, crew, genres, studio,
-  rating, and description.
-- Add a low-resolution movie review filter. Show dimensions or, when they are
-  unavailable, file size; offer only intentional keep/review actions.
-- Add a suspected-artwork-mismatch review with a human keep/replace decision;
-  never overwrite approved or alternate artwork automatically.
-- Add season-level TVDB titles, descriptions, dates, and artwork to
-  `season.nfo`.
-- Add an explicit review workflow for editions, extras, trailers, alternate
-  encodes, orphan sidecars, and language-aware subtitle inspection.
+- Extend container extraction when a source exposes reliable cast, crew, and
+  rating fields. MMM already retains title, date, description, genres, studio,
+  artist/creator, and embedded artwork when present.
+- Improve the artwork-comparison review from a local byte-difference candidate
+  to an optional provider-artwork visual comparison. Never replace artwork
+  automatically.
+- Add explicit package actions for reviewed editions/extras and orphan
+  sidecars. They are currently surfaced for review, can be revealed/ignored
+  where safe, and are never silently moved or deleted.
 
 ## Future platform work
 

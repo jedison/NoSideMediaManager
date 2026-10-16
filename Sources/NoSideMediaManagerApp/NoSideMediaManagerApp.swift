@@ -633,6 +633,7 @@ private final class MovieAuditSession: ObservableObject {
     @Published var items = [MovieAuditItem]()
     @Published var selectedPaths = Set<String>()
     @Published var auditFilter = "all"
+    @Published var lowResolutionHeight = 720
     @Published var status = "The saved Movie library is selected. Audit it, or choose another folder. MMM will not modify it."
     @Published var isWorking = false
     @Published var reviewedFiles = 0
@@ -666,7 +667,7 @@ private final class MovieAuditSession: ObservableObject {
                 self?.status = total == 0 ? "No video files found." : "Reviewing \(completed) of \(total) video files…"
             }
             guard let self else { return }
-            self.items = report.items; self.invalidNFOPaths = Set(report.invalidNFOs); self.duplicateTMDBIDs = report.duplicateTMDBIDs; self.orphanSidecars = MovieLibraryAudit.orphanSidecars(in: folder); self.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); self.status = "Audited \(report.items.count) videos; \(self.orphanSidecars.count) orphan sidecar(s) reported."; self.isWorking = false
+            self.items = report.items; self.invalidNFOPaths = Set(report.invalidNFOs); self.duplicateTMDBIDs = report.duplicateTMDBIDs; self.orphanSidecars = report.orphanSidecars; self.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); self.status = "Audited \(report.items.count) videos; \(self.orphanSidecars.count) orphan sidecar(s) reported."; self.isWorking = false
         }
     }
     private func updateSharedAudit(_ snapshot: CompanionMovieAuditSnapshot) {
@@ -737,7 +738,13 @@ private struct MovieToolsView: View {
                 HStack { TextField("Relative folder or file to ignore", text: $ignoreRule); Button("Add exclusion") { addIgnoreRule() }.disabled(ignoreRule.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.folder == nil) }
                 Text("This changes only the visible .noside-mmm-ignore configuration file; it never changes a movie. Removing an exclusion makes the item visible again after the next audit.").font(.caption2).foregroundStyle(.secondary)
             }
-            Picker("Show", selection: $session.auditFilter) { Text("All (\(session.items.count))").tag("all"); Text("Needs attention (\(attentionItems.count))").tag("attention"); Text("Needs folder normalisation (\(session.items.filter(\.isPreservationReady).count))").tag("needsFolder"); Text("Shared multi-part movies (\(session.items.filter(\.isMultiPart).count))").tag("multipart"); Text("Special content / alternate encodes (\(session.items.filter { $0.contentKind?.requiresExplicitReview == true }.count))").tag("specialContent"); Text("Needs artwork sidecar (\(session.items.filter(\.isArtworkRepairReady).count))").tag("artworkRepair"); Text("Needs TMDB match (\(session.items.filter { $0.state == .bareNeedsTMDB }.count))").tag("tmdbMatch"); Text("Invalid NFO XML (\(session.invalidNFOPaths.count))").tag("invalidNFO"); Text("Duplicate TMDB IDs (\(duplicateTMDBPaths.count))").tag("duplicateTMDB"); Text("Cannot extract title (\(session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }.count))").tag("unextractable") }.pickerStyle(.menu)
+            Picker("Show", selection: $session.auditFilter) { Text("All (\(session.items.count))").tag("all"); Text("Needs attention (\(attentionItems.count))").tag("attention"); Text("Needs folder normalisation (\(session.items.filter(\.isPreservationReady).count))").tag("needsFolder"); Text("Shared multi-part movies (\(session.items.filter(\.isMultiPart).count))").tag("multipart"); Text("Special content / alternate encodes (\(session.items.filter { $0.contentKind?.requiresExplicitReview == true }.count))").tag("specialContent"); Text("Low resolution (\(lowResolutionItems.count))").tag("lowResolution"); Text("Artwork comparison candidates (\(artworkMismatchItems.count))").tag("artworkMismatch"); Text("Needs artwork sidecar (\(session.items.filter(\.isArtworkRepairReady).count))").tag("artworkRepair"); Text("Needs TMDB match (\(session.items.filter { $0.state == .bareNeedsTMDB }.count))").tag("tmdbMatch"); Text("Invalid NFO XML (\(session.invalidNFOPaths.count))").tag("invalidNFO"); Text("Duplicate TMDB IDs (\(duplicateTMDBPaths.count))").tag("duplicateTMDB"); Text("Cannot extract title (\(session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }.count))").tag("unextractable") }.pickerStyle(.menu)
+            if session.auditFilter == "lowResolution" {
+                Stepper("Resolution threshold: \(session.lowResolutionHeight)p", value: $session.lowResolutionHeight, in: 360...2160, step: 180)
+                    .font(.caption)
+                Text("Only videos with readable dimensions below this height are shown. Uninspectable containers remain visible in their normal review categories.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
             if !session.selectedPaths.isEmpty {
                 HStack {
                     Text("\(session.selectedPaths.count) selected").foregroundStyle(.secondary)
@@ -763,7 +770,8 @@ private struct MovieToolsView: View {
                     Text("\(item.state.rawValue) · \(folderLabel(item.folderState))\(item.contentKind.map { " · \($0.rawValue)" } ?? "")\(item.editionHint.map { " (\($0))" } ?? "")").font(.caption).foregroundStyle(item.contentKind?.requiresExplicitReview == true || item.isMultiPartPreservationReady || item.state == .bareNeedsTMDB ? .orange : .secondary)
                     if let languages = item.subtitleLanguages, !languages.isEmpty { Text("Embedded subtitles: \(languages.joined(separator: ", "))").font(.caption2).foregroundStyle(.secondary) }
                     if item.isMultiPartPreservationReady { Text(URL(fileURLWithPath: item.videoPath).lastPathComponent).font(.caption2).foregroundStyle(.secondary) }
-                    if duplicateTMDBPaths.contains(item.videoPath) {
+                    if item.artworkMismatchCandidate == true { Text("Embedded cover differs from the primary local artwork — review before replacing.").font(.caption2).foregroundStyle(.orange) }
+                    if duplicateTMDBPaths.contains(item.videoPath) || session.auditFilter == "lowResolution" {
                         Text(movieFacts(item)).font(.caption2).foregroundStyle(.secondary)
                     }
                 }
@@ -824,7 +832,9 @@ private struct MovieToolsView: View {
         return facts.isEmpty ? "Media details unavailable" : facts.joined(separator: " · ")
     }
     private var attentionItems: [MovieAuditItem] { session.items.filter { $0.state != .complete || $0.folderState == .needsNormalization || session.invalidNFOPaths.contains($0.videoPath) || duplicateTMDBPaths.contains($0.videoPath) } }
-    private var filteredItems: [MovieAuditItem] { switch session.auditFilter { case "attention": attentionItems; case "needsFolder": session.items.filter(\.isPreservationReady); case "multipart": session.items.filter(\.isMultiPart); case "specialContent": session.items.filter { $0.contentKind?.requiresExplicitReview == true }; case "artworkRepair": session.items.filter(\.isArtworkRepairReady); case "tmdbMatch": session.items.filter { $0.state == .bareNeedsTMDB }; case "invalidNFO": session.items.filter { session.invalidNFOPaths.contains($0.videoPath) }; case "duplicateTMDB": session.items.filter { duplicateTMDBPaths.contains($0.videoPath) }; case "unextractable": session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }; default: session.items } }
+    private var lowResolutionItems: [MovieAuditItem] { session.items.filter { ($0.height ?? 0) > 0 && ($0.height ?? 0) < session.lowResolutionHeight } }
+    private var artworkMismatchItems: [MovieAuditItem] { session.items.filter { $0.artworkMismatchCandidate == true } }
+    private var filteredItems: [MovieAuditItem] { switch session.auditFilter { case "attention": attentionItems; case "needsFolder": session.items.filter(\.isPreservationReady); case "multipart": session.items.filter(\.isMultiPart); case "specialContent": session.items.filter { $0.contentKind?.requiresExplicitReview == true }; case "lowResolution": lowResolutionItems; case "artworkMismatch": artworkMismatchItems; case "artworkRepair": session.items.filter(\.isArtworkRepairReady); case "tmdbMatch": session.items.filter { $0.state == .bareNeedsTMDB }; case "invalidNFO": session.items.filter { session.invalidNFOPaths.contains($0.videoPath) }; case "duplicateTMDB": session.items.filter { duplicateTMDBPaths.contains($0.videoPath) }; case "unextractable": session.items.filter { $0.state == .embeddedMetadataNeedsSidecars && !$0.isEmbeddedSidecarReady }; default: session.items } }
     private var tmdbSelections: [MovieAuditItem] { session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.state == .bareNeedsTMDB } }
     private func addIgnoreRule() { guard let folder = session.folder else { return }; do { try MovieLibraryAudit.addIgnoreRule(ignoreRule, in: folder); session.ignoreRules = MovieLibraryAudit.ignoreRules(in: folder); session.removeIgnoredRows(); session.status = "Added audit exclusion: \(ignoreRule). Matching rows were removed from this audit."; ignoreRule = "" } catch { session.status = error.localizedDescription } }
     private func removeIgnoreRule(_ rule: String) {
@@ -858,7 +868,7 @@ private struct MovieToolsView: View {
     }
     private func exportHealthReport() { guard let folder = session.folder else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "noside-mmm-movie-health.html"; panel.message = "Save a read-only movie health report"; guard panel.runModal() == .OK, let output = panel.url else { return }; session.isWorking = true; session.status = "Creating a readable movie health report…"; Task { let report = await MovieLibraryAudit.health(directory: folder); do { try MovieLibraryAudit.htmlReport(report).write(to: output, atomically: true, encoding: .utf8); session.status = "Saved health report: \(output.lastPathComponent)" } catch { session.status = error.localizedDescription }; session.isWorking = false } }
     private func folderLabel(_ state: MovieFolderState) -> String { switch state { case .normalized: "folder ready"; case .needsNormalization: "needs folder normalisation"; case .metadataIncomplete: "folder not assessed"; case .sharedMultiPart: "shared multi-part sidecars" } }
-    private func createEmbeddedPackage() { guard let folder = session.folder else { return }; let selected = session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isEmbeddedSidecarReady }; guard !selected.isEmpty else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.directoryURL = configuredJobsFolder(); output.message = "Choose where to create the portable sidecar package (saved Jobs folder is preselected)"; guard output.runModal() == .OK, let parent = output.url else { return }; session.isWorking = true; session.status = "Extracting selected embedded metadata into a portable package…"; Task { do { var approved = [EmbeddedMovieBundleItem](); var missingTitles = [String](); for item in selected { let video = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let title = metadata.title, !title.isEmpty else { missingTitles.append(video.lastPathComponent); continue }; approved.append(.init(source: video, title: title, creationDate: metadata.creationDate, artwork: metadata.artwork)) }; guard missingTitles.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "MMM could no longer extract a title from these selected video file(s): \(missingTitles.sorted().joined(separator: ", ")). Re-audit them, or use the TMDB review workflow."]) }; let job = parent.appendingPathComponent("NoSide-MMM-Embedded-Selected-job"); let manifest = try PortableJobBundle.createEmbeddedMovies(at: job, libraryRoot: folder, items: approved); session.status = "Job \(manifest.jobID) created for \(approved.count) selected movie(s). Dry-run it on the media server." } catch { session.status = error.localizedDescription }; session.isWorking = false } }
+    private func createEmbeddedPackage() { guard let folder = session.folder else { return }; let selected = session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isEmbeddedSidecarReady }; guard !selected.isEmpty else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.directoryURL = configuredJobsFolder(); output.message = "Choose where to create the portable sidecar package (saved Jobs folder is preselected)"; guard output.runModal() == .OK, let parent = output.url else { return }; session.isWorking = true; session.status = "Extracting selected embedded metadata into a portable package…"; Task { do { var approved = [EmbeddedMovieBundleItem](); var missingTitles = [String](); for item in selected { let video = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let title = metadata.title, !title.isEmpty else { missingTitles.append(video.lastPathComponent); continue }; approved.append(.init(source: video, title: title, creationDate: metadata.creationDate, overview: metadata.overview, genres: metadata.genres, studio: metadata.studio, artist: metadata.artist, artwork: metadata.artwork)) }; guard missingTitles.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "MMM could no longer extract a title from these selected video file(s): \(missingTitles.sorted().joined(separator: ", ")). Re-audit them, or use the TMDB review workflow."]) }; let job = parent.appendingPathComponent("NoSide-MMM-Embedded-Selected-job"); let manifest = try PortableJobBundle.createEmbeddedMovies(at: job, libraryRoot: folder, items: approved); session.status = "Job \(manifest.jobID) created for \(approved.count) selected movie(s). Dry-run it on the media server." } catch { session.status = error.localizedDescription }; session.isWorking = false } }
     private func createArtworkRepairPackage() { guard let folder = session.folder else { return }; let selected = session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isArtworkRepairReady }; guard !selected.isEmpty else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.directoryURL = configuredJobsFolder(); output.message = "Choose where to create the portable artwork-repair package (saved Jobs folder is preselected)"; guard output.runModal() == .OK, let parent = output.url else { return }; session.isWorking = true; session.status = "Extracting poster artwork into a portable repair package…"; Task { do { var repairs = [EmbeddedArtworkRepairItem](); var missing = [String](); for item in selected { let video = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let artwork = metadata.artwork else { missing.append(video.lastPathComponent); continue }; repairs.append(.init(source: video, artwork: artwork)) }; guard missing.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "MMM could no longer extract poster artwork from: \(missing.sorted().joined(separator: ", ")). Re-audit them before packaging."]) }; let job = parent.appendingPathComponent("NoSide-MMM-Artwork-Repair-Selected-job"); let manifest = try PortableJobBundle.createEmbeddedArtworkRepairs(at: job, libraryRoot: folder, items: repairs); session.status = "Job \(manifest.jobID) created for \(repairs.count) selected movie(s). Existing NFOs are preserved; dry-run it on the media server." } catch { session.status = error.localizedDescription }; session.isWorking = false } }
     private func exportPreservationPlan() {
         guard let folder = session.folder else { return }
@@ -955,7 +965,18 @@ private struct TMDBMovieReviewSheet: View {
                             .textFieldStyle(.roundedBorder)
                         Toggle("Download / replace poster from TMDB", isOn: Binding(get: { downloadArtwork[currentPath] ?? true }, set: { downloadArtwork[currentPath] = $0 }))
                             .font(.caption)
-                        Text("Existing NFO, subtitle, and artwork sidecars travel with the video. This toggle controls only the TMDB poster.")
+                        GroupBox("Sidecar review") {
+                            VStack(alignment: .leading, spacing: 3) {
+                                let sidecars = sidecarReview(for: currentItem)
+                                if sidecars.isEmpty {
+                                    Text("No existing sidecars. MMM will create a locked TMDB NFO\(downloadArtwork[currentPath] ?? true ? " and poster" : "").")
+                                } else {
+                                    ForEach(sidecars, id: \.self) { sidecar in Text(sidecar).font(.caption) }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        Text("NFOs are replaced with the explicitly reviewed, locked TMDB NFO; subtitles, fanart, clearlogos, and other sidecars move unchanged. The toggle is the explicit keep/replace decision for the TMDB poster.")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                 } else { Text("Choose a local movie.").foregroundStyle(.secondary) }
@@ -968,6 +989,24 @@ private struct TMDBMovieReviewSheet: View {
     private func tmdb() throws -> TMDBClient { guard let key = TVDBCredentialStore.value(named: "TMDB_API_KEY"), !key.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "Add the TMDB API key in Settings first."]) }; return TMDBClient(apiKey: key) }
     private func selectFirstUnmatched() { currentPath = items.first(where: { matches[$0.videoPath] == nil })?.videoPath ?? items.first?.videoPath ?? ""; select(currentPath) }
     private func select(_ path: String) { guard !path.isEmpty else { return }; query = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent; results = [] }
+    private func sidecarReview(for item: MovieAuditItem?) -> [String] {
+        guard let item else { return [] }
+        let video = URL(fileURLWithPath: item.videoPath)
+        let stem = video.deletingPathExtension().lastPathComponent
+        let parent = video.deletingLastPathComponent()
+        let files = (try? FileManager.default.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+        return files.filter { file in
+            let name = file.lastPathComponent
+            guard file.path != video.path, name.hasPrefix(stem) else { return false }
+            let remainder = String(name.dropFirst(stem.count))
+            return remainder.hasPrefix(".") || remainder.hasPrefix("-")
+        }.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }.map { file in
+            let lower = file.pathExtension.lowercased()
+            if lower == "nfo" { return "\(file.lastPathComponent) — replace with reviewed TMDB NFO" }
+            if ["jpg", "jpeg", "png"].contains(lower), downloadArtwork[currentPath] ?? true { return "\(file.lastPathComponent) — move, then replace poster if it is the canonical poster" }
+            return "\(file.lastPathComponent) — move unchanged"
+        }
+    }
     private func search() { working = true; Task { defer { working = false }; do { results = try await tmdb().searchMovies(named: query); status = "Choose the correct TMDB result for this movie." } catch { status = error.localizedDescription } } }
     private func choose(_ result: MovieSearchResult) {
         guard !currentPath.isEmpty else { return }

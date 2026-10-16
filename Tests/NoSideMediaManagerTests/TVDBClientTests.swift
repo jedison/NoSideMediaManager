@@ -22,6 +22,7 @@ import Foundation
     let episodes = try await client.episodes(forSeriesID: 184871)
     #expect(series.title == "The Great British Bake Off")
     #expect(series.network == "BBC One")
+    #expect(series.seasons == [.init(number: 8, title: "Season Eight", overview: "Fixture season overview", aired: "2017-08-29", artworkURL: URL(string: "https://artworks.thetvdb.com/banners/seasons/184871-8.jpg"))])
     #expect(episodes.map(\.tvdbID) == [9001, 9002])
     #expect(episodes[0].artworkURL?.absoluteString == "https://artworks.thetvdb.com/banners/episodes/184871/9001.jpg")
 }

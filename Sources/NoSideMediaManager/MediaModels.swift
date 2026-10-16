@@ -9,8 +9,11 @@ public struct TVSeries: Sendable, Equatable {
     public let genres: [String]
     public let network: String?
     public let rating: Double?
+    /// Season information returned by TVDB's extended series endpoint.  It is
+    /// optional because small fixture sources and offline plans may not have it.
+    public let seasons: [TVSeason]
 
-    public init(tvdbID: Int, title: String, overview: String? = nil, firstAired: String? = nil, status: String? = nil, genres: [String] = [], network: String? = nil, rating: Double? = nil) {
+    public init(tvdbID: Int, title: String, overview: String? = nil, firstAired: String? = nil, status: String? = nil, genres: [String] = [], network: String? = nil, rating: Double? = nil, seasons: [TVSeason] = []) {
         self.tvdbID = tvdbID
         self.title = title
         self.overview = overview
@@ -19,6 +22,26 @@ public struct TVSeries: Sendable, Equatable {
         self.genres = genres
         self.network = network
         self.rating = rating
+        self.seasons = seasons
+    }
+}
+
+/// Provider-supplied season metadata used only after a TVDB show has been
+/// explicitly selected.  It is deliberately independent of a local folder
+/// name, so a GBBO-style normalised season can still retain TVDB's details.
+public struct TVSeason: Sendable, Equatable {
+    public let number: Int
+    public let title: String?
+    public let overview: String?
+    public let aired: String?
+    public let artworkURL: URL?
+
+    public init(number: Int, title: String? = nil, overview: String? = nil, aired: String? = nil, artworkURL: URL? = nil) {
+        self.number = number
+        self.title = title
+        self.overview = overview
+        self.aired = aired
+        self.artworkURL = artworkURL
     }
 }
 

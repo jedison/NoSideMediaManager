@@ -163,7 +163,7 @@ public actor CompanionJobService {
         let selected = try completedMovieAuditItems().filter { requested.contains($0.videoPath) }
         guard selected.count == requested.count, selected.allSatisfy({ $0.state == .embeddedMetadataNeedsSidecars }) else { throw CompanionJobServiceError.invalidSelection }
         var extracted = [EmbeddedMovieBundleItem](); var missingTitles = [String]()
-        for item in selected { let source = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(source); guard let title = metadata.title, !title.isEmpty else { missingTitles.append(source.lastPathComponent); continue }; extracted.append(.init(source: source, title: title, creationDate: metadata.creationDate, artwork: metadata.artwork)) }
+        for item in selected { let source = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(source); guard let title = metadata.title, !title.isEmpty else { missingTitles.append(source.lastPathComponent); continue }; extracted.append(.init(source: source, title: title, creationDate: metadata.creationDate, overview: metadata.overview, genres: metadata.genres, studio: metadata.studio, artist: metadata.artist, artwork: metadata.artwork)) }
         guard missingTitles.isEmpty else { throw CompanionJobServiceError.unextractableTitles(missingTitles.sorted()) }
         let bundle = configuration.jobsRoot.appendingPathComponent("NoSide-MMM-Sidecars-\(UUID().uuidString.lowercased())-job", isDirectory: true)
         return CompanionJob(manifest: try PortableJobBundle.createEmbeddedMovies(at: bundle, libraryRoot: configuration.libraryRoot, items: extracted))

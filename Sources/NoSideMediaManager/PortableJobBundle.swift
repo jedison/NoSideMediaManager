@@ -172,7 +172,7 @@ public enum PortableJobBundle {
         for item in items {
             let sourceRelative = try relative(item.source, to: root); sources[sourceRelative] = item.source
             let nfoPath = replacingExtension(sourceRelative, with: "nfo")
-            try write(NFOWriter.embeddedMovieData(title: item.title, creationDate: item.creationDate), relativePath: nfoPath, in: bundle)
+            try write(NFOWriter.embeddedMovieData(title: item.title, creationDate: item.creationDate, overview: item.overview, genres: item.genres, studio: item.studio, artist: item.artist), relativePath: nfoPath, in: bundle)
             generated.append(nfoPath)
             if let artwork = item.artwork {
                 let imagePath = replacingExtension(sourceRelative, with: "jpg")
@@ -374,8 +374,20 @@ public enum PortableJobBundle {
             let counts = Dictionary(grouping: items, by: { $0.0.canonical.season }).mapValues(\.count)
             guard let season = counts.filter({ $0.key > 0 }).max(by: { lhs, rhs in lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value })?.key else { continue }
             let path = folder.isEmpty || folder == "." ? "season.nfo" : folder + "/season.nfo"
-            try write(NFOWriter.seasonData(number: season), relativePath: path, in: bundle)
+            let metadata = series.seasons.first { $0.number == season }
+            try write(NFOWriter.seasonData(number: season, title: metadata?.title, overview: metadata?.overview, premiered: metadata?.aired), relativePath: path, in: bundle)
             generated.append(path)
+            if downloadArtwork, let artwork = metadata?.artworkURL {
+                let artworkPath = folder.isEmpty || folder == "." ? "season.jpg" : folder + "/season.jpg"
+                let target = generatedURL(for: artworkPath, in: bundle)
+                do {
+                    try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    _ = try await ArtworkDownloader.download(artwork, to: target)
+                    generated.append(artworkPath)
+                } catch {
+                    unavailableArtwork.append("\(artworkPath): \(error.localizedDescription)")
+                }
+            }
         }
 
         generated.sort()

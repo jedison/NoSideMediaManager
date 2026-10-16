@@ -21,8 +21,14 @@ public enum MappedLibraryWriter {
             let seasons = Set(folderMappings.map { $0.canonical.season })
             guard seasons.count == 1, let season = seasons.first else { continue }
             let seasonNFO = folder.appendingPathComponent("season.nfo")
-            try write(NFOWriter.seasonData(number: season), to: seasonNFO, replace: replaceExisting)
+            let metadata = series.seasons.first { $0.number == season }
+            try write(NFOWriter.seasonData(number: season, title: metadata?.title, overview: metadata?.overview, premiered: metadata?.aired), to: seasonNFO, replace: replaceExisting)
             outputs.append(seasonNFO)
+            if downloadArtwork, let artwork = metadata?.artworkURL {
+                let poster = folder.appendingPathComponent("season.jpg")
+                _ = try await ArtworkDownloader.download(artwork, to: poster)
+                outputs.append(poster)
+            }
         }
         for mapping in mappings {
             let nfo = mapping.local.url.deletingPathExtension().appendingPathExtension("nfo")

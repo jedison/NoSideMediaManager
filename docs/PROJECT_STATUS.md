@@ -22,8 +22,16 @@ open and manage all MMM targets together.
   decisions, editable reusable plans, locked XML/NFO sidecars, season/show
   NFOs, and optional poster JPGs.
 - TMDB movie review, embedded metadata extraction, move-only sidecar
-  preservation, movie-folder normalisation, multi-part handling, and audit
-  exclusions.
+  preservation, movie-folder normalisation, multi-part handling, audit
+  exclusions, per-sidecar move/replace review, low-resolution review, and
+  evidence-based embedded-versus-sidecar artwork candidates.
+- Richer local embedded metadata when a container supplies it: description,
+  genres, studio, and artist/creator are written into locked movie NFOs.
+- TVDB extended season metadata: title, description, premiere date, and
+  optional season poster are included in frozen `season.nfo` packages.
+- Explicit audit visibility for trailers/extras/alternate encodes, language
+  evidence, file dimensions/size, and orphan sidecars. MMM does not move or
+  delete any of these without a later explicit package action.
 - Frozen packages only: generated `apply.sh`, `rollback.sh`, manifest,
   integrity verification, source fingerprints, and operation history.
 - macOS and iPhone review flows, with the Companion limited to authenticated

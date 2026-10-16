@@ -32,6 +32,19 @@ import Testing
     #expect(text.contains("<lockdata>true</lockdata>"))
 }
 
+@Test func embeddedMovieNFOCarriesAvailableContainerMetadata() throws {
+    let text = String(decoding: try NFOWriter.embeddedMovieData(title: "Inside", creationDate: "2020-01-02", overview: "A & B", genres: ["Drama", "Music"], studio: "NoSide Studio", artist: "Director"), as: UTF8.self)
+    #expect(text.contains("<plot>A &amp; B</plot>"))
+    #expect(text.contains("<genre>Drama</genre>"))
+    #expect(text.contains("<studio>NoSide Studio</studio>"))
+    #expect(text.contains("<artist>Director</artist>"))
+}
+
+@Test func artworkDigestIsStableAndDetectsDifferentBytes() {
+    #expect(MediaFileInspector.artworkDigest(Data("poster".utf8)) == MediaFileInspector.artworkDigest(Data("poster".utf8)))
+    #expect(MediaFileInspector.artworkDigest(Data("poster".utf8)) != MediaFileInspector.artworkDigest(Data("different".utf8)))
+}
+
 @Test func movieAuditSeparatesEmbeddedAndBareVideos() {
     let embedded = EmbeddedMediaInfo(fileName: "Embedded.mp4", title: "Inside", creationDate: nil, durationSeconds: nil, width: nil, height: nil, audioLanguages: [], subtitleLanguages: [], hasEmbeddedArtwork: true)
     let bare = EmbeddedMediaInfo(fileName: "Bare.mkv", title: nil, creationDate: nil, durationSeconds: nil, width: nil, height: nil, audioLanguages: [], subtitleLanguages: [], hasEmbeddedArtwork: false)

@@ -19,6 +19,13 @@ import Testing
     #expect(text.contains("<lockdata>true</lockdata>"))
 }
 
+@Test func seasonNFOCarriesTVDBExtendedSeasonMetadata() throws {
+    let text = String(decoding: try NFOWriter.seasonData(number: 12, title: "Collection 12", overview: "A season summary", premiered: "2021-09-21"), as: UTF8.self)
+    #expect(text.contains("<title>Collection 12</title>"))
+    #expect(text.contains("<plot>A season summary</plot>"))
+    #expect(text.contains("<premiered>2021-09-21</premiered>"))
+}
+
 @Test func episodeNFOUsesEmbyMetadataLock() throws {
     let episode = TVEpisode(tvdbID: 456, seriesTVDBID: 123, season: 1, number: 2, title: "Second episode")
     let text = String(decoding: try NFOWriter.episodeData(episode), as: UTF8.self)

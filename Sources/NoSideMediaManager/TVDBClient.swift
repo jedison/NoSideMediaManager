@@ -58,7 +58,11 @@ public struct TVDBClient: TVMetadataSource, Sendable {
     public func series(id: Int) async throws -> TVSeries {
         let response: TVDBEnvelope<SeriesRecord> = try await authorizedGet(path: "series/\(id)/extended")
         let record = response.data
-        return TVSeries(tvdbID: record.id, title: record.name, overview: record.overview, firstAired: record.firstAired, status: record.status?.name, genres: record.genres?.map(\.name) ?? [], network: record.companies?.first(where: { $0.companyType?.companyTypeName == "Network" })?.name, rating: record.score)
+        let seasons = (record.seasons ?? []).compactMap { season -> TVSeason? in
+            guard let number = season.number else { return nil }
+            return TVSeason(number: number, title: season.name, overview: season.overview, aired: season.aired, artworkURL: Self.artworkURL(from: season.image))
+        }
+        return TVSeries(tvdbID: record.id, title: record.name, overview: record.overview, firstAired: record.firstAired, status: record.status?.name, genres: record.genres?.map(\.name) ?? [], network: record.companies?.first(where: { $0.companyType?.companyTypeName == "Network" })?.name, rating: record.score, seasons: seasons)
     }
 
     public func episodes(forSeriesID id: Int) async throws -> [TVEpisode] {
@@ -156,6 +160,14 @@ private struct SeriesRecord: Decodable {
     let genres: [NamedRecord]?
     let companies: [CompanyRecord]?
     let score: Double?
+    let seasons: [SeasonRecord]?
+}
+private struct SeasonRecord: Decodable {
+    let number: Int?
+    let name: String?
+    let overview: String?
+    let aired: String?
+    let image: String?
 }
 private struct NamedRecord: Decodable { let name: String }
 private struct CompanyRecord: Decodable { let name: String; let companyType: CompanyType? }
