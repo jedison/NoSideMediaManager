@@ -27,9 +27,16 @@ import Foundation
 }
 
 private func fixture(_ name: String) -> Data {
-    let url = Bundle.module.url(forResource: name, withExtension: "json")!
+    #if SWIFT_PACKAGE
+    let bundle = Bundle.module
+    #else
+    let bundle = Bundle(for: FixtureBundleMarker.self)
+    #endif
+    let url = bundle.url(forResource: name, withExtension: "json")!
     return try! Data(contentsOf: url)
 }
+
+private final class FixtureBundleMarker {}
 
 private final class FixtureURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var responses = [String: Data]()

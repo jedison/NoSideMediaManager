@@ -1,0 +1,1075 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		08402814A737F3E70DF8F051 /* MovieLibraryAudit.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2FD12FF871645B079DFA6E /* MovieLibraryAudit.swift */; };
+		08B9ACC706E2968DCF1022F7 /* NFORepairInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0691072C5E8608A4D9742C /* NFORepairInspector.swift */; };
+		0B1FE7CA4951C14D76085746 /* CompanionHTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51CFD069BBC4196AA83B354 /* CompanionHTTPServer.swift */; };
+		0C009EB766EE7707200D80FC /* NFOWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36F45A5D429CC0958EF816B /* NFOWriter.swift */; };
+		10705C9688716E465A3013A0 /* TMDBClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAD96E7457B675C31C611CF /* TMDBClient.swift */; };
+		19FCD3F8CB5D11B0748C2FB2 /* TVDBClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA52D5B58059BE37DC7D8CF /* TVDBClient.swift */; };
+		1C2F5F9A94E8A3F05CD1FD70 /* ReleaseInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 621B66C9197CAFBAAA3178BB /* ReleaseInfo.swift */; };
+		21AF61C878EE391BD34F6DA1 /* tvdb-official-episodes-184871.json in Resources */ = {isa = PBXBuildFile; fileRef = 49860CFFEC43E4123129AE6C /* tvdb-official-episodes-184871.json */; };
+		2835F8B5E587F2384417FEF3 /* CompanionJobServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 201BC4F8AA8622379344E946 /* CompanionJobServiceTests.swift */; };
+		2BFD32930AB66B8B6BF75559 /* MediaModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F749350B29623F4CA0636737 /* MediaModels.swift */; };
+		2D173DA8B1FBAEAE883F3C53 /* TVDBCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D86FE31FCB136F532764BA2 /* TVDBCredentialStore.swift */; };
+		2D296D8244A0C39102B11C97 /* NoSideMediaManagerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1AFCBE936BB1E0D2C5FFEB /* NoSideMediaManagerApp.swift */; };
+		32B5434A0A11FE0237C44374 /* libNoSideMediaManager.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 83BE6C124CA036D464BF0D31 /* libNoSideMediaManager.a */; };
+		338D873CC6280C969D9C2790 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AF29AAA66875C59CB8EAE59 /* main.swift */; };
+		38EF1DEEA93A0B0ED2B6EACC /* ArtworkDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F34E79E95E592E0AE748E3A /* ArtworkDownloader.swift */; };
+		43211DCA4C49809DEA253F34 /* TVMappingPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D68D6ABFE133FE3C2A7638 /* TVMappingPreset.swift */; };
+		55B8043DF4434E7728D09E26 /* MoviePlanDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0781F2725588DAA0495885A /* MoviePlanDocument.swift */; };
+		5AF7278007E5362C22C3682D /* CompanionRenamePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662C526FDD9EF19B38AFA10A /* CompanionRenamePlanner.swift */; };
+		5F17CAC7C03B4AF5DE444415 /* MediaRenamePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0295E41244B19D306CA8D2 /* MediaRenamePlan.swift */; };
+		5FE7F28797B03847002D8A1A /* TVLibraryAudit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237498376D488B1367282311 /* TVLibraryAudit.swift */; };
+		61E7AB069AA9CFE4FE538EC6 /* MovieModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D25B00FB7B2265376F74612A /* MovieModels.swift */; };
+		627351098A7BD9865D4AAF18 /* MediaFileInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD75E5107B4CC81B68B781C0 /* MediaFileInspector.swift */; };
+		6297B0A009ADC344149A80CD /* MappingPlanDocumentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C146ADA74248FA1A6F85791B /* MappingPlanDocumentTests.swift */; };
+		64DCF339E1AC328600D69CEC /* tvdb-login.json in Resources */ = {isa = PBXBuildFile; fileRef = 9B53DD3DBCFA9ACBB60BFD5D /* tvdb-login.json */; };
+		71F36A8B1D947C4B8BF2DFA7 /* LibraryApplyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48FCECD23ED9D2F25081E731 /* LibraryApplyService.swift */; };
+		747F9C5427C52F3AEE1B25AE /* NFOImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB842080B698896CCADD29CC /* NFOImportService.swift */; };
+		76DA7F481159E3351F7CD141 /* PortableJobBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA1C3ACF0103F9BF6DE925B /* PortableJobBundle.swift */; };
+		7A8F7526B1ECEBE453DCE6EC /* libNoSideMediaManager.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 83BE6C124CA036D464BF0D31 /* libNoSideMediaManager.a */; };
+		7DA18E865B980C893ACEB3A5 /* CompanionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853593B7D3196B3D0B3820C1 /* CompanionModels.swift */; };
+		805CF8C63EE59499640C2C68 /* MappedLibraryWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82B63E734E909FB6C4317B13 /* MappedLibraryWriter.swift */; };
+		8AA894B4298D11397B45C649 /* libNoSideMediaCompanionCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 907DCAC867680F05D8EEC630 /* libNoSideMediaCompanionCore.a */; };
+		93CF390572B66036768AB2BB /* tvdb-series-184871.json in Resources */ = {isa = PBXBuildFile; fileRef = 553DA01A5631F306E76F0268 /* tvdb-series-184871.json */; };
+		96D2730211F91424368DB2E8 /* libNoSideMediaManager.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 83BE6C124CA036D464BF0D31 /* libNoSideMediaManager.a */; };
+		9DB34AE110619DC5D97A2094 /* TVDBClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3265C03019522137C96A60D7 /* TVDBClientTests.swift */; };
+		A1F9ADC8EA4C4B63807CF2CD /* CompanionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B665654678123AEF860ADA77 /* CompanionClient.swift */; };
+		AC3B99BA017C489EF30222DA /* NFORepairInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D23C9841BC5558A88BF792FD /* NFORepairInspectorTests.swift */; };
+		B252A36991DB790EE946C19D /* MediaRenamePlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5269A46AF54223F54BCD4684 /* MediaRenamePlanTests.swift */; };
+		B5A0095E0EB97726810B1E6F /* EpisodeMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE4D9C8EAB94B886AF0615D6 /* EpisodeMappingTests.swift */; };
+		BD38F57CA855EB94C47B48CA /* NFOWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FA3C4DE1EEAF9CDAD51501E /* NFOWriterTests.swift */; };
+		C1245D4F4FE8F40D36261811 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 2848A04A7CC214B71E953CD0 /* AppIcon.icns */; };
+		C8117D1C303AEDBC8C98D08A /* MappingPlanDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADEB77443BCCDFD7E68B2A8 /* MappingPlanDocument.swift */; };
+		C8B33C8CBF687E43FEAD04F3 /* MovieTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABC37F35D84CDFD94977F8C /* MovieTests.swift */; };
+		D6362E990BE1D76AFE89EF60 /* PortableJobBundleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2389140C7470544048F1DDC6 /* PortableJobBundleTests.swift */; };
+		E54643015BAB981546495D43 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4704B8A5491B1BAA146C96D1 /* Models.swift */; };
+		E690ABDB23BFA8FABFAB9E41 /* NoSideMediaCompanionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11ED29E03256219E7AFB2931 /* NoSideMediaCompanionApp.swift */; };
+		E6D22171D499C907B238E760 /* libNoSideMediaCompanionCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 907DCAC867680F05D8EEC630 /* libNoSideMediaCompanionCore.a */; };
+		F0314281B75CDEFE7677926D /* CompanionJobService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 045CDCD348EC5E7BDF0542CE /* CompanionJobService.swift */; };
+		F36F63CDA0858A7967FD7D28 /* CompanionRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9998D2747960F5F41D6CB7 /* CompanionRootView.swift */; };
+		FB62F1D12AC6E99FF13894BA /* CompanionRenamePlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD044AD368ACF694ACB22CA5 /* CompanionRenamePlannerTests.swift */; };
+		FF9845A84A302DA60875C35E /* EpisodeMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24ACE35D4C4C8449795589D4 /* EpisodeMapping.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		3EC679914ED74BBA15DD62C7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4E7FF34ADEEBD456463D55A8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AE7589BE1DC85174F3220713;
+			remoteInfo = NoSideMediaManager;
+		};
+		684D3B9B7291B8C01412158C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4E7FF34ADEEBD456463D55A8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2153F4FE7A973826E2E1B20D;
+			remoteInfo = NoSideMediaCompanionCore;
+		};
+		81D3FFA253A18012A0CDB43E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4E7FF34ADEEBD456463D55A8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2153F4FE7A973826E2E1B20D;
+			remoteInfo = NoSideMediaCompanionCore;
+		};
+		89AC4C23529DAE757CE61507 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4E7FF34ADEEBD456463D55A8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AE7589BE1DC85174F3220713;
+			remoteInfo = NoSideMediaManager;
+		};
+		94C0B4E01DC27F1BF864612E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4E7FF34ADEEBD456463D55A8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AE7589BE1DC85174F3220713;
+			remoteInfo = NoSideMediaManager;
+		};
+		BE847F368CCBD71687E14FFC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4E7FF34ADEEBD456463D55A8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AE7589BE1DC85174F3220713;
+			remoteInfo = NoSideMediaManager;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		045CDCD348EC5E7BDF0542CE /* CompanionJobService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionJobService.swift; sourceTree = "<group>"; };
+		11ED29E03256219E7AFB2931 /* NoSideMediaCompanionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoSideMediaCompanionApp.swift; sourceTree = "<group>"; };
+		201BC4F8AA8622379344E946 /* CompanionJobServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionJobServiceTests.swift; sourceTree = "<group>"; };
+		237498376D488B1367282311 /* TVLibraryAudit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVLibraryAudit.swift; sourceTree = "<group>"; };
+		2389140C7470544048F1DDC6 /* PortableJobBundleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableJobBundleTests.swift; sourceTree = "<group>"; };
+		24ACE35D4C4C8449795589D4 /* EpisodeMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpisodeMapping.swift; sourceTree = "<group>"; };
+		2848A04A7CC214B71E953CD0 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
+		2AF29AAA66875C59CB8EAE59 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		3265C03019522137C96A60D7 /* TVDBClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVDBClientTests.swift; sourceTree = "<group>"; };
+		44F44E5797F429A05C797C20 /* microMMCompanion.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = microMMCompanion.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4704B8A5491B1BAA146C96D1 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		48FCECD23ED9D2F25081E731 /* LibraryApplyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryApplyService.swift; sourceTree = "<group>"; };
+		49860CFFEC43E4123129AE6C /* tvdb-official-episodes-184871.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "tvdb-official-episodes-184871.json"; sourceTree = "<group>"; };
+		4EA52D5B58059BE37DC7D8CF /* TVDBClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVDBClient.swift; sourceTree = "<group>"; };
+		4F34E79E95E592E0AE748E3A /* ArtworkDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkDownloader.swift; sourceTree = "<group>"; };
+		5269A46AF54223F54BCD4684 /* MediaRenamePlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRenamePlanTests.swift; sourceTree = "<group>"; };
+		553DA01A5631F306E76F0268 /* tvdb-series-184871.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "tvdb-series-184871.json"; sourceTree = "<group>"; };
+		621B66C9197CAFBAAA3178BB /* ReleaseInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseInfo.swift; sourceTree = "<group>"; };
+		662C526FDD9EF19B38AFA10A /* CompanionRenamePlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionRenamePlanner.swift; sourceTree = "<group>"; };
+		6A9998D2747960F5F41D6CB7 /* CompanionRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionRootView.swift; sourceTree = "<group>"; };
+		6D0295E41244B19D306CA8D2 /* MediaRenamePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRenamePlan.swift; sourceTree = "<group>"; };
+		7AA1C3ACF0103F9BF6DE925B /* PortableJobBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableJobBundle.swift; sourceTree = "<group>"; };
+		7D86FE31FCB136F532764BA2 /* TVDBCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVDBCredentialStore.swift; sourceTree = "<group>"; };
+		82B63E734E909FB6C4317B13 /* MappedLibraryWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MappedLibraryWriter.swift; sourceTree = "<group>"; };
+		83BE6C124CA036D464BF0D31 /* libNoSideMediaManager.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libNoSideMediaManager.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		853593B7D3196B3D0B3820C1 /* CompanionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionModels.swift; sourceTree = "<group>"; };
+		8FA3C4DE1EEAF9CDAD51501E /* NFOWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFOWriterTests.swift; sourceTree = "<group>"; };
+		907DCAC867680F05D8EEC630 /* libNoSideMediaCompanionCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libNoSideMediaCompanionCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		9B53DD3DBCFA9ACBB60BFD5D /* tvdb-login.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "tvdb-login.json"; sourceTree = "<group>"; };
+		A3D68D6ABFE133FE3C2A7638 /* TVMappingPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVMappingPreset.swift; sourceTree = "<group>"; };
+		A51CFD069BBC4196AA83B354 /* CompanionHTTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionHTTPServer.swift; sourceTree = "<group>"; };
+		AADEB77443BCCDFD7E68B2A8 /* MappingPlanDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MappingPlanDocument.swift; sourceTree = "<group>"; };
+		AE2FD12FF871645B079DFA6E /* MovieLibraryAudit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieLibraryAudit.swift; sourceTree = "<group>"; };
+		B0781F2725588DAA0495885A /* MoviePlanDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoviePlanDocument.swift; sourceTree = "<group>"; };
+		B36F45A5D429CC0958EF816B /* NFOWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFOWriter.swift; sourceTree = "<group>"; };
+		B665654678123AEF860ADA77 /* CompanionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionClient.swift; sourceTree = "<group>"; };
+		BB842080B698896CCADD29CC /* NFOImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFOImportService.swift; sourceTree = "<group>"; };
+		BD044AD368ACF694ACB22CA5 /* CompanionRenamePlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionRenamePlannerTests.swift; sourceTree = "<group>"; };
+		BD75E5107B4CC81B68B781C0 /* MediaFileInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFileInspector.swift; sourceTree = "<group>"; };
+		BEAD96E7457B675C31C611CF /* TMDBClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TMDBClient.swift; sourceTree = "<group>"; };
+		C146ADA74248FA1A6F85791B /* MappingPlanDocumentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MappingPlanDocumentTests.swift; sourceTree = "<group>"; };
+		CA1AFCBE936BB1E0D2C5FFEB /* NoSideMediaManagerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoSideMediaManagerApp.swift; sourceTree = "<group>"; };
+		CABC37F35D84CDFD94977F8C /* MovieTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieTests.swift; sourceTree = "<group>"; };
+		D0E07BF38E38FEAC4509359C /* microMM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = microMM.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D23C9841BC5558A88BF792FD /* NFORepairInspectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFORepairInspectorTests.swift; sourceTree = "<group>"; };
+		D25B00FB7B2265376F74612A /* MovieModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieModels.swift; sourceTree = "<group>"; };
+		E691EE4785DA39A2C58C6D14 /* NoSideMediaManagerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NoSideMediaManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EB51DAA2B102D1D003A74C07 /* noside-media */ = {isa = PBXFileReference; includeInIndex = 0; path = "noside-media"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EE4D9C8EAB94B886AF0615D6 /* EpisodeMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpisodeMappingTests.swift; sourceTree = "<group>"; };
+		F749350B29623F4CA0636737 /* MediaModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaModels.swift; sourceTree = "<group>"; };
+		FC0691072C5E8608A4D9742C /* NFORepairInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFORepairInspector.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		619F4AAB0E05DA385728BAEA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				32B5434A0A11FE0237C44374 /* libNoSideMediaManager.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69C3E3C9BCF0C41F99255A8E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A8F7526B1ECEBE453DCE6EC /* libNoSideMediaManager.a in Frameworks */,
+				E6D22171D499C907B238E760 /* libNoSideMediaCompanionCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C07285848FD54643544C010C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				96D2730211F91424368DB2E8 /* libNoSideMediaManager.a in Frameworks */,
+				8AA894B4298D11397B45C649 /* libNoSideMediaCompanionCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		05CF51408B687B9F7B176647 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				2848A04A7CC214B71E953CD0 /* AppIcon.icns */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		18D2F3DC161BE44DDB58C37C /* Companion iOS */ = {
+			isa = PBXGroup;
+			children = (
+				B665654678123AEF860ADA77 /* CompanionClient.swift */,
+				6A9998D2747960F5F41D6CB7 /* CompanionRootView.swift */,
+				4704B8A5491B1BAA146C96D1 /* Models.swift */,
+				11ED29E03256219E7AFB2931 /* NoSideMediaCompanionApp.swift */,
+			);
+			path = "Companion iOS";
+			sourceTree = "<group>";
+		};
+		3A31524E04D749D4498D5F6B /* NoSideMediaManagerApp */ = {
+			isa = PBXGroup;
+			children = (
+				CA1AFCBE936BB1E0D2C5FFEB /* NoSideMediaManagerApp.swift */,
+			);
+			name = NoSideMediaManagerApp;
+			path = Sources/NoSideMediaManagerApp;
+			sourceTree = "<group>";
+		};
+		4056523F5281639DAFAADE63 /* NoSideMediaManager */ = {
+			isa = PBXGroup;
+			children = (
+				4F34E79E95E592E0AE748E3A /* ArtworkDownloader.swift */,
+				662C526FDD9EF19B38AFA10A /* CompanionRenamePlanner.swift */,
+				24ACE35D4C4C8449795589D4 /* EpisodeMapping.swift */,
+				48FCECD23ED9D2F25081E731 /* LibraryApplyService.swift */,
+				82B63E734E909FB6C4317B13 /* MappedLibraryWriter.swift */,
+				AADEB77443BCCDFD7E68B2A8 /* MappingPlanDocument.swift */,
+				BD75E5107B4CC81B68B781C0 /* MediaFileInspector.swift */,
+				F749350B29623F4CA0636737 /* MediaModels.swift */,
+				6D0295E41244B19D306CA8D2 /* MediaRenamePlan.swift */,
+				AE2FD12FF871645B079DFA6E /* MovieLibraryAudit.swift */,
+				D25B00FB7B2265376F74612A /* MovieModels.swift */,
+				B0781F2725588DAA0495885A /* MoviePlanDocument.swift */,
+				BB842080B698896CCADD29CC /* NFOImportService.swift */,
+				FC0691072C5E8608A4D9742C /* NFORepairInspector.swift */,
+				B36F45A5D429CC0958EF816B /* NFOWriter.swift */,
+				7AA1C3ACF0103F9BF6DE925B /* PortableJobBundle.swift */,
+				621B66C9197CAFBAAA3178BB /* ReleaseInfo.swift */,
+				BEAD96E7457B675C31C611CF /* TMDBClient.swift */,
+				4EA52D5B58059BE37DC7D8CF /* TVDBClient.swift */,
+				7D86FE31FCB136F532764BA2 /* TVDBCredentialStore.swift */,
+				237498376D488B1367282311 /* TVLibraryAudit.swift */,
+				A3D68D6ABFE133FE3C2A7638 /* TVMappingPreset.swift */,
+			);
+			name = NoSideMediaManager;
+			path = Sources/NoSideMediaManager;
+			sourceTree = "<group>";
+		};
+		49F6ECE615E5DF3EE67B0E28 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				907DCAC867680F05D8EEC630 /* libNoSideMediaCompanionCore.a */,
+				83BE6C124CA036D464BF0D31 /* libNoSideMediaManager.a */,
+				D0E07BF38E38FEAC4509359C /* microMM.app */,
+				44F44E5797F429A05C797C20 /* microMMCompanion.app */,
+				EB51DAA2B102D1D003A74C07 /* noside-media */,
+				E691EE4785DA39A2C58C6D14 /* NoSideMediaManagerTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		4B9941CEAD5EB4A9D89B9FF5 = {
+			isa = PBXGroup;
+			children = (
+				18D2F3DC161BE44DDB58C37C /* Companion iOS */,
+				51573488BC14C70657503CF8 /* Fixtures */,
+				58B2D5B2EAC24CC6182E2C76 /* NoSideMediaCLI */,
+				A8513F9180A28A2E9FFC2857 /* NoSideMediaCompanionCore */,
+				4056523F5281639DAFAADE63 /* NoSideMediaManager */,
+				3A31524E04D749D4498D5F6B /* NoSideMediaManagerApp */,
+				5F07FFE40EFAE208AD3C3276 /* NoSideMediaManagerTests */,
+				05CF51408B687B9F7B176647 /* Resources */,
+				49F6ECE615E5DF3EE67B0E28 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		51573488BC14C70657503CF8 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				9B53DD3DBCFA9ACBB60BFD5D /* tvdb-login.json */,
+				49860CFFEC43E4123129AE6C /* tvdb-official-episodes-184871.json */,
+				553DA01A5631F306E76F0268 /* tvdb-series-184871.json */,
+			);
+			name = Fixtures;
+			path = Tests/NoSideMediaManagerTests/Fixtures;
+			sourceTree = "<group>";
+		};
+		58B2D5B2EAC24CC6182E2C76 /* NoSideMediaCLI */ = {
+			isa = PBXGroup;
+			children = (
+				2AF29AAA66875C59CB8EAE59 /* main.swift */,
+			);
+			name = NoSideMediaCLI;
+			path = Sources/NoSideMediaCLI;
+			sourceTree = "<group>";
+		};
+		5F07FFE40EFAE208AD3C3276 /* NoSideMediaManagerTests */ = {
+			isa = PBXGroup;
+			children = (
+				201BC4F8AA8622379344E946 /* CompanionJobServiceTests.swift */,
+				BD044AD368ACF694ACB22CA5 /* CompanionRenamePlannerTests.swift */,
+				EE4D9C8EAB94B886AF0615D6 /* EpisodeMappingTests.swift */,
+				C146ADA74248FA1A6F85791B /* MappingPlanDocumentTests.swift */,
+				5269A46AF54223F54BCD4684 /* MediaRenamePlanTests.swift */,
+				CABC37F35D84CDFD94977F8C /* MovieTests.swift */,
+				D23C9841BC5558A88BF792FD /* NFORepairInspectorTests.swift */,
+				8FA3C4DE1EEAF9CDAD51501E /* NFOWriterTests.swift */,
+				2389140C7470544048F1DDC6 /* PortableJobBundleTests.swift */,
+				3265C03019522137C96A60D7 /* TVDBClientTests.swift */,
+			);
+			name = NoSideMediaManagerTests;
+			path = Tests/NoSideMediaManagerTests;
+			sourceTree = "<group>";
+		};
+		A8513F9180A28A2E9FFC2857 /* NoSideMediaCompanionCore */ = {
+			isa = PBXGroup;
+			children = (
+				A51CFD069BBC4196AA83B354 /* CompanionHTTPServer.swift */,
+				045CDCD348EC5E7BDF0542CE /* CompanionJobService.swift */,
+				853593B7D3196B3D0B3820C1 /* CompanionModels.swift */,
+			);
+			name = NoSideMediaCompanionCore;
+			path = Sources/NoSideMediaCompanionCore;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0ED85B78086D15BE13C2D201 /* microMM */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F41D8CFE7DC62E10F9485541 /* Build configuration list for PBXNativeTarget "microMM" */;
+			buildPhases = (
+				A191084CA8432B72DA877C67 /* Sources */,
+				9A0D66A87FBDD8B281C65DE7 /* Resources */,
+				C07285848FD54643544C010C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				33783E7A2C90ECD06F5E35E2 /* PBXTargetDependency */,
+				D4A1D1D46A2974F60E473F4F /* PBXTargetDependency */,
+			);
+			name = microMM;
+			packageProductDependencies = (
+			);
+			productName = microMM;
+			productReference = D0E07BF38E38FEAC4509359C /* microMM.app */;
+			productType = "com.apple.product-type.application";
+		};
+		2153F4FE7A973826E2E1B20D /* NoSideMediaCompanionCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F2FB1A35C48EB68C368065FF /* Build configuration list for PBXNativeTarget "NoSideMediaCompanionCore" */;
+			buildPhases = (
+				F2DE8B7882D19710704DD6F4 /* Sources */,
+				0BDC4A577F49E6CC4E2F1693 /* Copy Swift Objective-C Interface Header */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				68614AE464779B00318AF0F2 /* PBXTargetDependency */,
+			);
+			name = NoSideMediaCompanionCore;
+			packageProductDependencies = (
+			);
+			productName = NoSideMediaCompanionCore;
+			productReference = 907DCAC867680F05D8EEC630 /* libNoSideMediaCompanionCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		AE7589BE1DC85174F3220713 /* NoSideMediaManager */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1400F3B66DFC4C1AAB856FE3 /* Build configuration list for PBXNativeTarget "NoSideMediaManager" */;
+			buildPhases = (
+				F1C5968E4709A924B9178594 /* Sources */,
+				2B8E1C7F2DCD4CDF05366EEE /* Copy Swift Objective-C Interface Header */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NoSideMediaManager;
+			packageProductDependencies = (
+			);
+			productName = NoSideMediaManager;
+			productReference = 83BE6C124CA036D464BF0D31 /* libNoSideMediaManager.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		C74D2D7F99D18E79EEF939C4 /* microMMCompanion */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0894CAA92F58386222933065 /* Build configuration list for PBXNativeTarget "microMMCompanion" */;
+			buildPhases = (
+				BBC88B95141647493FCEA163 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = microMMCompanion;
+			packageProductDependencies = (
+			);
+			productName = microMMCompanion;
+			productReference = 44F44E5797F429A05C797C20 /* microMMCompanion.app */;
+			productType = "com.apple.product-type.application";
+		};
+		CD8202E5282715C631A9C2EF /* NoSideMediaManagerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D6B10DEA884CB49E41EE518D /* Build configuration list for PBXNativeTarget "NoSideMediaManagerTests" */;
+			buildPhases = (
+				B7040C0A257984B7CC415CB6 /* Sources */,
+				C2ED74EB81938FA4D0C79D53 /* Resources */,
+				69C3E3C9BCF0C41F99255A8E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3AF0FC9CC91D6609D099A7C4 /* PBXTargetDependency */,
+				A74C5B2ECE3C6B0327686881 /* PBXTargetDependency */,
+			);
+			name = NoSideMediaManagerTests;
+			packageProductDependencies = (
+			);
+			productName = NoSideMediaManagerTests;
+			productReference = E691EE4785DA39A2C58C6D14 /* NoSideMediaManagerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		FB1F5B17C04EAA6797F6E05F /* noside-media */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5E3615586E7A2FD267EE9241 /* Build configuration list for PBXNativeTarget "noside-media" */;
+			buildPhases = (
+				C4F13E07C9F49547D0E62023 /* Sources */,
+				619F4AAB0E05DA385728BAEA /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				10EDD43B98A5E34298D27238 /* PBXTargetDependency */,
+			);
+			name = "noside-media";
+			packageProductDependencies = (
+			);
+			productName = "noside-media";
+			productReference = EB51DAA2B102D1D003A74C07 /* noside-media */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4E7FF34ADEEBD456463D55A8 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0ED85B78086D15BE13C2D201 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					2153F4FE7A973826E2E1B20D = {
+						DevelopmentTeam = "";
+					};
+					AE7589BE1DC85174F3220713 = {
+						DevelopmentTeam = "";
+					};
+					C74D2D7F99D18E79EEF939C4 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					CD8202E5282715C631A9C2EF = {
+						DevelopmentTeam = "";
+					};
+					FB1F5B17C04EAA6797F6E05F = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = D6DCD19B305E6349BB1F84DA /* Build configuration list for PBXProject "NoSideMediaManager" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 4B9941CEAD5EB4A9D89B9FF5;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 49F6ECE615E5DF3EE67B0E28 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AE7589BE1DC85174F3220713 /* NoSideMediaManager */,
+				2153F4FE7A973826E2E1B20D /* NoSideMediaCompanionCore */,
+				0ED85B78086D15BE13C2D201 /* microMM */,
+				FB1F5B17C04EAA6797F6E05F /* noside-media */,
+				CD8202E5282715C631A9C2EF /* NoSideMediaManagerTests */,
+				C74D2D7F99D18E79EEF939C4 /* microMMCompanion */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9A0D66A87FBDD8B281C65DE7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C1245D4F4FE8F40D36261811 /* AppIcon.icns in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C2ED74EB81938FA4D0C79D53 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64DCF339E1AC328600D69CEC /* tvdb-login.json in Resources */,
+				21AF61C878EE391BD34F6DA1 /* tvdb-official-episodes-184871.json in Resources */,
+				93CF390572B66036768AB2BB /* tvdb-series-184871.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		0BDC4A577F49E6CC4E2F1693 /* Copy Swift Objective-C Interface Header */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(DERIVED_SOURCES_DIR)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			name = "Copy Swift Objective-C Interface Header";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/include/$(PRODUCT_MODULE_NAME)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "ditto \"${SCRIPT_INPUT_FILE_0}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+		};
+		2B8E1C7F2DCD4CDF05366EEE /* Copy Swift Objective-C Interface Header */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(DERIVED_SOURCES_DIR)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			name = "Copy Swift Objective-C Interface Header";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/include/$(PRODUCT_MODULE_NAME)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "ditto \"${SCRIPT_INPUT_FILE_0}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A191084CA8432B72DA877C67 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D296D8244A0C39102B11C97 /* NoSideMediaManagerApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B7040C0A257984B7CC415CB6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2835F8B5E587F2384417FEF3 /* CompanionJobServiceTests.swift in Sources */,
+				FB62F1D12AC6E99FF13894BA /* CompanionRenamePlannerTests.swift in Sources */,
+				B5A0095E0EB97726810B1E6F /* EpisodeMappingTests.swift in Sources */,
+				6297B0A009ADC344149A80CD /* MappingPlanDocumentTests.swift in Sources */,
+				B252A36991DB790EE946C19D /* MediaRenamePlanTests.swift in Sources */,
+				C8B33C8CBF687E43FEAD04F3 /* MovieTests.swift in Sources */,
+				AC3B99BA017C489EF30222DA /* NFORepairInspectorTests.swift in Sources */,
+				BD38F57CA855EB94C47B48CA /* NFOWriterTests.swift in Sources */,
+				D6362E990BE1D76AFE89EF60 /* PortableJobBundleTests.swift in Sources */,
+				9DB34AE110619DC5D97A2094 /* TVDBClientTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BBC88B95141647493FCEA163 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1F9ADC8EA4C4B63807CF2CD /* CompanionClient.swift in Sources */,
+				F36F63CDA0858A7967FD7D28 /* CompanionRootView.swift in Sources */,
+				E54643015BAB981546495D43 /* Models.swift in Sources */,
+				E690ABDB23BFA8FABFAB9E41 /* NoSideMediaCompanionApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C4F13E07C9F49547D0E62023 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				338D873CC6280C969D9C2790 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1C5968E4709A924B9178594 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				38EF1DEEA93A0B0ED2B6EACC /* ArtworkDownloader.swift in Sources */,
+				5AF7278007E5362C22C3682D /* CompanionRenamePlanner.swift in Sources */,
+				FF9845A84A302DA60875C35E /* EpisodeMapping.swift in Sources */,
+				71F36A8B1D947C4B8BF2DFA7 /* LibraryApplyService.swift in Sources */,
+				805CF8C63EE59499640C2C68 /* MappedLibraryWriter.swift in Sources */,
+				C8117D1C303AEDBC8C98D08A /* MappingPlanDocument.swift in Sources */,
+				627351098A7BD9865D4AAF18 /* MediaFileInspector.swift in Sources */,
+				2BFD32930AB66B8B6BF75559 /* MediaModels.swift in Sources */,
+				5F17CAC7C03B4AF5DE444415 /* MediaRenamePlan.swift in Sources */,
+				08402814A737F3E70DF8F051 /* MovieLibraryAudit.swift in Sources */,
+				61E7AB069AA9CFE4FE538EC6 /* MovieModels.swift in Sources */,
+				55B8043DF4434E7728D09E26 /* MoviePlanDocument.swift in Sources */,
+				747F9C5427C52F3AEE1B25AE /* NFOImportService.swift in Sources */,
+				08B9ACC706E2968DCF1022F7 /* NFORepairInspector.swift in Sources */,
+				0C009EB766EE7707200D80FC /* NFOWriter.swift in Sources */,
+				76DA7F481159E3351F7CD141 /* PortableJobBundle.swift in Sources */,
+				1C2F5F9A94E8A3F05CD1FD70 /* ReleaseInfo.swift in Sources */,
+				10705C9688716E465A3013A0 /* TMDBClient.swift in Sources */,
+				19FCD3F8CB5D11B0748C2FB2 /* TVDBClient.swift in Sources */,
+				2D173DA8B1FBAEAE883F3C53 /* TVDBCredentialStore.swift in Sources */,
+				5FE7F28797B03847002D8A1A /* TVLibraryAudit.swift in Sources */,
+				43211DCA4C49809DEA253F34 /* TVMappingPreset.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F2DE8B7882D19710704DD6F4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0B1FE7CA4951C14D76085746 /* CompanionHTTPServer.swift in Sources */,
+				F0314281B75CDEFE7677926D /* CompanionJobService.swift in Sources */,
+				7DA18E865B980C893ACEB3A5 /* CompanionModels.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		10EDD43B98A5E34298D27238 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AE7589BE1DC85174F3220713 /* NoSideMediaManager */;
+			targetProxy = 89AC4C23529DAE757CE61507 /* PBXContainerItemProxy */;
+		};
+		33783E7A2C90ECD06F5E35E2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AE7589BE1DC85174F3220713 /* NoSideMediaManager */;
+			targetProxy = 3EC679914ED74BBA15DD62C7 /* PBXContainerItemProxy */;
+		};
+		3AF0FC9CC91D6609D099A7C4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AE7589BE1DC85174F3220713 /* NoSideMediaManager */;
+			targetProxy = BE847F368CCBD71687E14FFC /* PBXContainerItemProxy */;
+		};
+		68614AE464779B00318AF0F2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AE7589BE1DC85174F3220713 /* NoSideMediaManager */;
+			targetProxy = 94C0B4E01DC27F1BF864612E /* PBXContainerItemProxy */;
+		};
+		A74C5B2ECE3C6B0327686881 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2153F4FE7A973826E2E1B20D /* NoSideMediaCompanionCore */;
+			targetProxy = 81D3FFA253A18012A0CDB43E /* PBXContainerItemProxy */;
+		};
+		D4A1D1D46A2974F60E473F4F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2153F4FE7A973826E2E1B20D /* NoSideMediaCompanionCore */;
+			targetProxy = 684D3B9B7291B8C01412158C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		2DCC8CB4D4646E89CB2D84F3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		41BE6F34EE3A9701F0422439 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				OTHER_SWIFT_FLAGS = "-parse-as-library";
+				PRODUCT_NAME = "noside-media";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		43D8E5686A5D7959DEC20014 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		64B7BB6FCB168D3CD9F1E173 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_MODULE_NAME = NoSideMediaManager;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		7DF2692BE7147DB48420E97F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_MODULE_NAME = NoSideMediaCompanionCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		9AF85728E8E8ED18BF4B8144 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				OTHER_SWIFT_FLAGS = "-parse-as-library";
+				PRODUCT_NAME = "noside-media";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		A2E24C1453D7C3B643581946 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Companion iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.noside.mmmcompanion;
+				PRODUCT_NAME = NoSideMediaCompanion;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A92762C0C105BB613252B255 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Companion iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.noside.mmmcompanion;
+				PRODUCT_NAME = NoSideMediaCompanion;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D7CD4794A105F3484B7050A8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DBD754751919D8804B4092B6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_MODULE_NAME = NoSideMediaCompanionCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		E2D4B497759EDC8F892F236C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.noside.micromm;
+				PRODUCT_NAME = microMM;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		EA99F02E8F24380F38A231E7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		F334CAB48FE199F68494E3D7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.noside.micromm;
+				PRODUCT_NAME = microMM;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		F6A2F4704A8FE65C85C2373F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_MODULE_NAME = NoSideMediaManager;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0894CAA92F58386222933065 /* Build configuration list for PBXNativeTarget "microMMCompanion" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A2E24C1453D7C3B643581946 /* Debug */,
+				A92762C0C105BB613252B255 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		1400F3B66DFC4C1AAB856FE3 /* Build configuration list for PBXNativeTarget "NoSideMediaManager" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64B7BB6FCB168D3CD9F1E173 /* Debug */,
+				F6A2F4704A8FE65C85C2373F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5E3615586E7A2FD267EE9241 /* Build configuration list for PBXNativeTarget "noside-media" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				41BE6F34EE3A9701F0422439 /* Debug */,
+				9AF85728E8E8ED18BF4B8144 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D6B10DEA884CB49E41EE518D /* Build configuration list for PBXNativeTarget "NoSideMediaManagerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EA99F02E8F24380F38A231E7 /* Debug */,
+				2DCC8CB4D4646E89CB2D84F3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D6DCD19B305E6349BB1F84DA /* Build configuration list for PBXProject "NoSideMediaManager" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D7CD4794A105F3484B7050A8 /* Debug */,
+				43D8E5686A5D7959DEC20014 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F2FB1A35C48EB68C368065FF /* Build configuration list for PBXNativeTarget "NoSideMediaCompanionCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DBD754751919D8804B4092B6 /* Debug */,
+				7DF2692BE7147DB48420E97F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F41D8CFE7DC62E10F9485541 /* Build configuration list for PBXNativeTarget "microMM" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F334CAB48FE199F68494E3D7 /* Debug */,
+				E2D4B497759EDC8F892F236C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4E7FF34ADEEBD456463D55A8 /* Project object */;
+}

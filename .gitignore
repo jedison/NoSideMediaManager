@@ -13,4 +13,5 @@ Review/
 # Build and release artifacts are published separately from source.
 distribution/*.zip
 distribution/noside-media/noside-media
-private/
+private/*
+!private/README.md
