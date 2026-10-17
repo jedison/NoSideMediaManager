@@ -1,0 +1,22 @@
+name: Verify MMM
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Shared tests, macOS CLI, and iOS build
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app || true
+      - name: Verify all MMM targets
+        run: ./scripts/verify-mmm.sh

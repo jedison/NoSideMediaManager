@@ -25,7 +25,9 @@
 
 - Document and automate coordinated release, signing, staging, deployment, and
   rollback for macOS and iOS.
-- Add CI for the shared tests, macOS/CLI build, and iPhone build.
+- Keep the GitHub Actions verification workflow current with Xcode/iOS SDK
+  changes and add artifact/signing validation only when a distribution path is
+  chosen.
 - Move iPhone pairing secrets to Keychain, then consider QR pairing and Bonjour
   discovery.
 - Support explicitly configured additional media roots and job-root mappings.

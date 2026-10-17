@@ -40,8 +40,8 @@ if [ "$scope" = "ios" ] || [ "$scope" = "both" ]; then
   # About resource—on the exact same generated identity as microMM macOS.
   sequence=$(/usr/libexec/PlistBuddy -c 'Print :sequence' "$metadata")
   version=$(/usr/libexec/PlistBuddy -c 'Print :version' "$metadata")
-  xcodebuild -project "$root/Companion iOS/NoSideMediaCompanion.xcodeproj" \
-    -scheme NoSideMediaCompanion -configuration Release -sdk iphoneos \
+  xcodebuild -project "$root/NoSideMediaManager.xcodeproj" \
+    -scheme microMMCompanion -configuration Release -sdk iphoneos \
     -destination 'generic/platform=iOS' \
     CURRENT_PROJECT_VERSION="$sequence" MARKETING_VERSION="$version" build
 fi

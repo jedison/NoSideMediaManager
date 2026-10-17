@@ -86,6 +86,15 @@ It creates one build identity once, then embeds that exact identity in both the
 macOS app and iPhone companion. `ios` and `macos` are available when only one
 artifact is being released.
 
+Before a release, run the same non-deploying verification used by CI:
+
+```sh
+./scripts/verify-mmm.sh
+```
+
+GitHub Actions runs this for pushes and pull requests to `main`: shared tests,
+the macOS app/test scheme, bundled CLI, and iPhone companion simulator build.
+
 The macOS packaging script uses ad-hoc signing unless `MMM_SIGNING_IDENTITY` is
 provided. Keep a distribution signing identity in your local environment; do
 not commit it to the repository.
