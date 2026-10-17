@@ -11,12 +11,13 @@
 
 ## Product work
 
-- Extend container extraction when a source exposes reliable cast, crew, and
-  rating fields. MMM already retains title, date, description, genres, studio,
-  artist/creator, and embedded artwork when present.
-- Improve the artwork-comparison review from a local byte-difference candidate
-  to an optional provider-artwork visual comparison. Never replace artwork
-  automatically.
+- Improve container extraction only when real-world test files expose richer
+  QuickTime tags not currently observed. MMM already retains title, date,
+  description, genres, studio, artist/creator, credits, cast, numeric rating,
+  and embedded artwork when present.
+- Consider an optional provider-artwork visual comparison for already-complete
+  movies. The TMDB matching flow now displays local and provider posters side
+  by side and never replaces artwork automatically.
 - Add explicit package actions for reviewed editions/extras and orphan
   sidecars. They are currently surfaced for review, can be revealed/ignored
   where safe, and are never silently moved or deleted.

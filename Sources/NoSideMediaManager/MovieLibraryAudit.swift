@@ -156,7 +156,7 @@ public enum MovieLibraryAudit {
     /// name matches the movie stem, so a library-root poster cannot bless every
     /// loose video as complete.
     static func primaryArtworkExists(for base: URL, fileManager: FileManager = .default) -> Bool { primaryArtworkURL(for: base, fileManager: fileManager) != nil }
-    static func primaryArtworkURL(for base: URL, fileManager: FileManager = .default) -> URL? {
+    public static func primaryArtworkURL(for base: URL, fileManager: FileManager = .default) -> URL? {
         for suffix in ["", "-poster"] { for ext in ["jpg", "jpeg", "png"] { let url = URL(fileURLWithPath: base.path + suffix).appendingPathExtension(ext); if fileManager.fileExists(atPath: url.path) { return url } } }
         let folder = base.deletingLastPathComponent()
         guard folder.lastPathComponent.caseInsensitiveCompare(base.lastPathComponent) == .orderedSame else { return nil }
@@ -234,6 +234,6 @@ public enum MovieLibraryAudit {
 }
 
 public struct EmbeddedMovieMetadata: Sendable {
-    public let title: String?; public let creationDate: String?; public let overview: String?; public let genres: [String]; public let studio: String?; public let artist: String?; public let artwork: Data?
-    public init(title: String?, creationDate: String?, overview: String? = nil, genres: [String] = [], studio: String? = nil, artist: String? = nil, artwork: Data?) { self.title = title; self.creationDate = creationDate; self.overview = overview; self.genres = genres; self.studio = studio; self.artist = artist; self.artwork = artwork }
+    public let title: String?; public let creationDate: String?; public let overview: String?; public let genres: [String]; public let studio: String?; public let artist: String?; public let credits: [String]; public let cast: [String]; public let rating: Double?; public let artwork: Data?
+    public init(title: String?, creationDate: String?, overview: String? = nil, genres: [String] = [], studio: String? = nil, artist: String? = nil, credits: [String] = [], cast: [String] = [], rating: Double? = nil, artwork: Data?) { self.title = title; self.creationDate = creationDate; self.overview = overview; self.genres = genres; self.studio = studio; self.artist = artist; self.credits = credits; self.cast = cast; self.rating = rating; self.artwork = artwork }
 }

@@ -33,11 +33,14 @@ import Testing
 }
 
 @Test func embeddedMovieNFOCarriesAvailableContainerMetadata() throws {
-    let text = String(decoding: try NFOWriter.embeddedMovieData(title: "Inside", creationDate: "2020-01-02", overview: "A & B", genres: ["Drama", "Music"], studio: "NoSide Studio", artist: "Director"), as: UTF8.self)
+    let text = String(decoding: try NFOWriter.embeddedMovieData(title: "Inside", creationDate: "2020-01-02", overview: "A & B", genres: ["Drama", "Music"], studio: "NoSide Studio", artist: "Director", credits: ["Writer"], cast: ["Lead Actor"], rating: 8.5), as: UTF8.self)
     #expect(text.contains("<plot>A &amp; B</plot>"))
     #expect(text.contains("<genre>Drama</genre>"))
     #expect(text.contains("<studio>NoSide Studio</studio>"))
     #expect(text.contains("<artist>Director</artist>"))
+    #expect(text.contains("<credits>Writer</credits>"))
+    #expect(text.contains("<actor>")); #expect(text.contains("<name>Lead Actor</name>"))
+    #expect(text.contains("<rating>8.5</rating>"))
 }
 
 @Test func artworkDigestIsStableAndDetectsDifferentBytes() {

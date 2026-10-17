@@ -26,7 +26,10 @@ open and manage all MMM targets together.
   exclusions, per-sidecar move/replace review, low-resolution review, and
   evidence-based embedded-versus-sidecar artwork candidates.
 - Richer local embedded metadata when a container supplies it: description,
-  genres, studio, and artist/creator are written into locked movie NFOs.
+  genres, studio, artist/creator, credits, cast, and numeric rating are
+  written into locked movie NFOs.
+- TMDB review presents the current local and provider posters side by side;
+  replacing the poster still requires the explicit frozen-package choice.
 - TVDB extended season metadata: title, description, premiere date, and
   optional season poster are included in frozen `season.nfo` packages.
 - Explicit audit visibility for trailers/extras/alternate encodes, language

@@ -1,9 +1,11 @@
 import Foundation
 
 public enum NFOWriter {
-    public static func embeddedMovieData(title: String, creationDate: String?, overview: String? = nil, genres: [String] = [], studio: String? = nil, artist: String? = nil) throws -> Data {
-        let root = XMLElement(name: "movie"); add("title", title, to: root); add("premiered", creationDate, to: root); add("plot", overview, to: root); add("studio", studio, to: root); add("artist", artist, to: root)
+    public static func embeddedMovieData(title: String, creationDate: String?, overview: String? = nil, genres: [String] = [], studio: String? = nil, artist: String? = nil, credits: [String] = [], cast: [String] = [], rating: Double? = nil) throws -> Data {
+        let root = XMLElement(name: "movie"); add("title", title, to: root); add("premiered", creationDate, to: root); add("plot", overview, to: root); add("studio", studio, to: root); add("artist", artist, to: root); add("rating", rating.map { String($0) }, to: root)
         for genre in genres { add("genre", genre, to: root) }
+        for credit in credits { add("credits", credit, to: root) }
+        for actorName in cast { let actor = XMLElement(name: "actor"); add("name", actorName, to: actor); root.addChild(actor) }
         addLockData(to: root)
         let xml = XMLDocument(rootElement: root); xml.characterEncoding = "UTF-8"; xml.version = "1.0"; return xml.xmlData(options: [.nodePrettyPrint])
     }

@@ -65,12 +65,25 @@ public enum MediaFileInspector {
     @MainActor
     public static func extractMovieMetadata(_ url: URL) async throws -> EmbeddedMovieMetadata {
         let asset = AVURLAsset(url: url); let metadata = try await asset.load(.commonMetadata)
-        let genres = metadata.compactMap { $0.commonKey?.rawValue == "type" ? $0.stringValue : nil }.flatMap { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } }.filter { !$0.isEmpty }
-        return EmbeddedMovieMetadata(title: stringValue(for: "title", in: metadata), creationDate: stringValue(for: "creationDate", in: metadata), overview: stringValue(for: "description", in: metadata), genres: Array(Set(genres)).sorted(), studio: stringValue(for: "publisher", in: metadata), artist: stringValue(for: "artist", in: metadata) ?? stringValue(for: "creator", in: metadata), artwork: metadata.first { $0.commonKey?.rawValue == "artwork" }?.dataValue)
+        let genres = values(for: ["type", "genre"], in: metadata)
+        let artist = stringValue(for: "artist", in: metadata) ?? stringValue(for: "creator", in: metadata)
+        let credits = values(for: ["creator", "composer", "director"], in: metadata)
+        let cast = values(for: ["cast", "actor", "actors"], in: metadata)
+        let rating = values(for: ["rating"], in: metadata).compactMap(Double.init).first
+        return EmbeddedMovieMetadata(title: stringValue(for: "title", in: metadata), creationDate: stringValue(for: "creationDate", in: metadata), overview: stringValue(for: "description", in: metadata), genres: genres, studio: stringValue(for: "publisher", in: metadata), artist: artist, credits: credits, cast: cast, rating: rating, artwork: metadata.first { $0.commonKey?.rawValue == "artwork" }?.dataValue)
     }
 
     private static func stringValue(for key: String, in metadata: [AVMetadataItem]) -> String? {
-        metadata.first { $0.commonKey?.rawValue == key }?.stringValue
+        metadata.first { metadataKey($0) == key }?.stringValue
+    }
+
+    private static func values(for keys: Set<String>, in metadata: [AVMetadataItem]) -> [String] {
+        Array(Set(metadata.filter { keys.contains(metadataKey($0) ?? "") }.compactMap(\.stringValue).flatMap { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } }.filter { !$0.isEmpty })).sorted()
+    }
+
+    private static func metadataKey(_ item: AVMetadataItem) -> String? {
+        if let key = item.commonKey?.rawValue { return key.lowercased() }
+        return item.identifier?.rawValue.split(separator: ".").last.map(String.init)?.lowercased()
     }
 
     /// FNV-1a is used only to compare local audit evidence, not as an

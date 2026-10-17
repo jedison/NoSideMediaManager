@@ -172,7 +172,7 @@ public enum PortableJobBundle {
         for item in items {
             let sourceRelative = try relative(item.source, to: root); sources[sourceRelative] = item.source
             let nfoPath = replacingExtension(sourceRelative, with: "nfo")
-            try write(NFOWriter.embeddedMovieData(title: item.title, creationDate: item.creationDate, overview: item.overview, genres: item.genres, studio: item.studio, artist: item.artist), relativePath: nfoPath, in: bundle)
+            try write(NFOWriter.embeddedMovieData(title: item.title, creationDate: item.creationDate, overview: item.overview, genres: item.genres, studio: item.studio, artist: item.artist, credits: item.credits, cast: item.cast, rating: item.rating), relativePath: nfoPath, in: bundle)
             generated.append(nfoPath)
             if let artwork = item.artwork {
                 let imagePath = replacingExtension(sourceRelative, with: "jpg")

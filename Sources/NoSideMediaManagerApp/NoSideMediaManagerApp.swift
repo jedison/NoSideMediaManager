@@ -868,7 +868,7 @@ private struct MovieToolsView: View {
     }
     private func exportHealthReport() { guard let folder = session.folder else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "noside-mmm-movie-health.html"; panel.message = "Save a read-only movie health report"; guard panel.runModal() == .OK, let output = panel.url else { return }; session.isWorking = true; session.status = "Creating a readable movie health report…"; Task { let report = await MovieLibraryAudit.health(directory: folder); do { try MovieLibraryAudit.htmlReport(report).write(to: output, atomically: true, encoding: .utf8); session.status = "Saved health report: \(output.lastPathComponent)" } catch { session.status = error.localizedDescription }; session.isWorking = false } }
     private func folderLabel(_ state: MovieFolderState) -> String { switch state { case .normalized: "folder ready"; case .needsNormalization: "needs folder normalisation"; case .metadataIncomplete: "folder not assessed"; case .sharedMultiPart: "shared multi-part sidecars" } }
-    private func createEmbeddedPackage() { guard let folder = session.folder else { return }; let selected = session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isEmbeddedSidecarReady }; guard !selected.isEmpty else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.directoryURL = configuredJobsFolder(); output.message = "Choose where to create the portable sidecar package (saved Jobs folder is preselected)"; guard output.runModal() == .OK, let parent = output.url else { return }; session.isWorking = true; session.status = "Extracting selected embedded metadata into a portable package…"; Task { do { var approved = [EmbeddedMovieBundleItem](); var missingTitles = [String](); for item in selected { let video = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let title = metadata.title, !title.isEmpty else { missingTitles.append(video.lastPathComponent); continue }; approved.append(.init(source: video, title: title, creationDate: metadata.creationDate, overview: metadata.overview, genres: metadata.genres, studio: metadata.studio, artist: metadata.artist, artwork: metadata.artwork)) }; guard missingTitles.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "MMM could no longer extract a title from these selected video file(s): \(missingTitles.sorted().joined(separator: ", ")). Re-audit them, or use the TMDB review workflow."]) }; let job = parent.appendingPathComponent("NoSide-MMM-Embedded-Selected-job"); let manifest = try PortableJobBundle.createEmbeddedMovies(at: job, libraryRoot: folder, items: approved); session.status = "Job \(manifest.jobID) created for \(approved.count) selected movie(s). Dry-run it on the media server." } catch { session.status = error.localizedDescription }; session.isWorking = false } }
+    private func createEmbeddedPackage() { guard let folder = session.folder else { return }; let selected = session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isEmbeddedSidecarReady }; guard !selected.isEmpty else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.directoryURL = configuredJobsFolder(); output.message = "Choose where to create the portable sidecar package (saved Jobs folder is preselected)"; guard output.runModal() == .OK, let parent = output.url else { return }; session.isWorking = true; session.status = "Extracting selected embedded metadata into a portable package…"; Task { do { var approved = [EmbeddedMovieBundleItem](); var missingTitles = [String](); for item in selected { let video = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let title = metadata.title, !title.isEmpty else { missingTitles.append(video.lastPathComponent); continue }; approved.append(.init(source: video, title: title, creationDate: metadata.creationDate, overview: metadata.overview, genres: metadata.genres, studio: metadata.studio, artist: metadata.artist, credits: metadata.credits, cast: metadata.cast, rating: metadata.rating, artwork: metadata.artwork)) }; guard missingTitles.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "MMM could no longer extract a title from these selected video file(s): \(missingTitles.sorted().joined(separator: ", ")). Re-audit them, or use the TMDB review workflow."]) }; let job = parent.appendingPathComponent("NoSide-MMM-Embedded-Selected-job"); let manifest = try PortableJobBundle.createEmbeddedMovies(at: job, libraryRoot: folder, items: approved); session.status = "Job \(manifest.jobID) created for \(approved.count) selected movie(s). Dry-run it on the media server." } catch { session.status = error.localizedDescription }; session.isWorking = false } }
     private func createArtworkRepairPackage() { guard let folder = session.folder else { return }; let selected = session.items.filter { session.selectedPaths.contains($0.videoPath) && $0.isArtworkRepairReady }; guard !selected.isEmpty else { return }; let output = NSOpenPanel(); output.canChooseDirectories = true; output.canChooseFiles = false; output.canCreateDirectories = true; output.allowsMultipleSelection = false; output.directoryURL = configuredJobsFolder(); output.message = "Choose where to create the portable artwork-repair package (saved Jobs folder is preselected)"; guard output.runModal() == .OK, let parent = output.url else { return }; session.isWorking = true; session.status = "Extracting poster artwork into a portable repair package…"; Task { do { var repairs = [EmbeddedArtworkRepairItem](); var missing = [String](); for item in selected { let video = URL(fileURLWithPath: item.videoPath); let metadata = try await MediaFileInspector.extractMovieMetadata(video); guard let artwork = metadata.artwork else { missing.append(video.lastPathComponent); continue }; repairs.append(.init(source: video, artwork: artwork)) }; guard missing.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "MMM could no longer extract poster artwork from: \(missing.sorted().joined(separator: ", ")). Re-audit them before packaging."]) }; let job = parent.appendingPathComponent("NoSide-MMM-Artwork-Repair-Selected-job"); let manifest = try PortableJobBundle.createEmbeddedArtworkRepairs(at: job, libraryRoot: folder, items: repairs); session.status = "Job \(manifest.jobID) created for \(repairs.count) selected movie(s). Existing NFOs are preserved; dry-run it on the media server." } catch { session.status = error.localizedDescription }; session.isWorking = false } }
     private func exportPreservationPlan() {
         guard let folder = session.folder else { return }
@@ -963,7 +963,8 @@ private struct TMDBMovieReviewSheet: View {
                     if reviewedMovies[currentPath] != nil {
                         TextField("Destination video path", text: Binding(get: { destinationPaths[currentPath] ?? "" }, set: { destinationPaths[currentPath] = $0 }))
                             .textFieldStyle(.roundedBorder)
-                        Toggle("Download / replace poster from TMDB", isOn: Binding(get: { downloadArtwork[currentPath] ?? true }, set: { downloadArtwork[currentPath] = $0 }))
+                        PosterComparison(localURL: localPosterURL, providerURL: reviewedMovies[currentPath]?.posterURL)
+                        Toggle("Replace primary poster from TMDB", isOn: Binding(get: { downloadArtwork[currentPath] ?? true }, set: { downloadArtwork[currentPath] = $0 }))
                             .font(.caption)
                         GroupBox("Sidecar review") {
                             VStack(alignment: .leading, spacing: 3) {
@@ -986,6 +987,7 @@ private struct TMDBMovieReviewSheet: View {
         Text(status).font(.caption).foregroundStyle(.secondary)
     }.padding(24).frame(minWidth: 700, minHeight: 500).onAppear { selectFirstUnmatched() }.onChange(of: currentPath) { path in select(path) } }
     private var currentItem: MovieAuditItem? { items.first { $0.videoPath == currentPath } }
+    private var localPosterURL: URL? { currentItem.flatMap { MovieLibraryAudit.primaryArtworkURL(for: URL(fileURLWithPath: $0.videoPath).deletingPathExtension()) } }
     private func tmdb() throws -> TMDBClient { guard let key = TVDBCredentialStore.value(named: "TMDB_API_KEY"), !key.isEmpty else { throw NSError(domain: "NoSideMMM", code: 1, userInfo: [NSLocalizedDescriptionKey: "Add the TMDB API key in Settings first."]) }; return TMDBClient(apiKey: key) }
     private func selectFirstUnmatched() { currentPath = items.first(where: { matches[$0.videoPath] == nil })?.videoPath ?? items.first?.videoPath ?? ""; select(currentPath) }
     private func select(_ path: String) { guard !path.isEmpty else { return }; query = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent; results = [] }
@@ -1044,5 +1046,49 @@ private struct TMDBMovieReviewSheet: View {
                 dismiss()
             } catch { status = error.localizedDescription }
         }
+    }
+}
+
+/// A review surface only. The selected toggle remains the sole instruction
+/// that a frozen package may replace a primary local poster.
+private struct PosterComparison: View {
+    let localURL: URL?
+    let providerURL: URL?
+
+    var body: some View {
+        GroupBox("Poster comparison") {
+            HStack(alignment: .top, spacing: 14) {
+                poster(label: "Current local", localURL: localURL)
+                poster(label: "TMDB", remoteURL: providerURL)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func poster(label: String, localURL: URL? = nil, remoteURL: URL? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.caption.weight(.semibold))
+            if let localURL, let image = NSImage(contentsOf: localURL) {
+                Image(nsImage: image).resizable().scaledToFit().frame(width: 100, height: 150)
+            } else if let remoteURL {
+                AsyncImage(url: remoteURL) { phase in
+                    switch phase {
+                    case .success(let image): image.resizable().scaledToFit()
+                    case .failure: missingPoster("Unavailable")
+                    default: ProgressView()
+                    }
+                }.frame(width: 100, height: 150)
+            } else {
+                missingPoster("None")
+            }
+        }
+        .frame(width: 110, alignment: .leading)
+    }
+
+    private func missingPoster(_ text: String) -> some View {
+        VStack(spacing: 6) { Image(systemName: "photo").font(.title2); Text(text).font(.caption2) }
+            .foregroundStyle(.secondary)
+            .frame(width: 100, height: 150)
     }
 }

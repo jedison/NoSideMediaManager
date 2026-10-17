@@ -37,8 +37,8 @@ public struct MovieBundleItem: Sendable {
 /// Locally extracted container metadata approved for a sidecar-only package.
 /// No provider lookup or media-file mutation is involved.
 public struct EmbeddedMovieBundleItem: Sendable {
-    public let source: URL; public let title: String; public let creationDate: String?; public let overview: String?; public let genres: [String]; public let studio: String?; public let artist: String?; public let artwork: Data?
-    public init(source: URL, title: String, creationDate: String?, overview: String? = nil, genres: [String] = [], studio: String? = nil, artist: String? = nil, artwork: Data?) { self.source = source; self.title = title; self.creationDate = creationDate; self.overview = overview; self.genres = genres; self.studio = studio; self.artist = artist; self.artwork = artwork }
+    public let source: URL; public let title: String; public let creationDate: String?; public let overview: String?; public let genres: [String]; public let studio: String?; public let artist: String?; public let credits: [String]; public let cast: [String]; public let rating: Double?; public let artwork: Data?
+    public init(source: URL, title: String, creationDate: String?, overview: String? = nil, genres: [String] = [], studio: String? = nil, artist: String? = nil, credits: [String] = [], cast: [String] = [], rating: Double? = nil, artwork: Data?) { self.source = source; self.title = title; self.creationDate = creationDate; self.overview = overview; self.genres = genres; self.studio = studio; self.artist = artist; self.credits = credits; self.cast = cast; self.rating = rating; self.artwork = artwork }
 }
 
 /// An artwork-only repair. The existing valid NFO is deliberately left alone.
