@@ -20,7 +20,8 @@ open and manage all MMM targets together.
 
 - TVDB official-order TV review, including explicit mappings, duplicate
   decisions, editable reusable plans, locked XML/NFO sidecars, season/show
-  NFOs, and optional poster JPGs.
+  NFOs, and optional poster JPGs. TVDB artwork review shows current and
+  provider artwork side by side; replacement remains per-episode and explicit.
 - TMDB movie review, embedded metadata extraction, move-only sidecar
   preservation, movie-folder normalisation, multi-part handling, audit
   exclusions, per-sidecar move/replace review, low-resolution review, and

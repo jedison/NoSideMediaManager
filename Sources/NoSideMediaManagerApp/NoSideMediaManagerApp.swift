@@ -286,7 +286,7 @@ private struct ContentView: View {
                         if let count = nfoDifferenceCounts[mapping.local.url], count > 0 { Text("NFO Δ\(count)").foregroundStyle(.orange).font(.caption) }
                         Spacer()
                         Toggle("Include", isOn: Binding(get: { !isEffectivelyExcluded(mapping.local.url) }, set: { include in if include { excludedTVPaths.remove(mapping.local.url) } else { excludedTVPaths.insert(mapping.local.url) } })).labelsHidden().disabled(isDuplicate)
-                        Toggle("Artwork", isOn: Binding(get: { artworkSelections[mapping.local.url] ?? true }, set: { artworkSelections[mapping.local.url] = $0 })).labelsHidden().disabled(excluded)
+                        Toggle("Replace artwork", isOn: Binding(get: { artworkSelections[mapping.local.url] ?? true }, set: { artworkSelections[mapping.local.url] = $0 })).labelsHidden().disabled(excluded)
                         Picker("Canonical episode", selection: Binding(get: { chosenEpisodeIDs[mapping.local.url] ?? mapping.canonical?.tvdbID ?? 0 }, set: { chosenEpisodeIDs[mapping.local.url] = $0 })) { Text("Needs review").tag(0); ForEach(episodesForPicker(mapping), id: \.tvdbID) { episode in Text("S\(episode.season)E\(episode.number) · \(episode.title)").tag(episode.tvdbID) } }.labelsHidden().disabled(excluded)
                     }
                     if isDuplicate { Text("Choose the one file to keep in Duplicate episode decisions above.").font(.caption2).foregroundStyle(.orange) }
@@ -302,7 +302,7 @@ private struct ContentView: View {
                 }
                 .contextMenu { Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([mapping.local.url]) } }
             }.frame(height: min(max(CGFloat(filteredMappings.count) * 82, 180), 420))
-            Toggle("Enable selected TVDB episode artwork downloads", isOn: $downloadArtwork)
+            Toggle("Enable selected TVDB episode artwork replacements", isOn: $downloadArtwork)
             Text("Next: confirm the episode mappings above, optionally review the artwork choices, then preview and freeze the portable package.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -393,15 +393,17 @@ private struct ContentView: View {
     private var artworkReview: some View {
         GroupBox("TVDB artwork review") {
             VStack(alignment: .leading, spacing: 5) {
-                Text("These are the actual TVDB images that would be downloaded with the frozen package. Turn one off to keep its existing JPG unchanged.").font(.caption).foregroundStyle(.secondary)
+                Text("Compare the current local JPG with the actual TVDB image. Turn replacement off to keep the local JPG unchanged; this only becomes a change in the frozen package.").font(.caption).foregroundStyle(.secondary)
                 ScrollView { LazyVStack(alignment: .leading, spacing: 10) { ForEach(approved(), id: \.local.url) { mapping in HStack(spacing: 12) {
-                    artworkThumbnail(for: mapping.canonical.artworkURL)
+                    VStack(alignment: .leading, spacing: 3) { Text("Current").font(.caption2); localArtworkThumbnail(for: mapping.local.url) }
+                    VStack(alignment: .leading, spacing: 3) { Text("TVDB").font(.caption2); artworkThumbnail(for: mapping.canonical.artworkURL) }
                     VStack(alignment: .leading, spacing: 3) {
                         Text(mapping.local.url.lastPathComponent).lineLimit(1)
-                        Text(mapping.canonical.artworkURL == nil ? "No TVDB image" : (artworkSelections[mapping.local.url] ?? false ? "Download this TVDB JPG" : "Keep existing JPG")).font(.caption).foregroundStyle(.secondary)
+                        let local = MovieLibraryAudit.primaryArtworkURL(for: mapping.local.url.deletingPathExtension())
+                        Text(mapping.canonical.artworkURL == nil ? "No TVDB image" : (artworkSelections[mapping.local.url] ?? false ? (local == nil ? "Create TVDB JPG" : "Replace local JPG with TVDB image") : "Keep existing JPG")).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Toggle("Artwork", isOn: Binding(get: { artworkSelections[mapping.local.url] ?? false }, set: { artworkSelections[mapping.local.url] = $0 })).labelsHidden().disabled(mapping.canonical.artworkURL == nil)
+                    Toggle("Replace artwork", isOn: Binding(get: { artworkSelections[mapping.local.url] ?? false }, set: { artworkSelections[mapping.local.url] = $0 })).labelsHidden().disabled(mapping.canonical.artworkURL == nil)
                 } } }.frame(maxHeight: 460) }
                 Button("Done") { showArtworkReview = false }
             }
@@ -418,6 +420,16 @@ private struct ContentView: View {
             }
             .frame(width: 104, height: 58)
             .clipShape(RoundedRectangle(cornerRadius: 6))
+        } else {
+            Color.secondary.opacity(0.12)
+                .overlay(Image(systemName: "photo.slash").foregroundStyle(.secondary))
+                .frame(width: 104, height: 58)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+    @ViewBuilder private func localArtworkThumbnail(for video: URL) -> some View {
+        if let url = MovieLibraryAudit.primaryArtworkURL(for: video.deletingPathExtension()), let image = NSImage(contentsOf: url) {
+            Image(nsImage: image).resizable().scaledToFill().frame(width: 104, height: 58).clipShape(RoundedRectangle(cornerRadius: 6))
         } else {
             Color.secondary.opacity(0.12)
                 .overlay(Image(systemName: "photo.slash").foregroundStyle(.secondary))
