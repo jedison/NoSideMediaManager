@@ -7,7 +7,9 @@ root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 project="$root/NoSideMediaManager.xcodeproj"
 
 swift test --package-path "$root"
-xcodebuild -quiet -project "$project" -scheme microMM -configuration Debug test \
+xcodebuild -quiet -project "$project" -scheme microMM -configuration Debug build \
+  -destination 'platform=macOS'
+xcodebuild -quiet -project "$project" -scheme NoSideMediaManagerTests -configuration Debug test \
   -destination 'platform=macOS'
 xcodebuild -quiet -project "$project" -scheme noside-media -configuration Debug build \
   -destination 'platform=macOS'
