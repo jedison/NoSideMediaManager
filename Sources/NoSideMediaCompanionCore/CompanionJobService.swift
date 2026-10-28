@@ -36,9 +36,12 @@ public actor CompanionJobService {
         if movieAuditSnapshot.phase == .running { return movieAuditSnapshot }
         movieAuditSnapshot = .init(phase: .running, startedAt: Date())
         let root = configuration.libraryRoot
+        let progressService = self
         movieAuditTask = Task { [weak self, root] in
             let report = await MovieLibraryAudit.health(directory: root) { completed, total in
-                Task { await self?.updateMovieAuditProgress(completed: completed, total: total) }
+                Task {
+                    await progressService.updateMovieAuditProgress(completed: completed, total: total)
+                }
             }
             await self?.completeMovieAudit(report: report)
         }
