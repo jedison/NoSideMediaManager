@@ -90,6 +90,13 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
 schemes:
+  NoSideMediaManagerTests:
+    build:
+      targets:
+        NoSideMediaManagerTests: [test]
+    test:
+      targets:
+        - NoSideMediaManagerTests
   microMM:
     build:
       targets:

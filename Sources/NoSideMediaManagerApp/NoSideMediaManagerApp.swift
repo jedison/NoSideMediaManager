@@ -341,7 +341,7 @@ private struct ContentView: View {
         guard let duplicate = duplicateGroup(for: path) else { return false }
         return duplicateKeepPaths[duplicate.id] != path
     }
-    private var effectiveExcludedTVPaths: Set<URL> { Set(mappings.map(\.local.url).filter(isEffectivelyExcluded)) }
+    private var effectiveExcludedTVPaths: Set<URL> { Set(mappings.map(\.local.url).filter { isEffectivelyExcluded($0) }) }
     private var unresolvedMappings: [EpisodeMapping] { mappings.filter { !isEffectivelyExcluded($0.local.url) && chosenEpisodeIDs[$0.local.url] == nil } }
     private var readyMappings: [EpisodeMapping] { mappings.filter { !isEffectivelyExcluded($0.local.url) && chosenEpisodeIDs[$0.local.url] != nil && nfoDifferenceCounts[$0.local.url, default: 0] == 0 } }
     private var nfoChangedMappings: [EpisodeMapping] { mappings.filter { nfoDifferenceCounts[$0.local.url, default: 0] > 0 } }
