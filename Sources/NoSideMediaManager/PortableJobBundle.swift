@@ -23,13 +23,17 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
     public let notes: [String]
     public let mediaKind: String
     public let metadataProvider: String
+    /// TV show folder relative to the configured TV library root. It remains
+    /// portable and lets Companion select the correct root without an absolute
+    /// path from the analysis Mac.
+    public let executionRootRelativePath: String?
     /// Best-effort source fingerprints. Empty when the analysis Mac could not
     /// read the media file (for example, a remote-path-only reviewed plan).
     public let sourceFingerprints: [String: String]
 
-    private enum CodingKeys: String, CodingKey { case formatVersion, jobID, seriesTVDBID, seriesTitle, moves, sidecarMoves, generatedFiles, unavailableArtwork, notes, mediaKind, metadataProvider, sourceFingerprints }
+    private enum CodingKeys: String, CodingKey { case formatVersion, jobID, seriesTVDBID, seriesTitle, moves, sidecarMoves, generatedFiles, unavailableArtwork, notes, mediaKind, metadataProvider, executionRootRelativePath, sourceFingerprints }
 
-    public init(jobID: String, series: TVSeries, moves: [Move], sidecarMoves: [Move] = [], generatedFiles: [String], unavailableArtwork: [String] = [], notes: [String] = [], mediaKind: String = "tv", metadataProvider: String = "tvdb", sourceFingerprints: [String: String] = [:]) {
+    public init(jobID: String, series: TVSeries, moves: [Move], sidecarMoves: [Move] = [], generatedFiles: [String], unavailableArtwork: [String] = [], notes: [String] = [], mediaKind: String = "tv", metadataProvider: String = "tvdb", executionRootRelativePath: String? = nil, sourceFingerprints: [String: String] = [:]) {
         self.formatVersion = 1
         self.jobID = jobID
         self.seriesTVDBID = series.tvdbID
@@ -41,6 +45,7 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
         self.notes = notes
         self.mediaKind = mediaKind
         self.metadataProvider = metadataProvider
+        self.executionRootRelativePath = executionRootRelativePath
         self.sourceFingerprints = sourceFingerprints
     }
 
@@ -59,6 +64,7 @@ public struct PortableJobManifest: Codable, Sendable, Equatable {
         notes = try values.decodeIfPresent([String].self, forKey: .notes) ?? []
         mediaKind = try values.decodeIfPresent(String.self, forKey: .mediaKind) ?? "tv"
         metadataProvider = try values.decodeIfPresent(String.self, forKey: .metadataProvider) ?? "tvdb"
+        executionRootRelativePath = try values.decodeIfPresent(String.self, forKey: .executionRootRelativePath)
         sourceFingerprints = try values.decodeIfPresent([String: String].self, forKey: .sourceFingerprints) ?? [:]
     }
 }
@@ -307,6 +313,7 @@ public enum PortableJobBundle {
         destinations: [URL: URL] = [:],
         downloadArtwork: Bool = true,
         fingerprintMode: SourceFingerprintMode = .metadata,
+        executionRootRelativePath: String? = nil,
         notes: [String] = [],
         fileManager: FileManager = .default
     ) async throws -> PortableJobManifest {
@@ -393,7 +400,7 @@ public enum PortableJobBundle {
         generated.sort()
         var sourceLocations = [String: URL]()
         for mapping in mappings { if let path = try? relative(mapping.local.url, to: root) { sourceLocations[path] = mapping.local.url } }
-        let manifest = PortableJobManifest(jobID: jobID, series: series, moves: moves, generatedFiles: generated, unavailableArtwork: unavailableArtwork.sorted(), notes: notes, sourceFingerprints: fingerprints(for: sourceLocations, mode: fingerprintMode))
+        let manifest = PortableJobManifest(jobID: jobID, series: series, moves: moves, generatedFiles: generated, unavailableArtwork: unavailableArtwork.sorted(), notes: notes, executionRootRelativePath: executionRootRelativePath, sourceFingerprints: fingerprints(for: sourceLocations, mode: fingerprintMode))
         try finalize(manifest, in: bundle)
         return manifest
     }

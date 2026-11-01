@@ -77,6 +77,30 @@ public enum EpisodeFolderScanner {
     }
 }
 
+/// Keeps the macOS review rooted at a show, even when a reviewer chooses one
+/// of its season folders in the open panel. A TV package must be relative to a
+/// complete show root so `tvshow.nfo`, season sidecars, and rollback evidence
+/// stay together.
+public enum TVShowFolderSelection {
+    private static let seasonFolderExpression = try! NSRegularExpression(pattern: #"(?i)^season\s*\d{1,3}\b"#)
+
+    public static func isSeasonFolder(_ url: URL) -> Bool {
+        let name = url.lastPathComponent
+        return seasonFolderExpression.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)) != nil
+    }
+
+    public static func showRoot(for selection: URL) -> URL {
+        isSeasonFolder(selection) ? selection.deletingLastPathComponent() : selection
+    }
+
+    public static func suggestedSeriesName(for selection: URL) -> String {
+        showRoot(for: selection).lastPathComponent
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 public struct EpisodeMapping: Sendable, Equatable, Identifiable {
     public let local: LocalEpisodeFile
     public let canonical: TVEpisode?

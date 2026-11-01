@@ -64,3 +64,11 @@ import Testing
     let mapping = EpisodeMappingPlanner.propose(localFiles: [local], canonicalEpisodes: [episode], adoptFolderSeason: true)
     #expect(mapping.first?.canonical == episode)
 }
+
+@Test func selectingAGBBOSeasonFolderUsesTheContainingShowRoot() {
+    let show = URL(fileURLWithPath: "/TV/The Great British Bake Off")
+    let season = show.appendingPathComponent("Season 10 (BBC)", isDirectory: true)
+    #expect(TVShowFolderSelection.isSeasonFolder(season))
+    #expect(TVShowFolderSelection.showRoot(for: season).path == show.path)
+    #expect(TVShowFolderSelection.suggestedSeriesName(for: season) == "The Great British Bake Off")
+}
