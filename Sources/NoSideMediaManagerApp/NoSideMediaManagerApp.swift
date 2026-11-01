@@ -111,6 +111,7 @@ private struct ContentView: View {
     @State private var canonicalEpisodeQuery = ""
     @State private var showPackagePreview = false
     @State private var showArtworkReview = false
+    @State private var specialProposals = [SpecialEpisodeProposal]()
     @AppStorage("tv.mappingSort") private var mappingSort = "file"
 
     var body: some View {
@@ -303,6 +304,19 @@ private struct ContentView: View {
                 }
                 .contextMenu { Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([mapping.local.url]) } }
             }.frame(height: min(max(CGFloat(filteredMappings.count) * 82, 180), 420))
+            if !specialProposals.isEmpty {
+                let safe = specialProposals.filter { !$0.isAmbiguous && $0.canonical != nil }
+                DisclosureGroup("Season 0 special proposals (\(specialProposals.count))") {
+                    Text("These are title-led suggestions only. Ambiguous or duplicate targets stay unresolved for manual review.").font(.caption).foregroundStyle(.secondary)
+                    ForEach(specialProposals) { proposal in
+                        Text("\(proposal.local.url.lastPathComponent) → \(proposal.canonical.map { "S00E\($0.number) · \($0.title)" } ?? "No match") · \(proposal.isAmbiguous ? "needs decision" : proposal.evidence)").font(.caption).foregroundStyle(proposal.isAmbiguous ? .orange : .secondary).lineLimit(2)
+                    }
+                    Button("Approve \(safe.count) unambiguous special proposal(s)") {
+                        for (path, id) in SpecialEpisodeMatcher.bulkApprovals(proposals: specialProposals, existing: chosenEpisodeIDs) { chosenEpisodeIDs[path] = id }
+                        specialProposals = SpecialEpisodeMatcher.propose(unmatched: mappings.filter { chosenEpisodeIDs[$0.local.url] == nil && !isEffectivelyExcluded($0.local.url) }.map(\.local), canonicalEpisodes: canonicalEpisodes)
+                    }.disabled(safe.isEmpty)
+                }
+            }
             Toggle("Enable selected TVDB episode artwork replacements", isOn: $downloadArtwork)
             Text("Next: confirm the episode mappings above, optionally review the artwork choices, then preview and freeze the portable package.")
                 .font(.caption)
@@ -456,7 +470,7 @@ private struct ContentView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
-    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); nfoReplacementFields = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, Set(NFORepairInspector.comparableFields)) }); let duplicatesNeedDecision = duplicateDecisionGroups.contains { duplicateKeepPaths[$0.id] == nil }; mappingFilter = duplicatesNeedDecision ? "duplicates" : (mappings.contains { $0.canonical == nil } ? "needsDecision" : "ready"); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); specialProposals = SpecialEpisodeMatcher.propose(unmatched: mappings.filter { $0.canonical == nil }.map(\.local), canonicalEpisodes: episodes); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); nfoReplacementFields = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, Set(NFORepairInspector.comparableFields)) }); let duplicatesNeedDecision = duplicateDecisionGroups.contains { duplicateKeepPaths[$0.id] == nil }; mappingFilter = duplicatesNeedDecision ? "duplicates" : (mappings.contains { $0.canonical == nil } ? "needsDecision" : "ready"); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
     private var mappingIssues: [String] {
         var issues = mappings.filter { !excludedTVPaths.contains($0.local.url) && chosenEpisodeIDs[$0.local.url] == nil }.map { "Unmapped: \($0.local.url.lastPathComponent)" }
         for duplicate in duplicateDecisionGroups {

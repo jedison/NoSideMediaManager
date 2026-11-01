@@ -43,10 +43,12 @@
 		9DB34AE110619DC5D97A2094 /* TVDBClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3265C03019522137C96A60D7 /* TVDBClientTests.swift */; };
 		A1F9ADC8EA4C4B63807CF2CD /* CompanionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B665654678123AEF860ADA77 /* CompanionClient.swift */; };
 		AC3B99BA017C489EF30222DA /* NFORepairInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D23C9841BC5558A88BF792FD /* NFORepairInspectorTests.swift */; };
+		AF6D92C5E336492E1A68AD1B /* SpecialEpisodeMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCAA9718D3390296734B44FD /* SpecialEpisodeMatcher.swift */; };
 		B252A36991DB790EE946C19D /* MediaRenamePlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5269A46AF54223F54BCD4684 /* MediaRenamePlanTests.swift */; };
 		B5A0095E0EB97726810B1E6F /* EpisodeMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE4D9C8EAB94B886AF0615D6 /* EpisodeMappingTests.swift */; };
 		BD38F57CA855EB94C47B48CA /* NFOWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FA3C4DE1EEAF9CDAD51501E /* NFOWriterTests.swift */; };
 		C1245D4F4FE8F40D36261811 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 2848A04A7CC214B71E953CD0 /* AppIcon.icns */; };
+		C32B4BBB1C926EE885768D71 /* SpecialEpisodeMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AC631C174C454E9B7BF540D /* SpecialEpisodeMatcherTests.swift */; };
 		C8117D1C303AEDBC8C98D08A /* MappingPlanDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADEB77443BCCDFD7E68B2A8 /* MappingPlanDocument.swift */; };
 		C8B33C8CBF687E43FEAD04F3 /* MovieTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABC37F35D84CDFD94977F8C /* MovieTests.swift */; };
 		D6362E990BE1D76AFE89EF60 /* PortableJobBundleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2389140C7470544048F1DDC6 /* PortableJobBundleTests.swift */; };
@@ -112,6 +114,7 @@
 		2389140C7470544048F1DDC6 /* PortableJobBundleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableJobBundleTests.swift; sourceTree = "<group>"; };
 		24ACE35D4C4C8449795589D4 /* EpisodeMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpisodeMapping.swift; sourceTree = "<group>"; };
 		2848A04A7CC214B71E953CD0 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
+		2AC631C174C454E9B7BF540D /* SpecialEpisodeMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpecialEpisodeMatcherTests.swift; sourceTree = "<group>"; };
 		2AF29AAA66875C59CB8EAE59 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		3265C03019522137C96A60D7 /* TVDBClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVDBClientTests.swift; sourceTree = "<group>"; };
 		44F44E5797F429A05C797C20 /* microMMCompanion.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = microMMCompanion.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -142,6 +145,7 @@
 		B36F45A5D429CC0958EF816B /* NFOWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFOWriter.swift; sourceTree = "<group>"; };
 		B665654678123AEF860ADA77 /* CompanionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionClient.swift; sourceTree = "<group>"; };
 		BB842080B698896CCADD29CC /* NFOImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFOImportService.swift; sourceTree = "<group>"; };
+		BCAA9718D3390296734B44FD /* SpecialEpisodeMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpecialEpisodeMatcher.swift; sourceTree = "<group>"; };
 		BD044AD368ACF694ACB22CA5 /* CompanionRenamePlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionRenamePlannerTests.swift; sourceTree = "<group>"; };
 		BD75E5107B4CC81B68B781C0 /* MediaFileInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFileInspector.swift; sourceTree = "<group>"; };
 		BEAD96E7457B675C31C611CF /* TMDBClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TMDBClient.swift; sourceTree = "<group>"; };
@@ -236,6 +240,7 @@
 				B36F45A5D429CC0958EF816B /* NFOWriter.swift */,
 				7AA1C3ACF0103F9BF6DE925B /* PortableJobBundle.swift */,
 				621B66C9197CAFBAAA3178BB /* ReleaseInfo.swift */,
+				BCAA9718D3390296734B44FD /* SpecialEpisodeMatcher.swift */,
 				BEAD96E7457B675C31C611CF /* TMDBClient.swift */,
 				4EA52D5B58059BE37DC7D8CF /* TVDBClient.swift */,
 				7D86FE31FCB136F532764BA2 /* TVDBCredentialStore.swift */,
@@ -306,6 +311,7 @@
 				D23C9841BC5558A88BF792FD /* NFORepairInspectorTests.swift */,
 				8FA3C4DE1EEAF9CDAD51501E /* NFOWriterTests.swift */,
 				2389140C7470544048F1DDC6 /* PortableJobBundleTests.swift */,
+				2AC631C174C454E9B7BF540D /* SpecialEpisodeMatcherTests.swift */,
 				3265C03019522137C96A60D7 /* TVDBClientTests.swift */,
 			);
 			name = NoSideMediaManagerTests;
@@ -574,6 +580,7 @@
 				AC3B99BA017C489EF30222DA /* NFORepairInspectorTests.swift in Sources */,
 				BD38F57CA855EB94C47B48CA /* NFOWriterTests.swift in Sources */,
 				D6362E990BE1D76AFE89EF60 /* PortableJobBundleTests.swift in Sources */,
+				C32B4BBB1C926EE885768D71 /* SpecialEpisodeMatcherTests.swift in Sources */,
 				9DB34AE110619DC5D97A2094 /* TVDBClientTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -618,6 +625,7 @@
 				0C009EB766EE7707200D80FC /* NFOWriter.swift in Sources */,
 				76DA7F481159E3351F7CD141 /* PortableJobBundle.swift in Sources */,
 				1C2F5F9A94E8A3F05CD1FD70 /* ReleaseInfo.swift in Sources */,
+				AF6D92C5E336492E1A68AD1B /* SpecialEpisodeMatcher.swift in Sources */,
 				10705C9688716E465A3013A0 /* TMDBClient.swift in Sources */,
 				19FCD3F8CB5D11B0748C2FB2 /* TVDBClient.swift in Sources */,
 				2D173DA8B1FBAEAE883F3C53 /* TVDBCredentialStore.swift in Sources */,
