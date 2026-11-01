@@ -1,7 +1,7 @@
 import Foundation
 import NoSideMediaManager
 
-public enum CompanionJobServiceError: LocalizedError, Equatable { case jobNotFound, invalidOperation, alreadyApplied, appliedPackageCannotBeDeleted, tvdbNotConfigured, tmdbNotConfigured, invalidSelection, incompleteMultiPartSelection, completedMovieAuditRequired, tvFolderNotFound, incompleteTVDecisions, duplicateTVDecision, unextractableTitles([String]), unextractableArtwork([String]); public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .appliedPackageCannotBeDeleted: "Applied packages cannot be deleted because their rollback evidence must be retained. Roll it back first, then delete the package if it is no longer needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .tmdbNotConfigured: "Enter a TMDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .incompleteMultiPartSelection: "Select every part of each shared multi-part movie before freezing it."; case .completedMovieAuditRequired: "Complete a Movie audit before freezing a package."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library."; case .incompleteTVDecisions: "Every current local TV video needs an explicit canonical episode or an explicit exclusion before packaging."; case .duplicateTVDecision: "Each duplicate TV episode group needs exactly one kept file."; case .unextractableTitles(let names): "MMM could no longer extract a title from these selected video file(s): \(names.joined(separator: ", "))."; case .unextractableArtwork(let names): "MMM could no longer extract poster artwork from: \(names.joined(separator: ", "))." } } }
+public enum CompanionJobServiceError: LocalizedError, Equatable { case jobNotFound, invalidOperation, alreadyApplied, appliedPackageCannotBeDeleted, tvdbNotConfigured, tmdbNotConfigured, invalidSelection, incompleteMultiPartSelection, completedMovieAuditRequired, tvFolderNotFound, incompleteTVDecisions, duplicateTVDecision, missingTVExecutionRoot, invalidTVExecutionRoot, unextractableTitles([String]), unextractableArtwork([String]); public var errorDescription: String? { switch self { case .jobNotFound: "The requested MMM job was not found."; case .invalidOperation: "This MMM job cannot perform that operation."; case .alreadyApplied: "This job is already applied. Use rollback only if it is genuinely needed."; case .appliedPackageCannotBeDeleted: "Applied packages cannot be deleted because their rollback evidence must be retained. Roll it back first, then delete the package if it is no longer needed."; case .tvdbNotConfigured: "Enter a TVDB API key in Settings on the Mac first."; case .tmdbNotConfigured: "Enter a TMDB API key in Settings on the Mac first."; case .invalidSelection: "The selected items are no longer eligible for this package. Re-run the audit."; case .incompleteMultiPartSelection: "Select every part of each shared multi-part movie before freezing it."; case .completedMovieAuditRequired: "Complete a Movie audit before freezing a package."; case .tvFolderNotFound: "Choose a TV folder from the configured TV library."; case .incompleteTVDecisions: "Every current local TV video needs an explicit canonical episode or an explicit exclusion before packaging."; case .duplicateTVDecision: "Each duplicate TV episode group needs exactly one kept file."; case .missingTVExecutionRoot: "This older TV package does not identify its configured show folder. Re-freeze it before running it from Companion."; case .invalidTVExecutionRoot: "This TV package's show folder is not available under the configured TV library root."; case .unextractableTitles(let names): "MMM could no longer extract a title from these selected video file(s): \(names.joined(separator: ", "))."; case .unextractableArtwork(let names): "MMM could no longer extract poster artwork from: \(names.joined(separator: ", "))." } } }
 
 /// The only component allowed to invoke a frozen job script. It resolves job
 /// IDs from manifests under one configured directory, preventing path injection.
@@ -137,7 +137,7 @@ public actor CompanionJobService {
             return (mapping.local.url, URL(fileURLWithPath: requested ?? mapping.local.url.path))
         })
         let output = configuration.jobsRoot.appendingPathComponent("NoSide-MMM-TVDB-\(request.seriesTVDBID)-phone-job", isDirectory: true)
-        let manifest = try await PortableJobBundle.create(at: output, showRoot: root, series: try await series, mappings: mappings, destinations: destinations, downloadArtwork: true, notes: ["Every discovered local video was explicitly mapped or excluded in microMM Companion."] + excluded.sorted().map { "Excluded local video after Companion review: \($0)" })
+        let manifest = try await PortableJobBundle.create(at: output, showRoot: root, series: try await series, mappings: mappings, destinations: destinations, downloadArtwork: true, executionRootRelativePath: selected.name, notes: ["Every discovered local video was explicitly mapped or excluded in microMM Companion."] + excluded.sorted().map { "Excluded local video after Companion review: \($0)" })
         return CompanionJob(manifest: manifest)
     }
     public func searchTV(query: String) async throws -> [TVSeriesSearchResult] { guard let credentials = configuration.tvdbCredentials else { throw CompanionJobServiceError.tvdbNotConfigured }; return try await TVDBClient(credentials: credentials).searchSeries(named: query) }
@@ -192,12 +192,13 @@ public actor CompanionJobService {
     }
     public func run(jobID: String, operation: CompanionOperation) throws -> CompanionOperationResult {
         guard let (directory, manifest) = manifests().first(where: { $0.1.jobID == jobID }) else { throw CompanionJobServiceError.jobNotFound }
-        if state(for: directory, manifest: manifest) == .applied && operation != .rollback { throw CompanionJobServiceError.alreadyApplied }
+        let root = try executionRoot(for: manifest)
+        if state(for: directory, manifest: manifest, root: root) == .applied && operation != .rollback { throw CompanionJobServiceError.alreadyApplied }
         let scriptName: String; var arguments = [String]()
         switch operation { case .dryRun: scriptName = "apply.sh"; arguments.append("--dry-run"); case .apply: scriptName = "apply.sh"; case .rollback: scriptName = "rollback.sh" }
         let script = directory.appendingPathComponent(scriptName)
         guard FileManager.default.isExecutableFile(atPath: script.path) else { throw CompanionJobServiceError.invalidOperation }
-        arguments.append(configuration.libraryRoot.path)
+        arguments.append(root.path)
         let process = Process(); let output = Pipe(); process.executableURL = script; process.arguments = arguments; process.standardOutput = output; process.standardError = output
         try process.run(); process.waitUntilExit(); let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         let result = CompanionOperationResult(jobID: manifest.jobID, operation: operation, succeeded: process.terminationStatus == 0, log: text)
@@ -218,8 +219,19 @@ public actor CompanionJobService {
         guard let children = try? FileManager.default.contentsOfDirectory(at: configuration.jobsRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else { return [] }
         return children.compactMap { directory in let url = directory.appendingPathComponent("manifest.json"); guard let data = try? Data(contentsOf: url), let manifest = try? JSONDecoder().decode(PortableJobManifest.self, from: data) else { return nil }; return (directory, manifest) }
     }
+    private func executionRoot(for manifest: PortableJobManifest) throws -> URL {
+        guard manifest.mediaKind == "tv" else { return configuration.libraryRoot }
+        guard let relative = manifest.executionRootRelativePath, !relative.isEmpty else { throw CompanionJobServiceError.missingTVExecutionRoot }
+        guard !relative.hasPrefix("/"), !relative.contains("/"), !relative.contains("\\"), relative != ".", relative != "..",
+              tvFolders().contains(where: { $0.name == relative }) else { throw CompanionJobServiceError.invalidTVExecutionRoot }
+        return configuration.tvLibraryRoot.appendingPathComponent(relative, isDirectory: true)
+    }
     private func state(for directory: URL, manifest: PortableJobManifest) -> CompanionJobState {
-        let backup = configuration.libraryRoot.appendingPathComponent(".noside-mmm-backups").appendingPathComponent(manifest.jobID)
+        guard let root = try? executionRoot(for: manifest) else { return .ready }
+        return state(for: directory, manifest: manifest, root: root)
+    }
+    private func state(for directory: URL, manifest: PortableJobManifest, root: URL) -> CompanionJobState {
+        let backup = root.appendingPathComponent(".noside-mmm-backups").appendingPathComponent(manifest.jobID)
         if FileManager.default.fileExists(atPath: backup.appendingPathComponent("rolled-back").path) { return .rolledBack }
         if FileManager.default.fileExists(atPath: backup.path) {
             // Legacy packages did not leave an explicit marker. If every file
@@ -228,7 +240,7 @@ public actor CompanionJobService {
             let created = backup.appendingPathComponent("created-files.txt")
             if let text = try? String(contentsOf: created) {
                 let files = text.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
-                if !files.isEmpty && files.allSatisfy({ !FileManager.default.fileExists(atPath: configuration.libraryRoot.appendingPathComponent($0).path) }) { return .rolledBack }
+                if !files.isEmpty && files.allSatisfy({ !FileManager.default.fileExists(atPath: root.appendingPathComponent($0).path) }) { return .rolledBack }
             }
             return .applied
         }

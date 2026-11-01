@@ -38,7 +38,7 @@ import Testing
     let jobs = root.appendingPathComponent("jobs", isDirectory: true); let library = root.appendingPathComponent("library", isDirectory: true); let job = jobs.appendingPathComponent("legacy", isDirectory: true)
     try FileManager.default.createDirectory(at: job, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: library.appendingPathComponent(".noside-mmm-backups/mmm-legacy"), withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
-    let data = "{\"formatVersion\":1,\"jobID\":\"mmm-legacy\",\"seriesTVDBID\":1,\"seriesTitle\":\"Legacy show\",\"moves\":[],\"generatedFiles\":[],\"unavailableArtwork\":[],\"notes\":[]}".data(using: .utf8)!
+    let data = "{\"formatVersion\":1,\"jobID\":\"mmm-legacy\",\"seriesTVDBID\":1,\"seriesTitle\":\"Legacy show\",\"moves\":[],\"generatedFiles\":[],\"unavailableArtwork\":[],\"notes\":[],\"mediaKind\":\"movie\"}".data(using: .utf8)!
     try data.write(to: job.appendingPathComponent("manifest.json"))
     let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: library, token: "secret", version: "test"))
     #expect(await service.jobs().first?.state == .applied)
@@ -50,7 +50,7 @@ import Testing
     let backup = library.appendingPathComponent(".noside-mmm-backups/mmm-rolled-back", isDirectory: true)
     try FileManager.default.createDirectory(at: job, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true); try Data().write(to: backup.appendingPathComponent("rolled-back"))
     defer { try? FileManager.default.removeItem(at: root) }
-    let manifest = PortableJobManifest(jobID: "mmm-rolled-back", series: TVSeries(tvdbID: 1, title: "Fixture"), moves: [], generatedFiles: [])
+    let manifest = PortableJobManifest(jobID: "mmm-rolled-back", series: TVSeries(tvdbID: 1, title: "Fixture"), moves: [], generatedFiles: [], mediaKind: "movie")
     try JSONEncoder().encode(manifest).write(to: job.appendingPathComponent("manifest.json"))
     let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: library, token: "secret", version: "test"))
     #expect(await service.jobs().first?.state == .rolledBack)
@@ -62,8 +62,8 @@ import Testing
     let ready = jobs.appendingPathComponent("ready", isDirectory: true); let applied = jobs.appendingPathComponent("applied", isDirectory: true)
     try FileManager.default.createDirectory(at: ready, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: applied, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: library.appendingPathComponent(".noside-mmm-backups/mmm-applied"), withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
-    try JSONEncoder().encode(PortableJobManifest(jobID: "mmm-ready", series: TVSeries(tvdbID: 1, title: "Ready"), moves: [], generatedFiles: [])).write(to: ready.appendingPathComponent("manifest.json"))
-    try JSONEncoder().encode(PortableJobManifest(jobID: "mmm-applied", series: TVSeries(tvdbID: 2, title: "Applied"), moves: [], generatedFiles: [])).write(to: applied.appendingPathComponent("manifest.json"))
+    try JSONEncoder().encode(PortableJobManifest(jobID: "mmm-ready", series: TVSeries(tvdbID: 1, title: "Ready"), moves: [], generatedFiles: [], mediaKind: "movie")).write(to: ready.appendingPathComponent("manifest.json"))
+    try JSONEncoder().encode(PortableJobManifest(jobID: "mmm-applied", series: TVSeries(tvdbID: 2, title: "Applied"), moves: [], generatedFiles: [], mediaKind: "movie")).write(to: applied.appendingPathComponent("manifest.json"))
     let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: library, token: "secret", version: "test"))
     try await service.deletePackage(jobID: "mmm-ready")
     #expect(!FileManager.default.fileExists(atPath: ready.path))
@@ -82,7 +82,7 @@ import Testing
     let jobs = root.appendingPathComponent("jobs", isDirectory: true); let library = root.appendingPathComponent("library", isDirectory: true); let job = jobs.appendingPathComponent("history", isDirectory: true)
     try FileManager.default.createDirectory(at: job, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: library, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
-    let manifest = PortableJobManifest(jobID: "mmm-history", series: TVSeries(tvdbID: 1, title: "Fixture"), moves: [], generatedFiles: [])
+    let manifest = PortableJobManifest(jobID: "mmm-history", series: TVSeries(tvdbID: 1, title: "Fixture"), moves: [], generatedFiles: [], mediaKind: "movie")
     try JSONEncoder().encode(manifest).write(to: job.appendingPathComponent("manifest.json"))
     let script = job.appendingPathComponent("apply.sh")
     try "#!/bin/sh\necho dry-run fixture\n".write(to: script, atomically: true, encoding: .utf8)
@@ -94,4 +94,53 @@ import Testing
     #expect(history.count == 1)
     #expect(history.first?.operation == .dryRun)
     #expect(history.first?.log.contains("dry-run fixture") == true)
+}
+
+@Test func companionTVRunUsesOnlyTheConfiguredShowRoot() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let jobs = root.appendingPathComponent("jobs", isDirectory: true)
+    let movies = root.appendingPathComponent("movies", isDirectory: true)
+    let tv = root.appendingPathComponent("tv", isDirectory: true)
+    let show = tv.appendingPathComponent("The Great British Bake Off", isDirectory: true)
+    let job = jobs.appendingPathComponent("gbbo", isDirectory: true)
+    try FileManager.default.createDirectory(at: show, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: movies, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: job, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let manifest = PortableJobManifest(jobID: "mmm-gbbo", series: TVSeries(tvdbID: 184871, title: "The Great British Bake Off"), moves: [], generatedFiles: [], executionRootRelativePath: "The Great British Bake Off")
+    try JSONEncoder().encode(manifest).write(to: job.appendingPathComponent("manifest.json"))
+    let script = job.appendingPathComponent("apply.sh")
+    try "#!/bin/sh\nprintf '%s\\n' \"$@\"\n".write(to: script, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+
+    let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: movies, tvLibraryRoot: tv, token: "secret", version: "test"))
+    let result = try await service.run(jobID: manifest.jobID, operation: .dryRun)
+    #expect(result.succeeded)
+    #expect(result.log.contains(show.path))
+    #expect(!result.log.contains(movies.path))
+}
+
+@Test func companionRefusesLegacyTVBundleWithoutADeclaredShowRoot() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let jobs = root.appendingPathComponent("jobs", isDirectory: true)
+    let movies = root.appendingPathComponent("movies", isDirectory: true)
+    let tv = root.appendingPathComponent("tv", isDirectory: true)
+    let job = jobs.appendingPathComponent("legacy-tv", isDirectory: true)
+    try FileManager.default.createDirectory(at: job, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: movies, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: tv, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let manifest = PortableJobManifest(jobID: "mmm-legacy-tv", series: TVSeries(tvdbID: 184871, title: "The Great British Bake Off"), moves: [], generatedFiles: [])
+    try JSONEncoder().encode(manifest).write(to: job.appendingPathComponent("manifest.json"))
+    let script = job.appendingPathComponent("apply.sh")
+    try "#!/bin/sh\nexit 0\n".write(to: script, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+    let service = CompanionJobService(configuration: .init(jobsRoot: jobs, libraryRoot: movies, tvLibraryRoot: tv, token: "secret", version: "test"))
+    do {
+        _ = try await service.run(jobID: manifest.jobID, operation: .dryRun)
+        Issue.record("Expected legacy TV package without a show root to be refused")
+    } catch let error as CompanionJobServiceError {
+        #expect(error == .missingTVExecutionRoot)
+    }
 }
