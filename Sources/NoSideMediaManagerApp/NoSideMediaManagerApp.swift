@@ -112,6 +112,10 @@ private struct ContentView: View {
     @State private var showPackagePreview = false
     @State private var showArtworkReview = false
     @State private var specialProposals = [SpecialEpisodeProposal]()
+    @State private var subtitleCandidates = [SubtitleCandidate]()
+    @State private var subtitleTarget: EpisodeMapping?
+    @State private var selectedSubtitle: SubtitleCandidate?
+    @State private var downloadedSubtitle: Data?
     @AppStorage("tv.mappingSort") private var mappingSort = "file"
 
     var body: some View {
@@ -292,6 +296,11 @@ private struct ContentView: View {
                     let subtitleInventory = SubtitleInventory.inspect(video: mapping.local.url, embeddedLanguages: mapping.local.subtitleLanguages)
                     Text(subtitleInventory.entries.isEmpty ? "Subtitles: none (English and French missing)" : "Subtitles: " + subtitleInventory.entries.map { "\($0.language) \($0.source.rawValue)\($0.sdh ? " SDH" : "")\($0.forced ? " forced" : "")" }.joined(separator: " · ") + (subtitleInventory.needsEnglishOrFrench ? " · English or French coverage incomplete" : ""))
                         .font(.caption2).foregroundStyle(subtitleInventory.needsEnglishOrFrench ? .orange : .secondary).lineLimit(2)
+                    Button("Find English / French subtitles…") { findSubtitles(for: mapping) }.disabled(chosenEpisodeIDs[mapping.local.url] == nil || isWorking)
+                    if subtitleTarget?.local.url == mapping.local.url {
+                        Picker("Subtitle candidate", selection: $selectedSubtitle) { Text("Choose a candidate").tag(Optional<SubtitleCandidate>.none); ForEach(subtitleCandidates) { Text("\($0.language) · \($0.episodeTitle) · \($0.release ?? "release unknown")").tag(Optional($0)) } }.disabled(subtitleCandidates.isEmpty)
+                        HStack { Button("Download and validate") { downloadSubtitle() }.disabled(selectedSubtitle == nil || isWorking); Button("Freeze subtitle package…") { freezeSubtitle(for: mapping) }.disabled(selectedSubtitle == nil || downloadedSubtitle == nil) }
+                    }
                     if let changes = nfoChanges(for: mapping), !changes.isEmpty {
                         DisclosureGroup("Existing NFO differs: " + changes.map(\.field).joined(separator: ", ")) {
                             Text("Choose exactly which fields TVDB replaces. Unticked fields retain their existing value in the generated, Emby-locked NFO.").font(.caption2).foregroundStyle(.secondary)
@@ -488,6 +497,9 @@ private struct ContentView: View {
     }
     private func approved() -> [ApprovedEpisodeMapping] { let index = Dictionary(uniqueKeysWithValues: canonicalEpisodes.map { ($0.tvdbID, $0) }); return mappings.compactMap { mapping in guard !isEffectivelyExcluded(mapping.local.url) else { return nil }; return chosenEpisodeIDs[mapping.local.url].flatMap { index[$0] }.map { ApprovedEpisodeMapping(local: mapping.local, canonical: $0, downloadArtwork: artworkSelections[mapping.local.url] ?? false, nfoFieldsToReplace: nfoReplacementFields[mapping.local.url, default: Set(NFORepairInspector.comparableFields)]) } } }
     private func renamePlan() throws -> MediaRenamePlan? { let moves = mappings.compactMap { mapping -> MediaRename? in let path = destinationPaths[mapping.local.url] ?? mapping.local.url.path; return path == mapping.local.url.path ? nil : MediaRename(source: mapping.local.url, destination: URL(fileURLWithPath: path)) }; return moves.isEmpty ? nil : try MediaRenamePlan(renames: moves) }
+    private func findSubtitles(for mapping: EpisodeMapping) { guard let id = chosenEpisodeIDs[mapping.local.url], let episode = canonicalEpisodes.first(where: { $0.tvdbID == id }), let key = TVDBCredentialStore.value(named: "OPENSUBTITLES_API_KEY"), !key.isEmpty else { status = "Add the OpenSubtitles API key in Settings first."; return }; subtitleTarget = mapping; isWorking = true; Task { do { subtitleCandidates = try await OpenSubtitlesClient(apiKey: key).search(.init(episode: episode, seriesTitle: reviewedSeries?.title)) } catch { status = error.localizedDescription }; isWorking = false } }
+    private func downloadSubtitle() { guard let candidate = selectedSubtitle, let key = TVDBCredentialStore.value(named: "OPENSUBTITLES_API_KEY"), !key.isEmpty else { return }; isWorking = true; Task { do { downloadedSubtitle = try await OpenSubtitlesClient(apiKey: key).download(candidate); status = "Subtitle downloaded and validated; freeze a package to stage it." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func freezeSubtitle(for mapping: EpisodeMapping) { guard let candidate = selectedSubtitle, let data = downloadedSubtitle, let directory = destination else { return }; let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.directoryURL = configuredJobsFolder(); guard panel.runModal() == .OK, let parent = panel.url else { return }; do { let destinationVideo = URL(fileURLWithPath: destinationPaths[mapping.local.url] ?? mapping.local.url.path); let manifest = try PortableJobBundle.createSubtitles(at: parent.appendingPathComponent("NoSide-MMM-Subtitle-job"), libraryRoot: directory, items: [.init(video: mapping.local.url, destinationVideo: destinationVideo, candidate: candidate, data: data)]); status = "Subtitle package \(manifest.jobID) created. Dry-run it before apply." } catch { status = error.localizedDescription } }
     private func applySeasonZeroDestinations() {
         guard let series = reviewedSeries, let directory = destination else { return }
         let plan = MappingPlanDocument(seriesTVDBID: series.tvdbID, libraryPath: directory.path, entries: mappings.map { .init(sourcePath: $0.local.url.path, canonicalEpisodeID: chosenEpisodeIDs[$0.local.url], destinationPath: destinationPaths[$0.local.url], downloadArtwork: artworkSelections[$0.local.url] ?? false, excluded: isEffectivelyExcluded($0.local.url)) })
@@ -515,6 +527,7 @@ private struct MMMSettingsView: View {
     @State private var apiKey = TVDBCredentialStore.value(named: "TVDB_API_KEY") ?? ""
     @State private var pin = TVDBCredentialStore.value(named: "TVDB_PIN") ?? ""
     @State private var tmdbAPIKey = TVDBCredentialStore.value(named: "TMDB_API_KEY") ?? ""
+    @State private var openSubtitlesAPIKey = TVDBCredentialStore.value(named: "OPENSUBTITLES_API_KEY") ?? ""
     @State private var jobsRoot = UserDefaults.standard.string(forKey: "companion.jobsRoot") ?? MMMDefaults.jobsRoot
     @State private var libraryRoot = UserDefaults.standard.string(forKey: "companion.libraryRoot") ?? ""
     @State private var tvLibraryRoot = UserDefaults.standard.string(forKey: "companion.tvLibraryRoot") ?? ""
@@ -525,12 +538,14 @@ private struct MMMSettingsView: View {
     @State private var showsAPIKey = false
     @State private var showsPIN = false
     @State private var showsTMDBKey = false
+    @State private var showsOpenSubtitlesKey = false
     @State private var showsToken = false
     var body: some View { VStack(alignment: .leading, spacing: 16) {
         Text("Settings").font(.largeTitle.weight(.semibold)); Text("TVDB is shared by TV work and phone-initiated searches. Keys stay in Keychain.").foregroundStyle(.secondary)
         ConcealedSettingField("TVDB API key", text: $apiKey, isRevealed: $showsAPIKey)
         ConcealedSettingField("TVDB subscriber PIN (optional)", text: $pin, isRevealed: $showsPIN)
         ConcealedSettingField("TMDB API key", text: $tmdbAPIKey, isRevealed: $showsTMDBKey)
+        ConcealedSettingField("OpenSubtitles API key", text: $openSubtitlesAPIKey, isRevealed: $showsOpenSubtitlesKey)
         TextField("Jobs folder", text: $jobsRoot); TextField("Movie library root", text: $libraryRoot); TextField("TV shows library root", text: $tvLibraryRoot)
         HStack(spacing: 8) {
             ConcealedSettingField("Pairing token", text: $token, isRevealed: $showsToken)
@@ -548,7 +563,7 @@ private struct MMMSettingsView: View {
         NSPasteboard.general.setString(token, forType: .string)
         status = "Pairing token copied."
     }
-    private func save() { do { try TVDBCredentialStore.set(apiKey, named: "TVDB_API_KEY"); try TVDBCredentialStore.set(pin, named: "TVDB_PIN"); try TVDBCredentialStore.set(tmdbAPIKey, named: "TMDB_API_KEY"); let d = UserDefaults.standard; d.set(jobsRoot, forKey: "companion.jobsRoot"); d.set(libraryRoot, forKey: "companion.libraryRoot"); d.set(tvLibraryRoot, forKey: "companion.tvLibraryRoot"); d.set(token, forKey: "companion.token"); d.set(port, forKey: "companion.port"); d.set(lanVisible, forKey: "companion.lanVisible"); status = "Saved. Restart Companion to use changed paths, token, or port." } catch { status = error.localizedDescription } }
+    private func save() { do { try TVDBCredentialStore.set(apiKey, named: "TVDB_API_KEY"); try TVDBCredentialStore.set(pin, named: "TVDB_PIN"); try TVDBCredentialStore.set(tmdbAPIKey, named: "TMDB_API_KEY"); try TVDBCredentialStore.set(openSubtitlesAPIKey, named: "OPENSUBTITLES_API_KEY"); let d = UserDefaults.standard; d.set(jobsRoot, forKey: "companion.jobsRoot"); d.set(libraryRoot, forKey: "companion.libraryRoot"); d.set(tvLibraryRoot, forKey: "companion.tvLibraryRoot"); d.set(token, forKey: "companion.token"); d.set(port, forKey: "companion.port"); d.set(lanVisible, forKey: "companion.lanVisible"); status = "Saved. Restart Companion to use changed paths, token, or port." } catch { status = error.localizedDescription } }
     private func toggle() { if runtime.isRunning { runtime.stop(); return }; save(); runtime.startFromStoredSettings() }
 }
 

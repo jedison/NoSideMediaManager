@@ -3,7 +3,15 @@ import Testing
 @testable import NoSideMediaManager
 
 private struct GBBOFixture: Decodable { let source: String; let seasons: [String: Season]; struct Season: Decodable { let regular: [String]?; let extrasForReview: [String]?; let sidecars: [String]?; let representative: [String]? } }
-private func gbboFixture() throws -> GBBOFixture { try JSONDecoder().decode(GBBOFixture.self, from: Data(contentsOf: Bundle.module.url(forResource: "gbbo-cp3-synthetic", withExtension: "json")!)) }
+private final class GBBOFixtureBundleMarker {}
+private func gbboFixture() throws -> GBBOFixture {
+    #if SWIFT_PACKAGE
+    let bundle = Bundle.module
+    #else
+    let bundle = Bundle(for: GBBOFixtureBundleMarker.self)
+    #endif
+    return try JSONDecoder().decode(GBBOFixture.self, from: Data(contentsOf: bundle.url(forResource: "gbbo-cp3-synthetic", withExtension: "json")!))
+}
 
 @Test func syntheticGBBOSeason11FixtureRetainsRegularsAndMakesExtrasReviewable() throws {
     let fixture = try gbboFixture(); let season = try #require(fixture.seasons["11"])
