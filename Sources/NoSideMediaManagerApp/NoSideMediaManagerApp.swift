@@ -289,6 +289,9 @@ private struct ContentView: View {
                         Picker("Canonical episode", selection: Binding(get: { chosenEpisodeIDs[mapping.local.url] ?? mapping.canonical?.tvdbID ?? 0 }, set: { chosenEpisodeIDs[mapping.local.url] = $0 })) { Text("Needs review").tag(0); ForEach(episodesForPicker(mapping), id: \.tvdbID) { episode in Text("S\(episode.season)E\(episode.number) · \(episode.title)").tag(episode.tvdbID) } }.labelsHidden().disabled(excluded)
                     }
                     if isDuplicate { Text("Choose the one file to keep in Duplicate episode decisions above.").font(.caption2).foregroundStyle(.orange) }
+                    let subtitleInventory = SubtitleInventory.inspect(video: mapping.local.url, embeddedLanguages: mapping.local.subtitleLanguages)
+                    Text(subtitleInventory.entries.isEmpty ? "Subtitles: none (English and French missing)" : "Subtitles: " + subtitleInventory.entries.map { "\($0.language) \($0.source.rawValue)\($0.sdh ? " SDH" : "")\($0.forced ? " forced" : "")" }.joined(separator: " · ") + (subtitleInventory.needsEnglishOrFrench ? " · English or French coverage incomplete" : ""))
+                        .font(.caption2).foregroundStyle(subtitleInventory.needsEnglishOrFrench ? .orange : .secondary).lineLimit(2)
                     if let changes = nfoChanges(for: mapping), !changes.isEmpty {
                         DisclosureGroup("Existing NFO differs: " + changes.map(\.field).joined(separator: ", ")) {
                             Text("Choose exactly which fields TVDB replaces. Unticked fields retain their existing value in the generated, Emby-locked NFO.").font(.caption2).foregroundStyle(.secondary)

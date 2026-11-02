@@ -22,6 +22,7 @@
 		32B5434A0A11FE0237C44374 /* libNoSideMediaManager.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 83BE6C124CA036D464BF0D31 /* libNoSideMediaManager.a */; };
 		338D873CC6280C969D9C2790 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AF29AAA66875C59CB8EAE59 /* main.swift */; };
 		38EF1DEEA93A0B0ED2B6EACC /* ArtworkDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F34E79E95E592E0AE748E3A /* ArtworkDownloader.swift */; };
+		3A9AFF2D645C6CD0BC48837A /* SubtitleInventoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7248351D1D525F580E8BE7E9 /* SubtitleInventoryTests.swift */; };
 		43211DCA4C49809DEA253F34 /* TVMappingPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D68D6ABFE133FE3C2A7638 /* TVMappingPreset.swift */; };
 		55B8043DF4434E7728D09E26 /* MoviePlanDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0781F2725588DAA0495885A /* MoviePlanDocument.swift */; };
 		5AF7278007E5362C22C3682D /* CompanionRenamePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 662C526FDD9EF19B38AFA10A /* CompanionRenamePlanner.swift */; };
@@ -31,6 +32,7 @@
 		627351098A7BD9865D4AAF18 /* MediaFileInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD75E5107B4CC81B68B781C0 /* MediaFileInspector.swift */; };
 		6297B0A009ADC344149A80CD /* MappingPlanDocumentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C146ADA74248FA1A6F85791B /* MappingPlanDocumentTests.swift */; };
 		64DCF339E1AC328600D69CEC /* tvdb-login.json in Resources */ = {isa = PBXBuildFile; fileRef = 9B53DD3DBCFA9ACBB60BFD5D /* tvdb-login.json */; };
+		6EEC7B53E6C0D1A6BB353FD4 /* SubtitleInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CF3010E3140C9DAAADAAF17 /* SubtitleInventory.swift */; };
 		71F36A8B1D947C4B8BF2DFA7 /* LibraryApplyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48FCECD23ED9D2F25081E731 /* LibraryApplyService.swift */; };
 		747F9C5427C52F3AEE1B25AE /* NFOImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB842080B698896CCADD29CC /* NFOImportService.swift */; };
 		76DA7F481159E3351F7CD141 /* PortableJobBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA1C3ACF0103F9BF6DE925B /* PortableJobBundle.swift */; };
@@ -128,7 +130,9 @@
 		621B66C9197CAFBAAA3178BB /* ReleaseInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseInfo.swift; sourceTree = "<group>"; };
 		662C526FDD9EF19B38AFA10A /* CompanionRenamePlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionRenamePlanner.swift; sourceTree = "<group>"; };
 		6A9998D2747960F5F41D6CB7 /* CompanionRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionRootView.swift; sourceTree = "<group>"; };
+		6CF3010E3140C9DAAADAAF17 /* SubtitleInventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleInventory.swift; sourceTree = "<group>"; };
 		6D0295E41244B19D306CA8D2 /* MediaRenamePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRenamePlan.swift; sourceTree = "<group>"; };
+		7248351D1D525F580E8BE7E9 /* SubtitleInventoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleInventoryTests.swift; sourceTree = "<group>"; };
 		7AA1C3ACF0103F9BF6DE925B /* PortableJobBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableJobBundle.swift; sourceTree = "<group>"; };
 		7D86FE31FCB136F532764BA2 /* TVDBCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVDBCredentialStore.swift; sourceTree = "<group>"; };
 		82B63E734E909FB6C4317B13 /* MappedLibraryWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MappedLibraryWriter.swift; sourceTree = "<group>"; };
@@ -241,6 +245,7 @@
 				7AA1C3ACF0103F9BF6DE925B /* PortableJobBundle.swift */,
 				621B66C9197CAFBAAA3178BB /* ReleaseInfo.swift */,
 				BCAA9718D3390296734B44FD /* SpecialEpisodeMatcher.swift */,
+				6CF3010E3140C9DAAADAAF17 /* SubtitleInventory.swift */,
 				BEAD96E7457B675C31C611CF /* TMDBClient.swift */,
 				4EA52D5B58059BE37DC7D8CF /* TVDBClient.swift */,
 				7D86FE31FCB136F532764BA2 /* TVDBCredentialStore.swift */,
@@ -312,6 +317,7 @@
 				8FA3C4DE1EEAF9CDAD51501E /* NFOWriterTests.swift */,
 				2389140C7470544048F1DDC6 /* PortableJobBundleTests.swift */,
 				2AC631C174C454E9B7BF540D /* SpecialEpisodeMatcherTests.swift */,
+				7248351D1D525F580E8BE7E9 /* SubtitleInventoryTests.swift */,
 				3265C03019522137C96A60D7 /* TVDBClientTests.swift */,
 			);
 			name = NoSideMediaManagerTests;
@@ -581,6 +587,7 @@
 				BD38F57CA855EB94C47B48CA /* NFOWriterTests.swift in Sources */,
 				D6362E990BE1D76AFE89EF60 /* PortableJobBundleTests.swift in Sources */,
 				C32B4BBB1C926EE885768D71 /* SpecialEpisodeMatcherTests.swift in Sources */,
+				3A9AFF2D645C6CD0BC48837A /* SubtitleInventoryTests.swift in Sources */,
 				9DB34AE110619DC5D97A2094 /* TVDBClientTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -626,6 +633,7 @@
 				76DA7F481159E3351F7CD141 /* PortableJobBundle.swift in Sources */,
 				1C2F5F9A94E8A3F05CD1FD70 /* ReleaseInfo.swift in Sources */,
 				AF6D92C5E336492E1A68AD1B /* SpecialEpisodeMatcher.swift in Sources */,
+				6EEC7B53E6C0D1A6BB353FD4 /* SubtitleInventory.swift in Sources */,
 				10705C9688716E465A3013A0 /* TMDBClient.swift in Sources */,
 				19FCD3F8CB5D11B0748C2FB2 /* TVDBClient.swift in Sources */,
 				2D173DA8B1FBAEAE883F3C53 /* TVDBCredentialStore.swift in Sources */,
