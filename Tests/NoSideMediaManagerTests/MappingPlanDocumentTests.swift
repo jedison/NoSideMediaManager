@@ -54,3 +54,21 @@ import Testing
     let older = "{\"formatVersion\":1,\"seriesTVDBID\":184871,\"libraryPath\":\"/Library/GBBO\",\"entries\":[{\"sourcePath\":\"/Library/GBBO/Season 01/old.m4v\",\"canonicalEpisodeID\":10,\"downloadArtwork\":true}]}".data(using: .utf8)!
     #expect(try JSONDecoder().decode(MappingPlanDocument.self, from: older).entries.first?.excluded == nil)
 }
+
+@Test func approvedSeasonZeroMappingMovesOnlySpecialIntoShowSeasonZero() throws {
+    let root = URL(fileURLWithPath: "/Library/GBBO", isDirectory: true)
+    let regular = root.appendingPathComponent("Season 11/regular.m4v")
+    let special = root.appendingPathComponent("Season 11/christmas.m4v")
+    let episodes = [1: TVEpisode(tvdbID: 1, seriesTVDBID: 9, season: 11, number: 1, title: "Cake Week"), 2: TVEpisode(tvdbID: 2, seriesTVDBID: 9, season: 0, number: 3, title: "Christmas Special")]
+    let plan = MappingPlanDocument(seriesTVDBID: 9, libraryPath: root.path, entries: [.init(sourcePath: regular.path, canonicalEpisodeID: 1), .init(sourcePath: special.path, canonicalEpisodeID: 2)])
+    let reconciled = try plan.reconcilingSeasonZero(series: TVSeries(tvdbID: 9, title: "Bake Off"), episodesByID: episodes)
+    #expect(reconciled.entries[0].destinationPath?.contains("Season 11") == true)
+    #expect(reconciled.entries[1].destinationPath == root.appendingPathComponent("Season 0/Bake Off - S00E03 - Christmas Special.m4v").path)
+}
+
+@Test func seasonZeroReconciliationRefusesDuplicateDestinations() throws {
+    let root = URL(fileURLWithPath: "/Library/GBBO", isDirectory: true)
+    let episode = TVEpisode(tvdbID: 2, seriesTVDBID: 9, season: 0, number: 3, title: "Christmas Special")
+    let plan = MappingPlanDocument(seriesTVDBID: 9, libraryPath: root.path, entries: [.init(sourcePath: root.appendingPathComponent("Season 11/a.m4v").path, canonicalEpisodeID: 2), .init(sourcePath: root.appendingPathComponent("Season 11/b.m4v").path, canonicalEpisodeID: 2)])
+    #expect(throws: MappingPlanError.destinationCollision) { try plan.reconcilingSeasonZero(series: TVSeries(tvdbID: 9, title: "Bake Off"), episodesByID: [2: episode]) }
+}

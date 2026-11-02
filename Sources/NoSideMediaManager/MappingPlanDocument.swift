@@ -58,6 +58,27 @@ public struct MappingPlanDocument: Codable, Sendable, Equatable {
         return MappingPlanDocument(seriesTVDBID: seriesTVDBID, libraryPath: libraryPath, entries: proposed)
     }
 
+    /// Produces the reviewed destinations for Season 0 mappings.  Unlike the
+    /// general filename normalizer, approved specials are deliberately moved
+    /// beneath the show root so an existing regular-season folder is never
+    /// treated as their canonical home.  This only changes the plan; callers
+    /// must still freeze, dry-run, and apply a portable package.
+    public func reconcilingSeasonZero(series: TVSeries, episodesByID: [Int: TVEpisode]) throws -> MappingPlanDocument {
+        guard entries.allSatisfy({ $0.excluded == true || $0.canonicalEpisodeID != nil }) else { throw MappingPlanError.unresolvedEntries }
+        let root = URL(fileURLWithPath: libraryPath)
+        let entries = try self.entries.map { entry -> Entry in
+            guard entry.excluded != true else { return entry }
+            guard let id = entry.canonicalEpisodeID, let episode = episodesByID[id] else { throw MappingPlanError.unresolvedEntries }
+            let source = URL(fileURLWithPath: entry.sourcePath)
+            let stem = "\(safe(series.title)) - S\(String(format: "%02d", episode.season))E\(String(format: "%02d", episode.number)) - \(safe(episode.title))"
+            let folder = episode.season == 0 ? root.appendingPathComponent("Season 0", isDirectory: true) : source.deletingLastPathComponent()
+            return Entry(sourcePath: entry.sourcePath, canonicalEpisodeID: id, destinationPath: folder.appendingPathComponent(stem).appendingPathExtension(source.pathExtension).path, downloadArtwork: entry.downloadArtwork, excluded: entry.excluded)
+        }
+        let destinations = entries.compactMap { $0.excluded == true ? nil : $0.destinationPath }
+        guard Set(destinations).count == destinations.count else { throw MappingPlanError.destinationCollision }
+        return MappingPlanDocument(seriesTVDBID: seriesTVDBID, libraryPath: libraryPath, entries: entries)
+    }
+
     /// Reconstructs the essential metadata from an already normalized plan.
     /// This permits a reviewed job to be frozen while TVDB is unavailable; it
     /// intentionally has no fresh overview, air-date, rating, or artwork URL.
@@ -93,7 +114,7 @@ public struct MappingPlanDocument: Codable, Sendable, Equatable {
 }
 
 public enum MappingPlanError: LocalizedError, Equatable {
-    case emptyDocuments, mixedSeries, pathOutsideRoot, duplicateSource, unresolvedEntries, invalidNormalizedDestination
+    case emptyDocuments, mixedSeries, pathOutsideRoot, duplicateSource, unresolvedEntries, invalidNormalizedDestination, destinationCollision
     public var errorDescription: String? {
         switch self {
         case .emptyDocuments: "No plans were supplied."
@@ -102,6 +123,7 @@ public enum MappingPlanError: LocalizedError, Equatable {
         case .duplicateSource: "More than one plan contains the same source file."
         case .unresolvedEntries: "Every entry must have a valid TVDB episode before normalization."
         case .invalidNormalizedDestination: "An offline package requires canonical SxxEyy destination filenames."
+        case .destinationCollision: "More than one reviewed entry has the same destination. Resolve the duplicate before freezing."
         }
     }
 }

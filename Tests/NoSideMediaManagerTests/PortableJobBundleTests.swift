@@ -85,6 +85,28 @@ import Testing
     #expect(!FileManager.default.fileExists(atPath: destination.path))
 }
 
+@Test func seasonZeroPackageMovesSidecarsAndRollsBack() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let source = root.appendingPathComponent("Season 11/Christmas.m4v")
+    let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: source.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("video".utf8).write(to: source)
+    try Data("subtitle".utf8).write(to: source.deletingPathExtension().appendingPathExtension("en.srt"))
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: bundle) }
+    let series = TVSeries(tvdbID: 9, title: "Bake Off")
+    let special = TVEpisode(tvdbID: 2, seriesTVDBID: 9, season: 0, number: 3, title: "Christmas Special")
+    let plan = MappingPlanDocument(seriesTVDBID: 9, libraryPath: root.path, entries: [.init(sourcePath: source.path, canonicalEpisodeID: 2)])
+    let destination = URL(fileURLWithPath: try #require(plan.reconcilingSeasonZero(series: series, episodesByID: [2: special]).entries[0].destinationPath))
+    _ = try await PortableJobBundle.create(at: bundle, showRoot: root, series: series, mappings: [.init(local: .init(url: source, season: 11, episode: 11), canonical: special)], destinations: [source: destination], downloadArtwork: false)
+    try runScript(bundle.appendingPathComponent("apply.sh"), ["--dry-run", root.path])
+    try runScript(bundle.appendingPathComponent("apply.sh"), [root.path])
+    #expect(FileManager.default.fileExists(atPath: destination.path))
+    #expect(FileManager.default.fileExists(atPath: destination.deletingPathExtension().appendingPathExtension("en.srt").path))
+    try runScript(bundle.appendingPathComponent("rollback.sh"), [root.path])
+    #expect(FileManager.default.fileExists(atPath: source.path))
+    #expect(FileManager.default.fileExists(atPath: source.deletingPathExtension().appendingPathExtension("en.srt").path))
+}
+
 @Test func portableBundleSharesSidecarsForSameEpisodeDifferentExtensions() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let first = root.appendingPathComponent("Season 01/first.m4v")
