@@ -1,0 +1,13 @@
+{
+  "source": "synthetic: production library was not mounted during fixture creation",
+  "show": "The Great British Bake Off",
+  "seasons": {
+    "11": {
+      "regular": ["GBBO S11E01 - Cake Week.m4v", "GBBO S11E02 - Biscuit Week.m4v", "GBBO S11E03 - Bread Week.m4v", "GBBO S11E04 - Chocolate Week.m4v", "GBBO S11E05 - Pastry Week.m4v", "GBBO S11E06 - Japanese Week.m4v", "GBBO S11E07 - 1980s Week.m4v", "GBBO S11E08 - Dessert Week.m4v", "GBBO S11E09 - Patisserie Week.m4v", "GBBO S11E10 - The Final.m4v"],
+      "extrasForReview": ["GBBO S11E11 - Christmas Special.m4v", "GBBO S11E12 - New Year Special.m4v", "GBBO S11E13 - Stand Up To Cancer.m4v", "GBBO S11E14 - Celebrity Special.m4v", "GBBO S11E15 - Holiday Bake Off.m4v", "GBBO S11E16 - Christmas Special.m4v", "GBBO S11E17 - Unknown Extra.m4v"],
+      "sidecars": ["GBBO S11E11 - Christmas Special.en.srt", "GBBO S11E12 - New Year Special.fr.sdh.srt", "GBBO S11E13 - Stand Up To Cancer.nfo"]
+    },
+    "12": { "representative": ["Bake Off - 12x01.mkv", "Bake Off - 12x01.mp4"] },
+    "13": { "representative": ["Episode 01 - Cake.m4v"] }
+  }
+}

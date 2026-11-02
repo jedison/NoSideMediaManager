@@ -17,5 +17,7 @@ xcodebuild -quiet -project "$project" -scheme NoSideMediaManagerTests -configura
   -destination "$macos_destination"
 xcodebuild -quiet -project "$project" -scheme noside-media -configuration Debug build \
   -destination "$macos_destination"
+# Compile the iOS app against the device SDK.  This validates the companion
+# target without relying on a hosted simulator runtime being installed.
 xcodebuild -quiet -project "$project" -scheme microMMCompanion -configuration Debug \
-  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build
+  -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build

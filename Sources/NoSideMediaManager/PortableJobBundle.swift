@@ -117,6 +117,24 @@ public enum MoviePreservationBundleError: LocalizedError, Equatable {
 /// media files. The builder only writes inside `bundle`; it never changes
 /// `showRoot`.
 public enum PortableJobBundle {
+    /// Freezes reviewed subtitle bytes inside the portable package. Existing
+    /// sidecars are refused at planning time rather than silently replaced.
+    @discardableResult
+    public static func createSubtitles(at requestedBundle: URL, libraryRoot: URL, items: [ReviewedSubtitleDownload], fileManager: FileManager = .default) throws -> PortableJobManifest {
+        guard !items.isEmpty else { throw MoviePreservationBundleError.emptyPlan }
+        let bundle = availableOutputURL(for: requestedBundle, fileManager: fileManager); let root = libraryRoot.standardizedFileURL
+        try fileManager.createDirectory(at: bundle.appendingPathComponent("generated"), withIntermediateDirectories: true)
+        var generated = [String](); var sources = [String: URL]()
+        for item in items {
+            let destination = try SubtitleAcquisition.stagedURL(for: item)
+            guard !fileManager.fileExists(atPath: destination.path) else { throw SubtitleAcquisitionError.destinationExists(destination) }
+            let relativeDestination = try relative(destination, to: root); let relativeSource = try relative(item.video, to: root)
+            let target = generatedURL(for: relativeDestination, in: bundle); try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true); try item.data.write(to: target, options: .atomic)
+            generated.append(relativeDestination); sources[relativeSource] = item.video
+        }
+        let manifest = PortableJobManifest(jobID: "mmm-\(UUID().uuidString.lowercased())", series: TVSeries(tvdbID: 0, title: "Reviewed subtitles"), moves: [], generatedFiles: generated.sorted(), notes: ["Reviewed subtitle downloads; existing subtitle sidecars were not replaced."], mediaKind: "tv", metadataProvider: "subtitle", sourceFingerprints: fingerprints(for: sources))
+        try finalize(manifest, in: bundle); return manifest
+    }
     /// Returns the requested job folder unless it is already occupied.  A
     /// reviewed package is evidence and must never be overwritten, so later
     /// attempts become `-v2`, `-v3`, and so on.

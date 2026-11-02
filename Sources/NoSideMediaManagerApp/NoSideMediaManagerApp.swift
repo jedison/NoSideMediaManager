@@ -111,6 +111,14 @@ private struct ContentView: View {
     @State private var canonicalEpisodeQuery = ""
     @State private var showPackagePreview = false
     @State private var showArtworkReview = false
+    @State private var specialProposals = [SpecialEpisodeProposal]()
+    @State private var subtitleCandidates = [SubtitleCandidate]()
+    @State private var subtitleTarget: EpisodeMapping?
+    @State private var selectedSubtitle: SubtitleCandidate?
+    @State private var downloadedSubtitle: Data?
+    @State private var subtitleDownloadCandidateID: String?
+    @State private var subtitleDownloadTargetURL: URL?
+    @State private var subtitleRequestID = UUID()
     @AppStorage("tv.mappingSort") private var mappingSort = "file"
 
     var body: some View {
@@ -288,6 +296,14 @@ private struct ContentView: View {
                         Picker("Canonical episode", selection: Binding(get: { chosenEpisodeIDs[mapping.local.url] ?? mapping.canonical?.tvdbID ?? 0 }, set: { chosenEpisodeIDs[mapping.local.url] = $0 })) { Text("Needs review").tag(0); ForEach(episodesForPicker(mapping), id: \.tvdbID) { episode in Text("S\(episode.season)E\(episode.number) · \(episode.title)").tag(episode.tvdbID) } }.labelsHidden().disabled(excluded)
                     }
                     if isDuplicate { Text("Choose the one file to keep in Duplicate episode decisions above.").font(.caption2).foregroundStyle(.orange) }
+                    let subtitleInventory = SubtitleInventory.inspect(video: mapping.local.url, embeddedLanguages: mapping.local.subtitleLanguages)
+                    Text(subtitleInventory.entries.isEmpty ? "Subtitles: none (English and French missing)" : "Subtitles: " + subtitleInventory.entries.map { "\($0.language) \($0.source.rawValue)\($0.sdh ? " SDH" : "")\($0.forced ? " forced" : "")" }.joined(separator: " · ") + (subtitleInventory.needsEnglishOrFrench ? " · English or French coverage incomplete" : ""))
+                        .font(.caption2).foregroundStyle(subtitleInventory.needsEnglishOrFrench ? .orange : .secondary).lineLimit(2)
+                    Button("Find English / French subtitles…") { findSubtitles(for: mapping) }.disabled(chosenEpisodeIDs[mapping.local.url] == nil || isWorking)
+                    if subtitleTarget?.local.url == mapping.local.url {
+                        Picker("Subtitle candidate", selection: Binding(get: { selectedSubtitle }, set: { choice in selectedSubtitle = choice; downloadedSubtitle = nil; subtitleDownloadCandidateID = nil; subtitleDownloadTargetURL = nil })) { Text("Choose a candidate").tag(Optional<SubtitleCandidate>.none); ForEach(subtitleCandidates) { Text("\($0.language) · \($0.episodeTitle) · \($0.release ?? "release unknown")").tag(Optional($0)) } }.disabled(subtitleCandidates.isEmpty)
+                        HStack { Button("Download and validate") { downloadSubtitle() }.disabled(selectedSubtitle == nil || isWorking); Button("Freeze subtitle package…") { freezeSubtitle(for: mapping) }.disabled(selectedSubtitle == nil || downloadedSubtitle == nil) }
+                    }
                     if let changes = nfoChanges(for: mapping), !changes.isEmpty {
                         DisclosureGroup("Existing NFO differs: " + changes.map(\.field).joined(separator: ", ")) {
                             Text("Choose exactly which fields TVDB replaces. Unticked fields retain their existing value in the generated, Emby-locked NFO.").font(.caption2).foregroundStyle(.secondary)
@@ -303,6 +319,20 @@ private struct ContentView: View {
                 }
                 .contextMenu { Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([mapping.local.url]) } }
             }.frame(height: min(max(CGFloat(filteredMappings.count) * 82, 180), 420))
+            if !specialProposals.isEmpty {
+                let safe = specialProposals.filter { !$0.isAmbiguous && $0.canonical != nil }
+                DisclosureGroup("Season 0 special proposals (\(specialProposals.count))") {
+                    Text("These are title-led suggestions only. Ambiguous or duplicate targets stay unresolved for manual review.").font(.caption).foregroundStyle(.secondary)
+                    ForEach(specialProposals) { proposal in
+                        Text("\(proposal.local.url.lastPathComponent) → \(proposal.canonical.map { "S00E\($0.number) · \($0.title)" } ?? "No match") · \(proposal.isAmbiguous ? "needs decision" : proposal.evidence)").font(.caption).foregroundStyle(proposal.isAmbiguous ? .orange : .secondary).lineLimit(2)
+                    }
+                    Button("Approve \(safe.count) unambiguous special proposal(s)") {
+                        for (path, id) in SpecialEpisodeMatcher.bulkApprovals(proposals: specialProposals, existing: chosenEpisodeIDs) { chosenEpisodeIDs[path] = id }
+                        applySeasonZeroDestinations()
+                        specialProposals = SpecialEpisodeMatcher.propose(unmatched: mappings.filter { chosenEpisodeIDs[$0.local.url] == nil && !isEffectivelyExcluded($0.local.url) }.map(\.local), canonicalEpisodes: canonicalEpisodes)
+                    }.disabled(safe.isEmpty)
+                }
+            }
             Toggle("Enable selected TVDB episode artwork replacements", isOn: $downloadArtwork)
             Text("Next: confirm the episode mappings above, optionally review the artwork choices, then preview and freeze the portable package.")
                 .font(.caption)
@@ -456,7 +486,7 @@ private struct ContentView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
-    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); nfoReplacementFields = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, Set(NFORepairInspector.comparableFields)) }); let duplicatesNeedDecision = duplicateDecisionGroups.contains { duplicateKeepPaths[$0.id] == nil }; mappingFilter = duplicatesNeedDecision ? "duplicates" : (mappings.contains { $0.canonical == nil } ? "needsDecision" : "ready"); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
+    private func review(_ result: TVSeriesSearchResult, in directory: URL) { isWorking = true; status = "Scanning local files and fetching TVDB episodes…"; Task { do { let source = try client(); let locals = try await EpisodeFolderScanner.scanIncludingEmbeddedMetadata(directory: directory); async let series = source.series(id: result.tvdbID); let episodes = try await source.episodes(forSeriesID: result.tvdbID); canonicalEpisodes = episodes; mappings = EpisodeMappingPlanner.propose(localFiles: locals, canonicalEpisodes: episodes); chosenEpisodeIDs = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in mapping.canonical.map { episode in (mapping.local.url, episode.tvdbID) } }); specialProposals = SpecialEpisodeMatcher.propose(unmatched: mappings.filter { $0.canonical == nil }.map(\.local), canonicalEpisodes: episodes); artworkSelections = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.canonical?.artworkURL != nil) }); destinationPaths = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, $0.local.url.path) }); nfoDifferenceCounts = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping in try? mapping.canonical.map { (mapping.local.url, try NFORepairInspector.differences(at: mapping.local.url.deletingPathExtension().appendingPathExtension("nfo"), comparedTo: $0).count) } }.compactMap { $0 }); nfoReplacementFields = Dictionary(uniqueKeysWithValues: mappings.map { ($0.local.url, Set(NFORepairInspector.comparableFields)) }); let duplicatesNeedDecision = duplicateDecisionGroups.contains { duplicateKeepPaths[$0.id] == nil }; mappingFilter = duplicatesNeedDecision ? "duplicates" : (mappings.contains { $0.canonical == nil } ? "needsDecision" : "ready"); reviewedSeries = try await series; status = "Review each mapping before applying." } catch { status = error.localizedDescription }; isWorking = false } }
     private var mappingIssues: [String] {
         var issues = mappings.filter { !excludedTVPaths.contains($0.local.url) && chosenEpisodeIDs[$0.local.url] == nil }.map { "Unmapped: \($0.local.url.lastPathComponent)" }
         for duplicate in duplicateDecisionGroups {
@@ -470,6 +500,15 @@ private struct ContentView: View {
     }
     private func approved() -> [ApprovedEpisodeMapping] { let index = Dictionary(uniqueKeysWithValues: canonicalEpisodes.map { ($0.tvdbID, $0) }); return mappings.compactMap { mapping in guard !isEffectivelyExcluded(mapping.local.url) else { return nil }; return chosenEpisodeIDs[mapping.local.url].flatMap { index[$0] }.map { ApprovedEpisodeMapping(local: mapping.local, canonical: $0, downloadArtwork: artworkSelections[mapping.local.url] ?? false, nfoFieldsToReplace: nfoReplacementFields[mapping.local.url, default: Set(NFORepairInspector.comparableFields)]) } } }
     private func renamePlan() throws -> MediaRenamePlan? { let moves = mappings.compactMap { mapping -> MediaRename? in let path = destinationPaths[mapping.local.url] ?? mapping.local.url.path; return path == mapping.local.url.path ? nil : MediaRename(source: mapping.local.url, destination: URL(fileURLWithPath: path)) }; return moves.isEmpty ? nil : try MediaRenamePlan(renames: moves) }
+    private func findSubtitles(for mapping: EpisodeMapping) { guard let id = chosenEpisodeIDs[mapping.local.url], let episode = canonicalEpisodes.first(where: { $0.tvdbID == id }), let key = TVDBCredentialStore.value(named: "OPENSUBTITLES_API_KEY"), !key.isEmpty else { status = "Add the OpenSubtitles API key in Settings first."; return }; let requestID = UUID(); subtitleRequestID = requestID; subtitleTarget = mapping; subtitleCandidates = []; selectedSubtitle = nil; downloadedSubtitle = nil; subtitleDownloadCandidateID = nil; subtitleDownloadTargetURL = nil; isWorking = true; Task { do { let results = try await OpenSubtitlesClient(apiKey: key).search(.init(episode: episode, seriesTitle: reviewedSeries?.title)); guard subtitleRequestID == requestID, subtitleTarget?.local.url == mapping.local.url else { return }; subtitleCandidates = results.filter { ["en", "fr"].contains($0.language) && $0.season == episode.season && $0.episode == episode.number } } catch { guard subtitleRequestID == requestID else { return }; subtitleCandidates = []; status = error.localizedDescription }; if subtitleRequestID == requestID { isWorking = false } } }
+    private func downloadSubtitle() { guard let candidate = selectedSubtitle, let target = subtitleTarget, let key = TVDBCredentialStore.value(named: "OPENSUBTITLES_API_KEY"), !key.isEmpty else { return }; let requestID = UUID(); subtitleRequestID = requestID; downloadedSubtitle = nil; subtitleDownloadCandidateID = nil; subtitleDownloadTargetURL = nil; isWorking = true; Task { do { let data = try await OpenSubtitlesClient(apiKey: key).download(candidate); let destinationVideo = URL(fileURLWithPath: destinationPaths[target.local.url] ?? target.local.url.path); _ = try SubtitleAcquisition.stagedURL(for: .init(video: target.local.url, destinationVideo: destinationVideo, candidate: candidate, data: data)); guard subtitleRequestID == requestID, selectedSubtitle?.id == candidate.id, subtitleTarget?.local.url == target.local.url else { return }; downloadedSubtitle = data; subtitleDownloadCandidateID = candidate.id; subtitleDownloadTargetURL = target.local.url; status = "Subtitle downloaded and validated; freeze a package to stage it." } catch { guard subtitleRequestID == requestID else { return }; downloadedSubtitle = nil; subtitleDownloadCandidateID = nil; subtitleDownloadTargetURL = nil; status = error.localizedDescription }; if subtitleRequestID == requestID { isWorking = false } } }
+    private func freezeSubtitle(for mapping: EpisodeMapping) { guard let candidate = selectedSubtitle, let data = downloadedSubtitle, let directory = destination, subtitleDownloadCandidateID == candidate.id, subtitleDownloadTargetURL == mapping.local.url, subtitleTarget?.local.url == mapping.local.url else { status = "Download and validate the currently selected subtitle for this episode first."; return }; let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.directoryURL = configuredJobsFolder(); guard panel.runModal() == .OK, let parent = panel.url else { return }; do { let destinationVideo = URL(fileURLWithPath: destinationPaths[mapping.local.url] ?? mapping.local.url.path); _ = try SubtitleAcquisition.stagedURL(for: .init(video: mapping.local.url, destinationVideo: destinationVideo, candidate: candidate, data: data)); let manifest = try PortableJobBundle.createSubtitles(at: parent.appendingPathComponent("NoSide-MMM-Subtitle-job"), libraryRoot: directory, items: [.init(video: mapping.local.url, destinationVideo: destinationVideo, candidate: candidate, data: data)]); status = "Subtitle package \(manifest.jobID) created. Dry-run it before apply." } catch { status = error.localizedDescription } }
+    private func applySeasonZeroDestinations() {
+        guard let series = reviewedSeries, let directory = destination else { return }
+        let plan = MappingPlanDocument(seriesTVDBID: series.tvdbID, libraryPath: directory.path, entries: mappings.map { .init(sourcePath: $0.local.url.path, canonicalEpisodeID: chosenEpisodeIDs[$0.local.url], destinationPath: destinationPaths[$0.local.url], downloadArtwork: artworkSelections[$0.local.url] ?? false, excluded: isEffectivelyExcluded($0.local.url)) })
+        do { for entry in try plan.reconcilingSeasonZero(series: series, episodesByID: Dictionary(uniqueKeysWithValues: canonicalEpisodes.map { ($0.tvdbID, $0) })).entries where entry.excluded != true { if let path = entry.destinationPath { destinationPaths[URL(fileURLWithPath: entry.sourcePath)] = path } } }
+        catch { status = error.localizedDescription }
+    }
     private func planDocument() -> MappingPlanDocument? { guard let directory = destination, let series = reviewedSeries else { return nil }; return MappingPlanDocument(seriesTVDBID: series.tvdbID, libraryPath: directory.path, entries: mappings.map { MappingPlanDocument.Entry(sourcePath: $0.local.url.path, canonicalEpisodeID: chosenEpisodeIDs[$0.local.url], destinationPath: destinationPaths[$0.local.url], downloadArtwork: artworkSelections[$0.local.url] ?? false, excluded: isEffectivelyExcluded($0.local.url)) }) }
     private func exportPlan() { guard let plan = planDocument(), let destination else { return }; let panel = NSSavePanel(); panel.nameFieldStringValue = "\(reviewedSeries?.title ?? "TV") mapping preset.json"; panel.directoryURL = destination; guard panel.runModal() == .OK, let url = panel.url else { return }; do { try TVMappingPreset.from(plan: plan, named: url.deletingPathExtension().lastPathComponent, showRoot: destination).write(to: url); status = "Named source-relative preset exported: \(url.lastPathComponent)" } catch { status = error.localizedDescription } }
     private func importPlan() { guard let series = reviewedSeries, let destination else { return }; let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.canChooseFiles = true; panel.allowsMultipleSelection = false; panel.allowedContentTypes = [.json]; guard panel.runModal() == .OK, let url = panel.url else { return }; do { let plan: MappingPlanDocument; if let preset = try? TVMappingPreset.read(from: url) { plan = preset.plan(at: destination); status = "Loaded preset ‘\(preset.name)’. Recheck duplicate decisions and preview before freezing." } else { plan = try MappingPlanDocument.read(from: url); status = "Loaded legacy reusable mapping plan. Recheck duplicate decisions and preview before freezing." }; guard plan.seriesTVDBID == series.tvdbID else { status = "That plan belongs to TVDB \(plan.seriesTVDBID), not \(series.tvdbID)."; return }; let livePaths = Set(mappings.map { $0.local.url.path }); guard plan.entries.allSatisfy({ livePaths.contains($0.sourcePath) }) else { status = "That plan references video files not found in this selected folder."; return }; for entry in plan.entries { let source = URL(fileURLWithPath: entry.sourcePath); chosenEpisodeIDs[source] = entry.canonicalEpisodeID; if let target = entry.destinationPath { destinationPaths[source] = target }; artworkSelections[source] = entry.downloadArtwork; if entry.excluded == true { excludedTVPaths.insert(source) } else { excludedTVPaths.remove(source) } } } catch { status = error.localizedDescription } }
@@ -491,6 +530,7 @@ private struct MMMSettingsView: View {
     @State private var apiKey = TVDBCredentialStore.value(named: "TVDB_API_KEY") ?? ""
     @State private var pin = TVDBCredentialStore.value(named: "TVDB_PIN") ?? ""
     @State private var tmdbAPIKey = TVDBCredentialStore.value(named: "TMDB_API_KEY") ?? ""
+    @State private var openSubtitlesAPIKey = TVDBCredentialStore.value(named: "OPENSUBTITLES_API_KEY") ?? ""
     @State private var jobsRoot = UserDefaults.standard.string(forKey: "companion.jobsRoot") ?? MMMDefaults.jobsRoot
     @State private var libraryRoot = UserDefaults.standard.string(forKey: "companion.libraryRoot") ?? ""
     @State private var tvLibraryRoot = UserDefaults.standard.string(forKey: "companion.tvLibraryRoot") ?? ""
@@ -501,12 +541,14 @@ private struct MMMSettingsView: View {
     @State private var showsAPIKey = false
     @State private var showsPIN = false
     @State private var showsTMDBKey = false
+    @State private var showsOpenSubtitlesKey = false
     @State private var showsToken = false
     var body: some View { VStack(alignment: .leading, spacing: 16) {
         Text("Settings").font(.largeTitle.weight(.semibold)); Text("TVDB is shared by TV work and phone-initiated searches. Keys stay in Keychain.").foregroundStyle(.secondary)
         ConcealedSettingField("TVDB API key", text: $apiKey, isRevealed: $showsAPIKey)
         ConcealedSettingField("TVDB subscriber PIN (optional)", text: $pin, isRevealed: $showsPIN)
         ConcealedSettingField("TMDB API key", text: $tmdbAPIKey, isRevealed: $showsTMDBKey)
+        ConcealedSettingField("OpenSubtitles API key", text: $openSubtitlesAPIKey, isRevealed: $showsOpenSubtitlesKey)
         TextField("Jobs folder", text: $jobsRoot); TextField("Movie library root", text: $libraryRoot); TextField("TV shows library root", text: $tvLibraryRoot)
         HStack(spacing: 8) {
             ConcealedSettingField("Pairing token", text: $token, isRevealed: $showsToken)
@@ -524,7 +566,7 @@ private struct MMMSettingsView: View {
         NSPasteboard.general.setString(token, forType: .string)
         status = "Pairing token copied."
     }
-    private func save() { do { try TVDBCredentialStore.set(apiKey, named: "TVDB_API_KEY"); try TVDBCredentialStore.set(pin, named: "TVDB_PIN"); try TVDBCredentialStore.set(tmdbAPIKey, named: "TMDB_API_KEY"); let d = UserDefaults.standard; d.set(jobsRoot, forKey: "companion.jobsRoot"); d.set(libraryRoot, forKey: "companion.libraryRoot"); d.set(tvLibraryRoot, forKey: "companion.tvLibraryRoot"); d.set(token, forKey: "companion.token"); d.set(port, forKey: "companion.port"); d.set(lanVisible, forKey: "companion.lanVisible"); status = "Saved. Restart Companion to use changed paths, token, or port." } catch { status = error.localizedDescription } }
+    private func save() { do { try TVDBCredentialStore.set(apiKey, named: "TVDB_API_KEY"); try TVDBCredentialStore.set(pin, named: "TVDB_PIN"); try TVDBCredentialStore.set(tmdbAPIKey, named: "TMDB_API_KEY"); try TVDBCredentialStore.set(openSubtitlesAPIKey, named: "OPENSUBTITLES_API_KEY"); let d = UserDefaults.standard; d.set(jobsRoot, forKey: "companion.jobsRoot"); d.set(libraryRoot, forKey: "companion.libraryRoot"); d.set(tvLibraryRoot, forKey: "companion.tvLibraryRoot"); d.set(token, forKey: "companion.token"); d.set(port, forKey: "companion.port"); d.set(lanVisible, forKey: "companion.lanVisible"); status = "Saved. Restart Companion to use changed paths, token, or port." } catch { status = error.localizedDescription } }
     private func toggle() { if runtime.isRunning { runtime.stop(); return }; save(); runtime.startFromStoredSettings() }
 }
 
